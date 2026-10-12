@@ -8,11 +8,12 @@ compatibility_flags = ["nodejs_compat"]   # billing uses node:crypto HMAC
 [[d1_databases]]
 binding = "DB"
 database_name = "corporate-bingo"
-database_id = "REPLACE_ME"
+database_id = "f2d1ed1b-77cd-401a-af4c-4c02724688ef"
 
 [vars]
 DAILY_WRITE_BUDGET = "80000"
 PUBLIC_ORIGIN = "https://corporate-bingo.pages.dev"
 PAY_HOP_URL = "https://itservices-rajat-agarwal.pages.dev/payframe/"   # Option 1: the Razorpay window runs on the website registered with Razorpay
-MAIL_FROM = "Corporate Bingo <noreply@REPLACE_ME>"
+MAIL_FROM = "Corporate Bingo <bingo@veridian-aios.com>"
+OWNER_EMAIL = "rajatsiroffice@gmail.com"
 COMPANY_JSON = '{"email":"rajatsiroffice@gmail.com","phone":"(+91) 96503 97480","sacDescription":"Software solutions and products"}'

@@ -8,7 +8,7 @@ compatibility_flags = ["nodejs_compat"]   # billing uses node:crypto HMAC
 [[d1_databases]]
 binding = "DB"
 database_name = "corporate-bingo"
-database_id = "REPLACE_ME"
+database_id = "f2d1ed1b-77cd-401a-af4c-4c02724688ef"
 migrations_dir = "migrations"
 
 [triggers]
@@ -16,7 +16,7 @@ crons = ["17 3 * * *"]   # daily 03:17 UTC: deletes engagements older than 365 d
 
 [vars]
 DAILY_WRITE_BUDGET = "80000"
-MAIL_FROM = "Corporate Bingo <noreply@REPLACE_ME>"   # own sender: set when the Resend domain exists
+MAIL_FROM = "Corporate Bingo <bingo@veridian-aios.com>"   # own sender: set when the Resend domain exists
 # MAIL_REPLY_TO = "the address organizers should reply to"
 # PUBLIC_ORIGIN = "https://YOUR-DOMAIN"
 COMPANY_JSON = '{"email":"rajatsiroffice@gmail.com","phone":"(+91) 96503 97480","sacDescription":"Software solutions and products"}'
