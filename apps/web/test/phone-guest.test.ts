@@ -81,7 +81,7 @@ describe("brand strip on the ticket page", () => {
     const p = await phoneAt(o, "/z?e=PG-BR4", [], (win) => { const of = win.fetch; win.fetch = async (u: any, i?: any) => { const r = await of(u, i); if (!/\/info$/.test(String(u))) return r; const j = await r.json(); return new Response(JSON.stringify({ ...j, brand: bad }), { status: 200, headers: { "content-type": "application/json" } }); }; });
     await p.waitFor((x) => /Join the engagement/.test(x));
     const s = p.win.document.querySelector(".zbrand") as any; expect(s.textContent).toContain("<img src=x"); expect(!!s.querySelector("img")).toBe(false); expect(!!p.win.document.querySelector("img")).toBe(false);
-    expect(s.style.background).toMatch(/#0b3d91|rgb\(11, ?61, ?145\)/i);
+    expect(s.style.background).toMatch(/#0B5D5B|rgb\(11, ?61, ?145\)/i);
   });
 });
 
@@ -162,7 +162,7 @@ describe("joining: personal link, waiting, removed, cancelled", () => {
     await p.waitFor((x) => /You have been removed from this game/.test(x)); expect(p.text()).not.toMatch(/Your ticket|Still to win/);
   });
   test("a cancelled game shows one calm screen: no join form, nothing to play", async () => {
-    const o = await organizer(); await published(o, "PG-CN1", { brand: { name: "Acme Foods", color: "#0B3D91" } });
+    const o = await organizer(); await published(o, "PG-CN1", { brand: { name: "Acme Foods", color: "#0B5D5B" } });
     const c = await o.api("POST", "/api/z/PG-CN1/cancel", { confirmations: 3 }, o.token); expect(c.status).toBe(200);
     const p = await phoneAt(o, "/z?e=PG-CN1");
     const t = await p.waitFor((x) => /This game was cancelled/.test(x)); expect(!!p.$("#go")).toBe(false); expect(t).not.toMatch(/Get my ticket|Your ticket/); expect(t).toContain("Acme Foods");

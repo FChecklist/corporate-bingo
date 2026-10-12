@@ -6,8 +6,8 @@
 (function () {
   "use strict";
   const ZG = window.ZG, D = ZG.DEMO;
-  // A test may supply its own faster clock (window.__CT_DEMO_CLOCK); a real visitor never does.
-  const TESTCLOCK = window.__CT_DEMO_CLOCK || null;
+  // A test may supply its own faster clock (window.__CB_DEMO_CLOCK); a real visitor never does.
+  const TESTCLOCK = window.__CB_DEMO_CLOCK || null;
   const clock = TESTCLOCK || { now: () => Date.now(), mono: () => performance.now() };
   const CHAIN = "52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971";
   const LEAD_MS = 3000; // the first number comes 3 seconds after "Run Demo" is pressed
@@ -49,7 +49,7 @@
     return { ok: true };
   };
   const mem = new Map([["cbz:" + D.DEMO_EID + ":pid", D.DEMO_PID], ["cbz:" + D.DEMO_EID + ":jr", "0"]]);
-  window.__CT_DEMO = {
+  window.__CB_DEMO = {
     eid: D.DEMO_EID, api, getPublic: async () => { throw Object.assign(new Error("none"), { status: 404 }); }, beacon: { fetcher }, verify: () => true,
     store: { get: (k) => (mem.has(k) ? mem.get(k) : null), set: (k, v) => { mem.set(k, String(v)); } },
     mono: clock.mono, startMs: S, running,

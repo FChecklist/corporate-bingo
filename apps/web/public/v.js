@@ -13,11 +13,11 @@
   function ss(k, v) { try { if (v === undefined) return sessionStorage.getItem(k); sessionStorage.setItem(k, v); } catch (e) {} return null; }
   var vid = "", sid = "", fresh = true;
   if (!gpc) {
-    var m = (doc.cookie || "").match(/(?:^|;\s*)ctv=([a-f0-9]{32})(?:;|$)/);
+    var m = (doc.cookie || "").match(/(?:^|;\s*)cbv=([a-f0-9]{32})(?:;|$)/);
     vid = ls("cbv_id") || (m && m[1]) || "";
     if (!/^[a-f0-9]{32}$/.test(vid)) vid = rnd(16);
     ls("cbv_id", vid);
-    try { doc.cookie = "ctv=" + vid + "; Max-Age=31536000; Path=/; SameSite=Lax" + (location.protocol === "https:" ? "; Secure" : ""); } catch (e) {}
+    try { doc.cookie = "cbv=" + vid + "; Max-Age=31536000; Path=/; SameSite=Lax" + (location.protocol === "https:" ? "; Secure" : ""); } catch (e) {}
     // one session = one browsing visit: it ends after 30 minutes of nothing
     var last = Number(ss("cbv_t") || 0), now0 = Date.now();
     sid = ss("cbv_sid") || "";

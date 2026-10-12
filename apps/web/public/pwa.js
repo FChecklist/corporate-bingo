@@ -2,8 +2,8 @@
    notification permission has been given, shows our news as notifications. We store nothing about the visitor: the notices are one public list the
    browser reads itself (/api/notices), and which ones it has already shown is remembered on the device, not with us. */
 (function () {
-  if (window.__ctPwa) return;
-  window.__ctPwa = true;
+  if (window.__cbPwa) return;
+  window.__cbPwa = true;
   window.addEventListener("beforeinstallprompt", (e) => e.preventDefault()); // no install prompt of ours (the browser's own menu still offers it)
   if (!("serviceWorker" in navigator) || !window.caches) return;
 
@@ -27,7 +27,7 @@
     try {
       if (!("Notification" in window) || Notification.permission !== "default" || localStorage.getItem(KEY)) return;
       const b = document.createElement("button"); b.type = "button"; b.id = "cb-notify"; b.textContent = "Notify me"; b.setAttribute("aria-label", "Notify me about news from Corporate Bingo");
-      b.style.cssText = "position:fixed;left:12px;bottom:12px;z-index:50;min-height:36px;padding:0 14px;border-radius:999px;border:1px solid #D9E1F0;background:#fff;color:#0B3D91;font:600 12px system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.12);cursor:pointer";
+      b.style.cssText = "position:fixed;left:12px;bottom:12px;z-index:50;min-height:36px;padding:0 14px;border-radius:999px;border:1px solid #D5E3E1;background:#fff;color:#0B5D5B;font:600 12px system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.12);cursor:pointer";
       b.onclick = () => { try { localStorage.setItem(KEY, "1"); } catch { /* ignore */ } b.remove(); Notification.requestPermission().then(() => navigator.serviceWorker.getRegistration().then((r) => r && news(r))).catch(() => {}); };
       document.body.appendChild(b);
     } catch { /* never in the way of anything */ }

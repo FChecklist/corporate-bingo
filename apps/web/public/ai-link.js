@@ -49,11 +49,11 @@
   async function show() {
     let r;
     try { r = await api("GET", "/api/org/ai/link"); } catch (e) { token = ""; ss.set("cbz-org", ""); return signIn(e.status === 403 ? "" : e.message, "", false); }
-    shell(`${bannerNote()}<div class="zcard" style="border:2px solid #c9a24a;background:#fffaf0"><div class="zsmall" style="font-weight:700;letter-spacing:.06em;color:#8a6a1a">YOUR AI WORK LINK</div>
+    shell(`${bannerNote()}<div class="zcard" style="border:2px solid #FFC93C;background:#FBFFFE"><div class="zsmall" style="font-weight:700;letter-spacing:.06em;color:#8a6a1a">YOUR AI WORK LINK</div>
       ${r.aiMessage
         ? `<p style="margin:8px 0">Copy the box. Paste it into any AI chat. It does the work.</p><textarea class="zlink" id="msg" rows="5" readonly style="width:100%;box-sizing:border-box">${esc(r.aiMessage)}</textarea><button class="zbtn" id="cp" style="margin-top:8px">Copy my AI work link</button>${aiOptions(r.aiMessage)}`
         : `<p style="margin:8px 0">You have no AI work link at the moment.</p><button class="zbtn" id="mk">Make my AI work link</button>`}
-      <hr style="border:0;border-top:1px solid #e6d9b8;margin:16px 0">
+      <hr style="border:0;border-top:1px solid #D5E3E1;margin:16px 0">
       <p class="zsmall" style="margin:0 0 8px">Fresh link: we e-mail you one that works 24 hours.</p><button class="zbtn s alt" id="fr">Get a fresh AI link</button>
       <p class="zsmall" style="margin:14px 0 8px">Lost it? Replace stops every AI link at once.</p><button class="zbtn s alt" id="rp">Replace my AI link</button></div>
       <p class="zsmall"><a href="/zc.html">Open my console</a></p>`);

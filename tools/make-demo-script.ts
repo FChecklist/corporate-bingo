@@ -4,11 +4,11 @@
 import { ticketsFor } from "../packages/beacon/src/game";
 import { roundEid } from "../packages/beacon/src/config";
 import { pickNumber } from "../packages/beacon/src/index";
-import { ticketNumbers, patternNumbers } from "../packages/shared/src/ticket";
+import { ticketNumbers, patternSets } from "../packages/shared/src/ticket";
 import { DEMO_EID, DEMO_PID } from "../packages/beacon/src/demo-script";
 
 const ticket = ticketsFor(roundEid(DEMO_EID, 1), DEMO_PID, 1)[0]!;
-const corners = [...patternNumbers(ticket, "corners")!].sort((a, b) => a - b);
+const corners = [...patternSets(ticket, "corners")[0]!].sort((a, b) => a - b);
 const others = ticketNumbers(ticket).filter((n) => !corners.includes(n)).sort((a, b) => a - b);
 // order: corner, other, corner, corner, other, corner  (the corners complete only on the 6th call)
 const seq = [corners[0]!, others[1]!, corners[3]!, corners[1]!, others[6]!, corners[2]!];

@@ -20,7 +20,7 @@ tcb({ id: "VIS-01", role: "anonymous visitor", title: "a visit is recorded: land
   expect(j.status, "journey for this visit").toBe(200); expect(txt).toMatch(/pack/i);
   return `sessions ${test0}->${s.humans?.sessions}; journey ${txt.slice(0, 160)}`;
 });
-tcb({ id: "VIS-02", role: "anonymous visitor (privacy signal on)", title: "with Global Privacy Control on, no visitor id or cookie is made and no session is stored", steps: "navigator.globalPrivacyControl = true; open home; read storage and cookies; read the owner report", expected: "no cbv_id in storage, no ctv cookie, beacon carries no visitor id; the session is not in the report" }, async ({ browser }) => {
+tcb({ id: "VIS-02", role: "anonymous visitor (privacy signal on)", title: "with Global Privacy Control on, no visitor id or cookie is made and no session is stored", steps: "navigator.globalPrivacyControl = true; open home; read storage and cookies; read the owner report", expected: "no cbv_id in storage, no cbv cookie, beacon carries no visitor id; the session is not in the report" }, async ({ browser }) => {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
   await ctx.addInitScript(() => { Object.defineProperty(navigator, "globalPrivacyControl", { value: true, configurable: true }); });
   const page = await ctx.newPage(); const bodies: string[] = [];
@@ -29,7 +29,7 @@ tcb({ id: "VIS-02", role: "anonymous visitor (privacy signal on)", title: "with 
   await page.goto(u("/")); await page.waitForSelector("#pack2"); await page.selectOption("#pack2", "250"); await page.waitForTimeout(500);
   const st = await page.evaluate(() => ({ ls: localStorage.getItem("cbv_id"), ck: document.cookie, tbv: (window as any).TBV }));
   await page.goto("about:blank"); await sleep(2500); await ctx.close();
-  expect(st.ls).toBeNull(); expect(st.ck).not.toMatch(/ctv=/); expect(st.tbv.gpc).toBe(true);
+  expect(st.ls).toBeNull(); expect(st.ck).not.toMatch(/cbv=/); expect(st.tbv.gpc).toBe(true);
   for (const b of bodies) { const j = JSON.parse(b); expect(j.d, "visitor id sent despite GPC").toBeUndefined(); expect(j.g).toBe(1); }
   const after = (await summary("test")).humans?.sessions ?? 0; expect(after, "GPC visit became a stored session").toBe(before);
   return `beacons ${bodies.length}, none with an id`;

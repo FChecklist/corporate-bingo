@@ -11,7 +11,7 @@ export const BRAND = {
   support: "rajatsiroffice@gmail.com", // the contact address the site's legal page publishes
   legalPath: "/legal.html",
   defaultOrigin: "https://corporate-bingo.pages.dev",
-  wine: "#0B3D91", gold: "#E0B872", gold2: "#F3D9A4", ivory: "#F4F7FC", line: "#D9E1F0",
+  wine: "#0B5D5B", gold: "#FFC93C", gold2: "#FFE08A", ivory: "#F7FBFA", line: "#D5E3E1",
 } as const;
 
 export const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -31,14 +31,14 @@ export function headerHtml(origin?: string): string {
 /** The footer row of every HTML e-mail: name, support address, legal link. */
 export function footerHtml(origin?: string): string {
   const o = base(origin);
-  return `<tr data-brand="footer"><td style="border-top:1px solid ${BRAND.line};background:${BRAND.ivory};border-radius:0 0 10px 10px;padding:14px 22px;font-size:12px;line-height:1.6;color:#6b5b57;"><b style="color:${BRAND.wine};">${BRAND.name}</b> &middot; ${BRAND.tagline}<br>Questions? Write to <a href="mailto:${BRAND.support}" style="color:${BRAND.wine};">${BRAND.support}</a><br><a href="${o}${BRAND.legalPath}" style="color:${BRAND.wine};">Rules, privacy and disclaimer</a></td></tr>`;
+  return `<tr data-brand="footer"><td style="border-top:1px solid ${BRAND.line};background:${BRAND.ivory};border-radius:0 0 10px 10px;padding:14px 22px;font-size:12px;line-height:1.6;color:#5C6F6D;"><b style="color:${BRAND.wine};">${BRAND.name}</b> &middot; ${BRAND.tagline}<br>Questions? Write to <a href="mailto:${BRAND.support}" style="color:${BRAND.wine};">${BRAND.support}</a><br><a href="${o}${BRAND.legalPath}" style="color:${BRAND.wine};">Rules, privacy and disclaimer</a></td></tr>`;
 }
 
 /** The full HTML page around some rows. */
 export function pageHtml(title: string, rows: string, origin?: string): string {
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title></head>
-<body style="margin:0;background:#EEF2F9;font-family:Arial,Helvetica,sans-serif;color:#1c2433;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#EEF2F9;"><tr><td align="center" style="padding:20px 10px;">
+<body style="margin:0;background:#EEF5F4;font-family:Arial,Helvetica,sans-serif;color:#1c2433;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#EEF5F4;"><tr><td align="center" style="padding:20px 10px;">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#ffffff;border-radius:10px;border:1px solid ${BRAND.line};">
 ${headerHtml(origin)}
 ${rows}

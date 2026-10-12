@@ -688,19 +688,19 @@ describe("winners, the end, and break media on the phone", () => {
   }, 90_000);
   test("a YouTube break plays inside the page (privacy-friendly player, autoplay, no leaving the ticket) and disappears when the break ends", async () => {
     const o = await organizer(); const p = await joined(o, "UI-MED1", { breaks: [{ after: 3, seconds: 60, kind: "youtube", title: "Welcome from our CEO", mediaUrl: "https://youtu.be/dQw4w9WgXcQ" }] }); const rt = p.win.__rt; const doc = p.win.document;
-    for (let s = 20; s < 90 && !doc.querySelector("#ctmedia iframe"); s += 4) { at(o, p, s); await new Promise((r) => setTimeout(r, 1200)); }
-    const f = doc.querySelector("#ctmedia iframe") as any; expect(f).toBeTruthy();
+    for (let s = 20; s < 90 && !doc.querySelector("#cbmedia iframe"); s += 4) { at(o, p, s); await new Promise((r) => setTimeout(r, 1200)); }
+    const f = doc.querySelector("#cbmedia iframe") as any; expect(f).toBeTruthy();
     expect(f.src).toMatch(/^https:\/\/www\.youtube-nocookie\.com\/embed\/dQw4w9WgXcQ\?/); expect(f.src).toMatch(/autoplay=1/); expect(f.getAttribute("allow")).toMatch(/autoplay/);
     expect(doc.getElementById("mslot")).toBeTruthy(); expect(p.text()).toMatch(/Welcome from our CEO/);
-    at(o, p, 200); await until(() => !doc.querySelector("#ctmedia iframe")); // break over: the player is removed
+    at(o, p, 200); await until(() => !doc.querySelector("#cbmedia iframe")); // break over: the player is removed
   }, 90_000);
   test("a video file break plays in the page; a link that cannot be played inside the page stays a plain link", async () => {
     const o = await organizer(); const p = await joined(o, "UI-MED2", { breaks: [{ after: 3, seconds: 60, kind: "file", title: "Our story", mediaUrl: "https://cdn.example.com/story.mp4" }] }); const doc = p.win.document;
-    for (let s = 20; s < 90 && !doc.querySelector("#ctmedia video"); s += 4) { at(o, p, s); await new Promise((r) => setTimeout(r, 1200)); }
-    expect((doc.querySelector("#ctmedia video") as any)?.src).toBe("https://cdn.example.com/story.mp4");
+    for (let s = 20; s < 90 && !doc.querySelector("#cbmedia video"); s += 4) { at(o, p, s); await new Promise((r) => setTimeout(r, 1200)); }
+    expect((doc.querySelector("#cbmedia video") as any)?.src).toBe("https://cdn.example.com/story.mp4");
     const o2 = await organizer(); const q = await joined(o2, "UI-MED3", { breaks: [{ after: 3, seconds: 60, kind: "file", title: "Our deck", mediaUrl: "https://example.com/deck.pdf" }] });
     for (let s = 20; s < 90 && !/Our deck/.test(q.text()); s += 4) { at(o2, q, s); await new Promise((r) => setTimeout(r, 1200)); }
-    expect(q.text()).toMatch(/Our deck/); expect(q.win.document.querySelector("#ctmedia video, #ctmedia iframe, #ctmedia audio")).toBeNull(); expect(q.text()).toMatch(/Open/);
+    expect(q.text()).toMatch(/Our deck/); expect(q.win.document.querySelector("#cbmedia video, #cbmedia iframe, #cbmedia audio")).toBeNull(); expect(q.text()).toMatch(/Open/);
   }, 120_000);
 });
 
@@ -849,10 +849,10 @@ describe("opening and closing brand moments on the phone", () => {
   test("an opening plays only in the 2 minutes before the first number, with its video inside the page, and is gone once the numbers start", async () => {
     const o = await organizer(); const p = await joined(o, "UI-OPN1", { opening: [{ kind: "youtube", title: "Welcome from our CEO", mediaUrl: "https://youtu.be/dQw4w9WgXcQ", seconds: 60 }] }); const doc = p.win.document;
     at(o, p, -400); await settle(); expect(p.text()).not.toMatch(/A message from your organizer/); // far too early: just the countdown
-    for (let s = -110; s < -50 && !doc.querySelector("#ctmedia iframe"); s += 6) { at(o, p, s); await settle(); }
+    for (let s = -110; s < -50 && !doc.querySelector("#cbmedia iframe"); s += 6) { at(o, p, s); await settle(); }
     expect(p.text()).toMatch(/A message from your organizer/); expect(p.text()).toMatch(/Welcome from our CEO/);
-    const f = doc.querySelector("#ctmedia iframe") as any; expect(f).toBeTruthy(); expect(f.src).toMatch(/^https:\/\/www\.youtube-nocookie\.com\/embed\/dQw4w9WgXcQ\?/);
-    at(o, p, 30); await until(() => !doc.querySelector("#ctmedia iframe")); expect(p.text()).not.toMatch(/A message from your organizer/); // numbers have started
+    const f = doc.querySelector("#cbmedia iframe") as any; expect(f).toBeTruthy(); expect(f.src).toMatch(/^https:\/\/www\.youtube-nocookie\.com\/embed\/dQw4w9WgXcQ\?/);
+    at(o, p, 30); await until(() => !doc.querySelector("#cbmedia iframe")); expect(p.text()).not.toMatch(/A message from your organizer/); // numbers have started
   }, 90_000);
   test("two openings (2 tickets) follow one another inside the same 2 minutes", async () => {
     const o = await organizer(); const p = await joined(o, "UI-OPN2", { tickets: 2, opening: [{ kind: "speech", title: "First hello", seconds: 30 }, { kind: "speech", title: "Second hello", seconds: 30 }] });
@@ -866,12 +866,12 @@ describe("opening and closing brand moments on the phone", () => {
     at(o, p, 1000); await p.waitFor((x) => /Thank you from your organizer/.test(x), 40000);
     expect(p.text()).toMatch(/Thank you from the CEO/); expect(p.text()).toMatch(/Next message \(1 of 2\)/);
     p.click("#cnext"); await p.waitFor((x) => /Our year in pictures/.test(x), 20000);
-    await until(() => !!doc.querySelector("#ctmedia iframe")); expect(p.text()).not.toMatch(/Next message/);
+    await until(() => !!doc.querySelector("#cbmedia iframe")); expect(p.text()).not.toMatch(/Next message/);
   }, 120_000);
   test("a closing video does not start before the game has ended", async () => {
     const o = await organizer(); const p = await joined(o, "UI-CLS2", { closing: [{ kind: "youtube", title: "Our year in pictures", mediaUrl: "https://youtu.be/dQw4w9WgXcQ" }] }); const doc = p.win.document;
-    at(o, p, 400); await settle(); await settle(); expect(doc.querySelector("#ctmedia iframe")).toBeNull(); expect(p.text()).not.toMatch(/Our year in pictures/);
-    at(o, p, 1000); await until(() => !!doc.querySelector("#ctmedia iframe"), 40000); expect(p.text()).toMatch(/Our year in pictures/);
+    at(o, p, 400); await settle(); await settle(); expect(doc.querySelector("#cbmedia iframe")).toBeNull(); expect(p.text()).not.toMatch(/Our year in pictures/);
+    at(o, p, 1000); await until(() => !!doc.querySelector("#cbmedia iframe"), 40000); expect(p.text()).toMatch(/Our year in pictures/);
   }, 90_000);
   test("with none set, a phone shows no opening and no closing card", async () => {
     const o = await organizer(); const p = await joined(o, "UI-NONE1", {});
@@ -907,13 +907,13 @@ describe("testing a brand moment without a game", () => {
     const v = await prev(o, "#" + opened.split("#")[1]);
     await v.waitFor((x) => /A short break/.test(x)); const doc = v.win.document;
     expect(v.text()).toMatch(/Test only/); expect(v.text()).toMatch(/This link plays inside the game/); expect(v.text()).toMatch(/Welcome from our CEO/); expect(v.text()).toMatch(/Your ticket \(sample\)/);
-    expect((doc.querySelector("#ctmedia iframe") as any).src).toMatch(/^https:\/\/www\.youtube-nocookie\.com\/embed\/dQw4w9WgXcQ\?/);
+    expect((doc.querySelector("#cbmedia iframe") as any).src).toMatch(/^https:\/\/www\.youtube-nocookie\.com\/embed\/dQw4w9WgXcQ\?/);
     expect(v.text()).toMatch(/The numbers continue in \d+s/);
   }, 60_000);
   test("a link that cannot play inside the game is flagged on the test page, and a break with no link shows the message only", async () => {
     const o = await organizer();
     const a = await prev(o, "#w=break&k=file&t=Our%20deck&u=" + encodeURIComponent("https://example.com/deck.pdf") + "&s=30");
-    await a.waitFor((x) => /A short break/.test(x)); expect(a.text()).toMatch(/will NOT play inside the game/); expect(a.win.document.querySelector("#ctmedia iframe, #ctmedia video, #ctmedia audio")).toBeNull();
+    await a.waitFor((x) => /A short break/.test(x)); expect(a.text()).toMatch(/will NOT play inside the game/); expect(a.win.document.querySelector("#cbmedia iframe, #cbmedia video, #cbmedia audio")).toBeNull();
     const b = await prev(o, "#w=closing&k=speech&t=Thank%20you");
     await b.waitFor((x) => /Thank you from your organizer/.test(x)); expect(b.text()).toMatch(/guests see your message only/); expect(b.text()).not.toMatch(/numbers continue/);
   }, 60_000);
@@ -925,7 +925,7 @@ describe("the free demo game", () => {
   async function demo(o: O, hash = "", opts: { video?: string; k?: number } = {}) {
     const k = opts.k ?? 4, T0 = REAL_NOW(), P0 = REAL_PERF(); const calls: string[] = [];
     const p = await page(o, "/demo.html" + hash, "demo.html", ["audio.js", "zgame.js", "demo-config.js", "demo.js", "z.js"], {}, { afterLoad: (win, f) => {
-      if (f === "audio.js") { (win as any).__CT_DEMO_CLOCK = { now: () => T0 + (REAL_PERF() - P0) * k, mono: () => P0 + (REAL_PERF() - P0) * k }; const of = (win as any).fetch; (win as any).fetch = (...a: any[]) => { calls.push(String(a[0])); return of ? of(...a) : Promise.reject(new Error("no network")); }; }
+      if (f === "audio.js") { (win as any).__CB_DEMO_CLOCK = { now: () => T0 + (REAL_PERF() - P0) * k, mono: () => P0 + (REAL_PERF() - P0) * k }; const of = (win as any).fetch; (win as any).fetch = (...a: any[]) => { calls.push(String(a[0])); return of ? of(...a) : Promise.reject(new Error("no network")); }; }
       if (f === "demo-config.js" && opts.video !== undefined) (win as any).CB_DEMO_VIDEO = opts.video;
     } });
     return { p, calls, T0 };
@@ -937,11 +937,11 @@ describe("the free demo game", () => {
     let sawBreak = false, sawBuiltInVideo = false, ticketDuringBreak = false, logDuringBreak = -1, breakGone = false;
     await until(() => {
       const view = rt.view(); const t = p.text();
-      if (/How brand breaks work/.test(t)) { sawBreak = true; sawBuiltInVideo = sawBuiltInVideo || !!doc.querySelector("#ctmedia video"); logDuringBreak = view.log.length; ticketDuringBreak = !!doc.querySelector(".zticket"); }
+      if (/How brand breaks work/.test(t)) { sawBreak = true; sawBuiltInVideo = sawBuiltInVideo || !!doc.querySelector("#cbmedia video"); logDuringBreak = view.log.length; ticketDuringBreak = !!doc.querySelector(".zticket"); }
       else if (sawBreak) breakGone = true;
       return view.phase === "ended";
     }, 90000);
-    expect(sawBreak).toBe(true); expect(sawBuiltInVideo).toBe(true); expect((doc.querySelector("#ctmedia video") as any)?.src ?? "").toBe(""); /* the player is gone after the break */ expect(logDuringBreak).toBe(3); expect(ticketDuringBreak).toBe(true); expect(breakGone).toBe(true);
+    expect(sawBreak).toBe(true); expect(sawBuiltInVideo).toBe(true); expect((doc.querySelector("#cbmedia video") as any)?.src ?? "").toBe(""); /* the player is gone after the break */ expect(logDuringBreak).toBe(3); expect(ticketDuringBreak).toBe(true); expect(breakGone).toBe(true);
     expect(rt.view().log).toEqual([1, 18, 80, 9, 49, 61]); // exactly the scripted numbers, in order, by the real number-drawing code
     expect(rt.view().won.map((w: any) => w.pattern)).toEqual(["corners"]); expect(rt.view().won[0].idx).toBe(5); // Four corners, on the 6th number, by the real winner check
     const end = await p.waitFor((x) => /That was the demo/.test(x), 20000);
@@ -980,10 +980,10 @@ describe("the free demo game", () => {
 
   test("the break is the owner's YouTube video when one is set: it plays inside the page for the break, the ticket stays, and the player is gone after it", async () => {
     const o = await organizer(); const { p } = await demo(o, "#r=" + (REAL_NOW() + 3000), { video: "https://youtu.be/dQw4w9WgXcQ" }); const doc = p.win.document;
-    await until(() => !!doc.querySelector("#ctmedia iframe"), 60000);
-    expect((doc.querySelector("#ctmedia iframe") as any).src).toMatch(/^https:\/\/www\.youtube-nocookie\.com\/embed\/dQw4w9WgXcQ\?/);
+    await until(() => !!doc.querySelector("#cbmedia iframe"), 60000);
+    expect((doc.querySelector("#cbmedia iframe") as any).src).toMatch(/^https:\/\/www\.youtube-nocookie\.com\/embed\/dQw4w9WgXcQ\?/);
     expect(p.text()).toMatch(/A short video from your host/); expect(doc.querySelector(".zticket")).toBeTruthy();
-    await until(() => !doc.querySelector("#ctmedia iframe"), 60000);
+    await until(() => !doc.querySelector("#cbmedia iframe"), 60000);
     expect(p.win.__rt.view().log.length).toBeGreaterThanOrEqual(3);
   }, 150_000);
 

@@ -12,15 +12,15 @@ export const DEMO_PID = "1xd3d3d3d3d3d3";
 export const DEMO_CALL_SECONDS = 9;
 export const DEMO_BREAK_AFTER = 3;
 export const DEMO_BREAK_SECONDS = 15;
-export const DEMO_SEQ = [1, 18, 80, 9, 49, 61] as const;
-export const DEMO_CORNERS = [1, 80, 9, 61] as const;
+export const DEMO_SEQ = [7, 12, 75, 11, 24, 65] as const;
+export const DEMO_CORNERS = [7, 75, 11, 65] as const;
 export const DEMO_RAND: readonly string[] = [
-  "dedf0d00a9000000000000000000000000000000000000000000000000000000",
-  "dedf1d0055000000000000000000000000000000000000000000000000000000",
-  "dedf2d00ef000000000000000000000000000000000000000000000000000000",
-  "dedf3d004e000000000000000000000000000000000000000000000000000000",
-  "dedf4d004d000000000000000000000000000000000000000000000000000000",
-  "dedf5d006c000000000000000000000000000000000000000000000000000000",
+  "dedf0d0036000000000000000000000000000000000000000000000000000000",
+  "dedf1d0007000000000000000000000000000000000000000000000000000000",
+  "dedf2d0002000000000000000000000000000000000000000000000000000000",
+  "dedf3d0030000000000000000000000000000000000000000000000000000000",
+  "dedf4d0024000000000000000000000000000000000000000000000000000000",
+  "dedf5d002a000000000000000000000000000000000000000000000000000000",
 ];
 export const DEMO_STRIDE = DEMO_CALL_SECONDS / 3; // beacon rounds between two numbers
 /** The beacon round in which call `k` (0-based) happens when the first number is in round `first`: the break pushes the later calls later. */
@@ -29,14 +29,12 @@ export const demoRoundOf = (first: number, k: number): number => first + k * DEM
 export const demoRandomnessFor = (first: number, r: number): string | null => { for (let k = 0; k < DEMO_RAND.length; k++) if (demoRoundOf(first, k) === r) return DEMO_RAND[k]!; return null; };
 /** Seconds from the first number to the end of the demo: the last scripted number plus a few seconds for the result and the Hurray. */
 export const DEMO_PLAY_SECONDS = (DEMO_RAND.length - 1) * DEMO_CALL_SECONDS + DEMO_BREAK_SECONDS;
-/** The break's built-in explainer: a 15-second video kept on our own site (made by tools/make-demo-video.py). */
-export const DEMO_BREAK_VIDEO = "/demo-break.mp4";
-/** The settings of the demo game. The break plays the built-in explainer video; if the owner sets a YouTube link in demo-config.js, that plays instead. */
+/** The settings of the demo game. The break shows a short message from the host; if the owner sets a YouTube link in demo-config.js, that video plays instead. */
 export function demoCfg(videoUrl?: string): EngagementCfg {
-  const yt = /^https:\/\/(www\.)?(youtube\.com|youtu\.be)\//i.test(videoUrl || "");
+  const yt = /^https://(www.)?(youtube.com|youtu.be)//i.test(videoUrl || "");
   return {
     tickets: 1, rounds: 1, opening: [], closing: [],
     rewards: [{ pattern: "corners", scope: "ticket", ordinal: 1, text: "Demo prize: Four corners" }],
-    breaks: [{ after: DEMO_BREAK_AFTER, seconds: DEMO_BREAK_SECONDS, kind: yt ? "youtube" : "file", title: yt ? "A short video from your host" : "How brand breaks work", mediaUrl: yt ? videoUrl : DEMO_BREAK_VIDEO }],
+    breaks: [{ after: DEMO_BREAK_AFTER, seconds: DEMO_BREAK_SECONDS, kind: yt ? "youtube" : "speech", title: yt ? "A short video from your host" : "A short message from your host appears here", ...(yt ? { mediaUrl: videoUrl } : {}) }],
   };
 }

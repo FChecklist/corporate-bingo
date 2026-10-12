@@ -99,25 +99,25 @@ describe("claims", () => {
   beforeEach(async () => { await create(); pid = ((await (await join(1)).json()) as any).pid; });
   const claim = (b: unknown) => call("POST", "/api/z/ENG1/claims", b);
   test("a claim is stored once even if the phone sends it five times", async () => {
-    for (let i = 0; i < 5; i++) await claim({ pid, claims: [{ pattern: "top", idx: 33 }] });
+    for (let i = 0; i < 5; i++) await claim({ pid, claims: [{ pattern: "line", idx: 33 }] });
     expect(raw.query("SELECT COUNT(*) c FROM claim").get()).toEqual({ c: 1 });
   });
   test("a stranger cannot claim", async () => {
-    expect((await claim({ pid: "deadbeefdeadbeef", claims: [{ pattern: "top", idx: 3 }] })).status).toBe(403);
+    expect((await claim({ pid: "deadbeefdeadbeef", claims: [{ pattern: "line", idx: 3 }] })).status).toBe(403);
     expect((await claim({ pid: 5, claims: [] })).status).toBe(400);
   });
   test("a participant of another engagement cannot claim here", async () => {
     await create({ id: "ENG2" });
     const other = ((await (await join(50, "ENG2")).json()) as any).pid;
-    expect((await claim({ pid: other, claims: [{ pattern: "full", idx: 70 }] })).status).toBe(403);
+    expect((await claim({ pid: other, claims: [{ pattern: "blackout", idx: 70 }] })).status).toBe(403);
   });
   test("bad patterns and impossible call numbers are dropped, good ones kept", async () => {
-    const r = await (await claim({ pid, claims: [{ pattern: "bingo", idx: 3 }, { pattern: "top", idx: 90 }, { pattern: "top", idx: -1 }, { pattern: "top", idx: 1.5 }, { pattern: "mid", idx: 40 }, null, "x"] })).json() as any;
+    const r = await (await claim({ pid, claims: [{ pattern: "bingo", idx: 3 }, { pattern: "line", idx: 75 }, { pattern: "line", idx: -1 }, { pattern: "line", idx: 1.5 }, { pattern: "x", idx: 40 }, null, "x"] })).json() as any;
     expect(r.stored).toBe(1);
   });
   test("a huge claims list is capped", async () => {
-    expect((await claim({ pid, claims: Array.from({ length: 5000 }, (_, i) => ({ pattern: "top", idx: i % 90 })) })).status).toBe(400); // oversized body refused outright
-    const r = await (await claim({ pid, claims: Array.from({ length: 60 }, (_, i) => ({ pattern: "top", idx: i })) })).json() as any;
+    expect((await claim({ pid, claims: Array.from({ length: 5000 }, (_, i) => ({ pattern: "line", idx: i % 75 })) })).status).toBe(400); // oversized body refused outright
+    const r = await (await claim({ pid, claims: Array.from({ length: 60 }, (_, i) => ({ pattern: "line", idx: i })) })).json() as any;
     expect(r.stored).toBeLessThanOrEqual(7);
   });
   test("claims cannot be read without the organizer secret", async () => {
@@ -131,9 +131,9 @@ describe("winners are decided by the software", () => {
   let pids: string[] = [];
   beforeEach(async () => { await create(); pids = []; for (let i = 1; i <= 8; i++) pids.push(((await (await join(i)).json()) as any).pid); });
   const vote = (pid: string, results: unknown[]) => call("POST", "/api/z/ENG1/vote", { pid, results });
-  const res = (idx: number, winners: string[]) => ({ pattern: "full", ordinal: 1, round: 1, idx, pids: winners });
+  const res = (idx: number, winners: string[]) => ({ pattern: "blackout", ordinal: 1, round: 1, idx, pids: winners });
   test("nobody can post a result: not the organizer, not the AI, not a stranger", async () => {
-    const body = { results: [{ pattern: "top", idx: 20, pids: [pids[0]!] }] };
+    const body = { results: [{ pattern: "line", idx: 20, pids: [pids[0]!] }] };
     for (const h of [{}, org]) expect((await call("POST", "/api/z/ENG1/settle", body, h)).status).toBe(403);
     expect(raw.query("SELECT COUNT(*) c FROM settled").get()).toEqual({ c: 0 });
   });
@@ -158,18 +158,18 @@ describe("winners are decided by the software", () => {
   });
   test("a stranger cannot report, and a malformed report changes nothing", async () => {
     expect((await vote("999x000000000000", [res(70, [pids[1]!])])).status).toBe(403);
-    expect((await vote(pids[0]!, [{ pattern: "top", idx: 1, pids: "no" }])).status).toBe(200);
+    expect((await vote(pids[0]!, [{ pattern: "line", idx: 1, pids: "no" }])).status).toBe(200);
     expect((await vote(pids[0]!, [])).status).toBe(400);
     expect(raw.query("SELECT COUNT(*) c FROM rvote").get()).toEqual({ c: 0 });
   });
   test("public results show counts only, never who", async () => {
-    await settleByPhones(call, "ENG1", [{ pattern: "full", idx: 70, pids: [pids[1]!, pids[2]!] }], pids.slice(0, 3));
+    await settleByPhones(call, "ENG1", [{ pattern: "blackout", idx: 70, pids: [pids[1]!, pids[2]!] }], pids.slice(0, 3));
     const txt = await (await call("GET", "/api/z/ENG1/results")).text();
     expect(/[0-9]x[0-9a-f]{12}/.test(txt)).toBe(false);
-    expect(JSON.parse(txt).results[0]).toEqual({ pattern: "full", ordinal: 1, round: 1, idx: 70, count: 2 });
+    expect(JSON.parse(txt).results[0]).toEqual({ pattern: "blackout", ordinal: 1, round: 1, idx: 70, count: 2 });
   });
   test("a winner confirms the details on their own phone; a change is kept with the original; the organizer ticks 'prize given'", async () => {
-    await settleByPhones(call, "ENG1", [{ pattern: "full", idx: 70, pids: [pids[1]!] }], pids.slice(0, 3));
+    await settleByPhones(call, "ENG1", [{ pattern: "blackout", idx: 70, pids: [pids[1]!] }], pids.slice(0, 3));
     const dev = deviceOf(phone(2));
     const mine = await (await call("GET", `/api/z/ENG1/myprizes?pid=${pids[1]!}&device=${dev}`)).json() as any;
     expect(mine.prizes).toHaveLength(1); expect(mine.phone).toBe(phone(2)); expect(mine.confirmed).toBe(false);
@@ -179,7 +179,7 @@ describe("winners are decided by the software", () => {
     expect(list.prizes[0]).toMatchObject({ name: "Asha Rao", phone: "9876543210", confirmed: true, changed: true, joinedWithName: "P2", joinedWithPhone: phone(2), given: false });
     expect(list.prizes[0].trail).toHaveLength(1);
     expect((await call("GET", "/api/z/ENG1/prizes")).status).toBe(403);
-    expect((await call("POST", "/api/z/ENG1/prizegiven", { round: 1, pattern: "full", ordinal: 1, seat: 2, given: true }, org)).status).toBe(200);
+    expect((await call("POST", "/api/z/ENG1/prizegiven", { round: 1, pattern: "blackout", ordinal: 1, seat: 2, given: true }, org)).status).toBe(200);
     const after = await (await call("GET", "/api/z/ENG1/prizes", undefined, org)).json() as any;
     expect(after.prizes[0].given).toBe(true); expect(after.prizes[0].givenBy).toBe("organizer"); expect(typeof after.prizes[0].givenMs).toBe("number");
     expect(raw.query("SELECT pii FROM prize").get() as any).not.toMatchObject({ pii: expect.stringContaining("Asha") }); // sealed at rest
@@ -218,9 +218,9 @@ describe("free-plan guard and scale", () => {
     await create({ cap: 20000 });
     const pids: string[] = [];
     for (let i = 0; i < 10000; i++) pids.push(((await (await join(i)).json()) as any).pid);
-    const pats = ["early5", "top", "mid", "bot", "corners", "star", "full"];
+    const pats = ["line", "twolines", "corners", "plus", "x", "frame", "blackout"];
     for (let round = 0; round < 2; round++)
-      await Promise.all(pids.slice(0, 2000).map((pid, i) => call("POST", "/api/z/ENG1/claims", { pid, claims: [{ pattern: pats[i % 7], idx: i % 90 }] })));
+      await Promise.all(pids.slice(0, 2000).map((pid, i) => call("POST", "/api/z/ENG1/claims", { pid, claims: [{ pattern: pats[i % 7], idx: i % 75 }] })));
     expect((raw.query("SELECT COUNT(*) c FROM claim").get() as any).c).toBe(0);
     expect((raw.query("SELECT writes w FROM usage").get() as any).w).toBe(30002); // 1 create + 1 entitlement-free + 10,000 joins at 3 units (seat, participant, person)
   }, 300_000);
@@ -228,9 +228,9 @@ describe("free-plan guard and scale", () => {
     await create({ cap: 500 });
     const pids: string[] = [];
     for (let i = 0; i < 300; i++) pids.push(((await (await join(i)).json()) as any).pid);
-    const pats = ["early5", "top", "mid", "bot", "corners", "star", "full"];
+    const pats = ["line", "twolines", "corners", "plus", "x", "frame", "blackout"];
     for (let round = 0; round < 2; round++)
-      await Promise.all(pids.map((pid, i) => call("POST", "/api/z/ENG1/claims", { pid, claims: [{ pattern: pats[i % 7], idx: i % 90 }] })));
+      await Promise.all(pids.map((pid, i) => call("POST", "/api/z/ENG1/claims", { pid, claims: [{ pattern: pats[i % 7], idx: i % 75 }] })));
     expect((raw.query("SELECT COUNT(*) c FROM claim").get() as any).c).toBe(300);
   }, 120_000);
   test("the engagement tells phones whether claims are tracked", async () => {
@@ -280,8 +280,8 @@ describe("roster, history, erase and 365-day retention", () => {
   });
   test("erase removes the people, claims and results of one engagement and leaves the others alone", async () => {
     const pid = ((await (await join(1)).json()) as any).pid;
-    await call("POST", "/api/z/ENG1/claims", { pid, claims: [{ pattern: "top", idx: 4 }] });
-    await settleByPhones(call, "ENG1", [{ pattern: "top", idx: 4, pids: [pid] }], [pid]);
+    await call("POST", "/api/z/ENG1/claims", { pid, claims: [{ pattern: "line", idx: 4 }] });
+    await settleByPhones(call, "ENG1", [{ pattern: "line", idx: 4, pids: [pid] }], [pid]);
     await create({ id: "ENG2" }); await join(9, "ENG2");
     const r = await (await call("POST", "/api/z/ENG1/erase", {}, org)).json() as any;
     expect(r.erased).toBe(1);
@@ -361,7 +361,7 @@ describe("organizers, their AI assistant, and what the AI may not do", () => {
     expect((await call("POST", "/api/z/MINE1/reuse", { from: "BYAI1" }, asA())).status).toBe(200);
   });
   test("the AI can NOT publish results, erase data, register the pause key, or mint keys", async () => {
-    expect((await call("POST", "/api/z/MINE1/settle", { results: [{ pattern: "full", idx: 5, pids: ["x"] }] }, asA())).status).toBe(403);
+    expect((await call("POST", "/api/z/MINE1/settle", { results: [{ pattern: "blackout", idx: 5, pids: ["x"] }] }, asA())).status).toBe(403);
     expect((await call("POST", "/api/z/MINE1/erase", {}, asA())).status).toBe(403);
     expect((await call("PUT", "/api/z/MINE1/control/key", { publicKey: "aa".repeat(32) }, asA())).status).toBe(403);
     expect((await call("POST", "/api/org/ai", {}, asA())).status).toBe(403);
@@ -617,7 +617,7 @@ describe("tickets, reward lines and brand breaks", () => {
     expect(i.breaks).toEqual([]);
   });
   test("settings given at creation are kept and shown to every phone; bad ones refuse the whole creation", async () => {
-    const good = { tickets: 2, rewards: [{ pattern: "full", ordinal: 1, text: "Hamper" }, { pattern: "full", scope: "two_ticket", text: "Grand hamper" }], breaks: [{ after: 40, seconds: 45, kind: "speech", title: "CEO message" }] };
+    const good = { tickets: 2, rewards: [{ pattern: "blackout", ordinal: 1, text: "Hamper" }, { pattern: "line", text: "Grand hamper" }], breaks: [{ after: 40, seconds: 45, kind: "speech", title: "CEO message" }] };
     expect((await mk(good)).status).toBe(200);
     const i = await info();
     expect(i).toMatchObject({ tickets: 2, breaks: [{ after: 40, seconds: 45, kind: "speech", title: "CEO message" }] });
@@ -627,28 +627,28 @@ describe("tickets, reward lines and brand breaks", () => {
     expect(raw.query("SELECT COUNT(*) c FROM engagement WHERE id IN ('CFG02','CFG03')").get()).toEqual({ c: 0 });
   });
   test("joining returns the settings too, so a phone never needs a second call", async () => {
-    await mk({ tickets: 2, rewards: [{ pattern: "full", text: "Hamper" }] });
+    await mk({ tickets: 2, rewards: [{ pattern: "blackout", text: "Hamper" }] });
     const r = await (await join(1, "CFG01")).json() as any;
     expect(r.tickets).toBe(2);
     expect(r.rewards[0].text).toBe("Hamper");
   });
   test("settings can be changed before the start and never after, and a bad change changes nothing", async () => {
     await mk();
-    expect((await call("PATCH", "/api/z/CFG01/settings", { tickets: 2, rewards: [{ pattern: "top", text: "Voucher" }], breaks: [{ after: 20, seconds: 30, kind: "speech", title: "Welcome" }] }, org)).status).toBe(200);
-    expect(await info()).toMatchObject({ tickets: 2, rewards: [{ pattern: "top", text: "Voucher" }], breaks: [{ after: 20 }] });
+    expect((await call("PATCH", "/api/z/CFG01/settings", { tickets: 2, rewards: [{ pattern: "line", text: "Voucher" }], breaks: [{ after: 20, seconds: 30, kind: "speech", title: "Welcome" }] }, org)).status).toBe(200);
+    expect(await info()).toMatchObject({ tickets: 2, rewards: [{ pattern: "line", text: "Voucher" }], breaks: [{ after: 20 }] });
     expect((await call("PATCH", "/api/z/CFG01/settings", { breaks: [{ after: 20, seconds: 31, kind: "speech", title: "Welcome" }] }, org)).status).toBe(400);
     expect((await info()).breaks).toHaveLength(1);
     await call("POST", "/api/z", { id: "STARTED1", startRound: 5, callSeconds: 6, cap: 5 }, org);
     expect((await call("PATCH", "/api/z/STARTED1/settings", { tickets: 2 }, org)).status).toBe(409);
   });
   test("results carry which reward line each outcome is for, and an accepted result is final", async () => {
-    await mk({ tickets: 1, rewards: [{ pattern: "full", ordinal: 1 }, { pattern: "full", ordinal: 2 }] });
+    await mk({ tickets: 1, rewards: [{ pattern: "blackout", ordinal: 1 }, { pattern: "blackout", ordinal: 2 }] });
     const p1 = ((await (await join(1, "CFG01")).json()) as any).pid, p2 = ((await (await join(2, "CFG01")).json()) as any).pid;
-    await settleByPhones(call, "CFG01", [{ pattern: "full", ordinal: 1, idx: 50, pids: [p1] }, { pattern: "full", ordinal: 2, idx: 53, pids: [p1, p2] }], [p1]);
-    await settleByPhones(call, "CFG01", [{ pattern: "full", ordinal: 1, idx: 51, pids: [p2] }], [p2]); // a later, different report does not replace it
+    await settleByPhones(call, "CFG01", [{ pattern: "blackout", ordinal: 1, idx: 50, pids: [p1] }, { pattern: "blackout", ordinal: 2, idx: 53, pids: [p1, p2] }], [p1]);
+    await settleByPhones(call, "CFG01", [{ pattern: "blackout", ordinal: 1, idx: 51, pids: [p2] }], [p2]); // a later, different report does not replace it
     const r = await (await call("GET", "/api/z/CFG01/results")).json() as any;
-    expect(r.results).toEqual([{ pattern: "full", ordinal: 1, round: 1, idx: 50, count: 1 }, { pattern: "full", ordinal: 2, round: 1, idx: 53, count: 2 }]);
-    await settleByPhones(call, "CFG01", [{ pattern: "full", ordinal: 6, idx: 1, pids: [p1] }, { pattern: "full2", ordinal: 1, idx: 1, pids: [p1] }], [p1]); // a line this engagement does not have is ignored
+    expect(r.results).toEqual([{ pattern: "blackout", ordinal: 1, round: 1, idx: 50, count: 1 }, { pattern: "blackout", ordinal: 2, round: 1, idx: 53, count: 2 }]);
+    await settleByPhones(call, "CFG01", [{ pattern: "blackout", ordinal: 3, idx: 1, pids: [p1] }, { pattern: "twolines", ordinal: 1, idx: 1, pids: [p1] }], [p1]); // a line this engagement does not have is ignored
     expect(((await (await call("GET", "/api/z/CFG01/results")).json()) as any).results).toHaveLength(2);
   });
 });
@@ -667,7 +667,7 @@ describe("lucky draw results", () => {
     expect((await pub()).results[0]).toEqual({ pattern: "lucky", ordinal: 1, round: 1, idx: 20, count: 3, winners: [pids[0]!, pids[1]!, pids[2]!].sort() });
   });
   test("house results still carry counts only", async () => {
-    await settleByPhones(call, "LUCK1", [{ pattern: "full", idx: 70, pids: [pids[0]!] }], pids);
+    await settleByPhones(call, "LUCK1", [{ pattern: "blackout", idx: 70, pids: [pids[0]!] }], pids);
     expect(/[0-9]x[0-9a-f]{12}/.test(JSON.stringify(await pub()))).toBe(false);
   });
   test("a draw that is not in the engagement's settings, or with too many winners, is ignored", async () => {
@@ -745,16 +745,16 @@ describe("rounds in the store", () => {
     await call("POST", "/api/z", { id: "RND03", startRound: FUT, callSeconds: 9, cap: 50, rounds: 2 }, org);
     const pid = ((await (await join(1, "RND03")).json()) as any).pid;
     const claim = (c: unknown) => call("POST", "/api/z/RND03/claims", { pid, claims: [c] });
-    await claim({ pattern: "top", idx: 20 }); await claim({ pattern: "top", idx: 25, round: 2 }); await claim({ pattern: "top", idx: 25, round: 2 }); await claim({ pattern: "top", idx: 30, round: 3 }); await claim({ pattern: "top", idx: 30, round: 0 });
+    await claim({ pattern: "line", idx: 20 }); await claim({ pattern: "line", idx: 25, round: 2 }); await claim({ pattern: "line", idx: 25, round: 2 }); await claim({ pattern: "line", idx: 30, round: 3 }); await claim({ pattern: "line", idx: 30, round: 0 });
     const c = (await (await call("GET", "/api/z/RND03/claims", undefined, org)).json() as any).claims;
-    expect(c).toEqual([{ pid, pattern: "top", round: 1, idx: 20 }, { pid, pattern: "top", round: 2, idx: 25 }]);
+    expect(c).toEqual([{ pid, pattern: "line", round: 1, idx: 20 }, { pid, pattern: "line", round: 2, idx: 25 }]);
   });
   test("results are kept per round; a round that does not exist, or a lucky draw in round 2, is ignored", async () => {
     await call("POST", "/api/z", { id: "RND04", startRound: FUT, callSeconds: 9, cap: 50, rounds: 2, breaks: [{ after: 20, seconds: 30, kind: "lucky", title: "Draw", winners: 3 }] }, org);
     const p = ((await (await join(1, "RND04")).json()) as any).pid;
     const post = (results: { pattern: string; ordinal?: number; round?: number; idx: number; pids: string[] }[]) => settleByPhones(call, "RND04", results, [p]);
-    await post([{ pattern: "full", round: 1, idx: 60, pids: [p] }, { pattern: "full", round: 2, idx: 70, pids: [p] }]);
-    await post([{ pattern: "full", round: 3, idx: 1, pids: [p] }, { pattern: "full", round: 0, idx: 1, pids: [p] }, { pattern: "lucky", round: 2, idx: 20, pids: [p] }]);
+    await post([{ pattern: "blackout", round: 1, idx: 60, pids: [p] }, { pattern: "blackout", round: 2, idx: 70, pids: [p] }]);
+    await post([{ pattern: "blackout", round: 3, idx: 1, pids: [p] }, { pattern: "blackout", round: 0, idx: 1, pids: [p] }, { pattern: "lucky", round: 2, idx: 20, pids: [p] }]);
     const r = (await (await call("GET", "/api/z/RND04/results")).json() as any).results;
     expect(r.map((x: any) => [x.round, x.idx, x.count])).toEqual([[1, 60, 1], [2, 70, 1]]);
     await post([{ pattern: "lucky", round: 1, idx: 20, pids: [p] }]);
@@ -763,8 +763,8 @@ describe("rounds in the store", () => {
   test("erase removes every round's claims and results", async () => {
     await call("POST", "/api/z", { id: "RND05", startRound: FUT, callSeconds: 9, cap: 50, rounds: 2 }, org);
     const pid = ((await (await join(1, "RND05")).json()) as any).pid;
-    await call("POST", "/api/z/RND05/claims", { pid, claims: [{ pattern: "top", idx: 20, round: 2 }] });
-    await settleByPhones(call, "RND05", [{ pattern: "top", round: 2, idx: 20, pids: [pid] }], [pid]);
+    await call("POST", "/api/z/RND05/claims", { pid, claims: [{ pattern: "line", idx: 20, round: 2 }] });
+    await settleByPhones(call, "RND05", [{ pattern: "line", round: 2, idx: 20, pids: [pid] }], [pid]);
     await call("POST", "/api/z/RND05/erase", {}, org);
     for (const t of ["claim", "settled", "participant", "rvote", "rcand"]) expect((raw.query(`SELECT COUNT(*) c FROM ${t} WHERE eid='RND05'`).get() as any).c).toBe(0);
   });

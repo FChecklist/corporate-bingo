@@ -150,7 +150,7 @@ async function visitBudget(db: D1, now: number, n: number, cap: number): Promise
   await db.prepare("INSERT INTO usage(day,writes) VALUES(?,?) ON CONFLICT(day) DO UPDATE SET writes=writes+?").bind(k, n, n).run();
   return true;
 }
-const cookieVid = (req: Request) => { const m = (req.headers.get("cookie") ?? "").match(/(?:^|;\s*)ctv=([a-f0-9]{32})(?:;|$)/); return m ? m[1]! : ""; };
+const cookieVid = (req: Request) => { const m = (req.headers.get("cookie") ?? "").match(/(?:^|;\s*)cbv=([a-f0-9]{32})(?:;|$)/); return m ? m[1]! : ""; };
 export const gpcOn = (req: Request) => req.headers.get("sec-gpc") === "1" || req.headers.get("dnt") === "1";
 const ownHosts = (req: Request, env: VisitEnv) => { const h = [new URL(req.url).hostname]; try { if (env.PUBLIC_ORIGIN) h.push(new URL(env.PUBLIC_ORIGIN).hostname); } catch { /* ignore */ } return h.map((x) => x.toLowerCase()); };
 const none = (status = 204) => new Response(null, { status, headers: { "cache-control": "no-store" } });

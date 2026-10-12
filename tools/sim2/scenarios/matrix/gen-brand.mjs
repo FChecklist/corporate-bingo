@@ -9,7 +9,7 @@ export default async function gen({ R, L }) {
   const PNG = (n = 200) => `data:image/png;base64,${b64(pad([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 96, 0, 0, 0, 96], n))}`;
   const JPG = (n = 200) => `data:image/jpeg;base64,${b64(pad([0xff, 0xd8, 0xff, 0xc0, 0, 17, 8, 0, 96, 0, 96, 3, 1, 0x11, 0, 2, 0x11, 1], n))}`;
   const WEBP = (n = 200) => { const a = pad([0x52, 0x49, 0x46, 0x46, 0, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 0x56, 0x50, 0x38, 0x58, 10, 0, 0, 0, 0, 0, 0, 0, 95, 0, 0, 95, 0, 0], n); return `data:image/webp;base64,${b64(a)}`; };
-  const COLORS = ["#0B3D91", "#1B7F5C", "#B3261E", "#6A1B9A", "#C26A00", "#00798C", "#37474F", "#AD1457"];
+  const COLORS = ["#0B5D5B", "#1B7F5C", "#B3261E", "#6A1B9A", "#C26A00", "#00798C", "#37474F", "#AD1457"];
   async function draft(t, o = {}) { const org = await t.newOrg(); const g = await t.game(org, { cap: 50, tickets: o.tickets ?? 1, days: 6 }); if (!g.r.ok) throw new Error("create " + JSON.stringify(g.r.body)); return { org, g }; }
   const info = async (org, id) => (await A.call("GET", `/api/z/${id}/info`, undefined, org.h)).body;
 
@@ -21,22 +21,22 @@ export default async function gen({ R, L }) {
     await t.publishPay(org, g.id); const j = await t.guest(g.id).join(); t.eq("the guest's phone receives the brand", j.body.brand?.name, name); const pub = (await A.call("GET", `/api/z/${g.id}/info`)).body; t.check("the logo reaches guests as a data URL, never an outside address", /^data:image\//.test(j.body.brand?.logo ?? pub.brand?.logo ?? ""), "join brand " + JSON.stringify(j.body.brand)?.slice(0, 120) + " | info brand " + JSON.stringify(pub.brand)?.slice(0, 120));
   } }));
   for (const [label, brand, ok] of [
-    ["name of 1 character", { name: "A", color: "#0B3D91" }, true], ["name of 40 characters", { name: "N".repeat(40), color: "#0B3D91" }, true], ["name of 41 characters", { name: "N".repeat(41), color: "#0B3D91" }, false], ["empty name", { name: "", color: "#0B3D91" }, false], ["only spaces", { name: "    ", color: "#0B3D91" }, false],
-    ["colour not in the list", { name: "Acme", color: "#000000" }, false], ["colour as a word", { name: "Acme", color: "red" }, false], ["colour missing", { name: "Acme" }, false], ["name missing", { color: "#0B3D91" }, false], ["an extra field", { name: "Acme", color: "#0B3D91", website: "https://evil.example" }, false], ["brand is a text", "Acme", false], ["brand is a list", ["Acme"], false],
-    ["name with markup: the markup characters are removed", { name: "Acme <b>\"Corp\"</b> & 'Sons'", color: "#0B3D91" }, true],
-    ["logo: SVG", { name: "Acme", color: "#0B3D91", logo: "data:image/svg+xml;base64," + b64(Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>")) }, false],
-    ["logo: remote address", { name: "Acme", color: "#0B3D91", logo: "https://evil.example/logo.png" }, false], ["logo: javascript address", { name: "Acme", color: "#0B3D91", logo: "javascript:alert(1)" }, false],
-    ["logo: JPEG bytes declared as PNG", { name: "Acme", color: "#0B3D91", logo: `data:image/png;base64,${b64(pad([0xff, 0xd8, 0xff], 100))}` }, false], ["logo: text declared as PNG", { name: "Acme", color: "#0B3D91", logo: `data:image/png;base64,${b64(Buffer.from("this is not a picture at all"))}` }, false],
-    ["logo: exactly 30 KB", { name: "Acme", color: "#0B3D91", logo: PNG(30 * 1024) }, true], ["logo: 30 KB and one byte", { name: "Acme", color: "#0B3D91", logo: PNG(30 * 1024 + 1) }, false], ["logo: 1 MB", { name: "Acme", color: "#0B3D91", logo: PNG(1024 * 1024) }, false],
-    ["logo: broken base64", { name: "Acme", color: "#0B3D91", logo: "data:image/png;base64,@@@@" }, false], ["logo: a number", { name: "Acme", color: "#0B3D91", logo: 42 }, false],
+    ["name of 1 character", { name: "A", color: "#0B5D5B" }, true], ["name of 40 characters", { name: "N".repeat(40), color: "#0B5D5B" }, true], ["name of 41 characters", { name: "N".repeat(41), color: "#0B5D5B" }, false], ["empty name", { name: "", color: "#0B5D5B" }, false], ["only spaces", { name: "    ", color: "#0B5D5B" }, false],
+    ["colour not in the list", { name: "Acme", color: "#000000" }, false], ["colour as a word", { name: "Acme", color: "red" }, false], ["colour missing", { name: "Acme" }, false], ["name missing", { color: "#0B5D5B" }, false], ["an extra field", { name: "Acme", color: "#0B5D5B", website: "https://evil.example" }, false], ["brand is a text", "Acme", false], ["brand is a list", ["Acme"], false],
+    ["name with markup: the markup characters are removed", { name: "Acme <b>\"Corp\"</b> & 'Sons'", color: "#0B5D5B" }, true],
+    ["logo: SVG", { name: "Acme", color: "#0B5D5B", logo: "data:image/svg+xml;base64," + b64(Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'><script>alert(1)</script></svg>")) }, false],
+    ["logo: remote address", { name: "Acme", color: "#0B5D5B", logo: "https://evil.example/logo.png" }, false], ["logo: javascript address", { name: "Acme", color: "#0B5D5B", logo: "javascript:alert(1)" }, false],
+    ["logo: JPEG bytes declared as PNG", { name: "Acme", color: "#0B5D5B", logo: `data:image/png;base64,${b64(pad([0xff, 0xd8, 0xff], 100))}` }, false], ["logo: text declared as PNG", { name: "Acme", color: "#0B5D5B", logo: `data:image/png;base64,${b64(Buffer.from("this is not a picture at all"))}` }, false],
+    ["logo: exactly 30 KB", { name: "Acme", color: "#0B5D5B", logo: PNG(30 * 1024) }, true], ["logo: 30 KB and one byte", { name: "Acme", color: "#0B5D5B", logo: PNG(30 * 1024 + 1) }, false], ["logo: 1 MB", { name: "Acme", color: "#0B5D5B", logo: PNG(1024 * 1024) }, false],
+    ["logo: broken base64", { name: "Acme", color: "#0B5D5B", logo: "data:image/png;base64,@@@@" }, false], ["logo: a number", { name: "Acme", color: "#0B5D5B", logo: 42 }, false],
   ]) out.push({ name: `brand|${label}`, run: async (t) => {
     const { org, g } = await draft(t); const r = await org.settings(g.id, { brand }); const inf = await info(org, g.id);
     if (ok) { t.expect("accepted", r, "ok"); t.check("saved", !!inf.brand, JSON.stringify(inf.brand)?.slice(0, 100)); if (inf.brand?.name) t.check("no markup characters kept in the name", !/[<>`"'&\\]/.test(inf.brand.name), inf.brand.name); }
     else { t.expect("refused in plain words", r, "bad"); t.check("nothing saved", !inf.brand, JSON.stringify(inf.brand)?.slice(0, 100)); }
   } });
   out.push({ name: "brand|removing the brand with null or an empty object", run: async (t) => {
-    const { org, g } = await draft(t); await org.settings(g.id, { brand: { name: "Acme", color: "#0B3D91" } }); t.expect("remove with null", await org.settings(g.id, { brand: null }), "ok"); t.check("gone", !(await info(org, g.id)).brand);
-    await org.settings(g.id, { brand: { name: "Acme", color: "#0B3D91" } }); t.expect("remove with {}", await org.settings(g.id, { brand: {} }), "ok"); t.check("gone again", !(await info(org, g.id)).brand);
+    const { org, g } = await draft(t); await org.settings(g.id, { brand: { name: "Acme", color: "#0B5D5B" } }); t.expect("remove with null", await org.settings(g.id, { brand: null }), "ok"); t.check("gone", !(await info(org, g.id)).brand);
+    await org.settings(g.id, { brand: { name: "Acme", color: "#0B5D5B" } }); t.expect("remove with {}", await org.settings(g.id, { brand: {} }), "ok"); t.check("gone again", !(await info(org, g.id)).brand);
   } });
   out.push({ name: "brand|a Host can set the brand, a Co-host and the AI key's hand-over rules hold", run: async (t) => {
     const { org, g } = await draft(t); const host = await t.host(org), co = await t.cohost(org, g.id);

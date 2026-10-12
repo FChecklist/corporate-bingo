@@ -127,7 +127,7 @@ describe("GET-only fallback (_method and _body)", () => {
   test("GET with _method=POST and _body creates, patches and loads a roster", async () => {
     const o = await organizer();
     const c = await call("GET", `/ai/${o.ai}/z?_method=POST&_body=${q(eng("GET-1"))}`); expect(c.status).toBe(200); expect((await j(c)).draft).toBe(true);
-    const p = await call("GET", `/ai/${o.ai}/z/GET-1/settings?_method=PATCH&_body=${q({ tickets: 2, rewards: [{ pattern: "full", ordinal: 1, text: "TV" }] })}`); expect(p.status).toBe(200);
+    const p = await call("GET", `/ai/${o.ai}/z/GET-1/settings?_method=PATCH&_body=${q({ tickets: 2, rewards: [{ pattern: "blackout", ordinal: 1, text: "TV" }] })}`); expect(p.status).toBe(200);
     expect((await j(await call("GET", `/ai/${o.ai}/z/GET-1/summary`))).tickets).toBe(2);
     const people = Array.from({ length: 20 }, (_, i) => ({ phone: "98765" + String(10000 + i), name: "P" + i }));
     const refused = await call("GET", `/ai/${o.ai}/z/GET-1/roster?_method=POST&_body=${q({ people })}`); expect(refused.status).toBe(403); expect((await refused.text())).toMatch(/console/); // names and numbers never pass through the AI
@@ -213,7 +213,7 @@ describe("what the organizer's AI may and may not do now", () => {
     const aiView = await j(await call("GET", `/ai/${o.ai}/z/CAP-2/prizes`)); expect(aiView.prizes[0].name).toBeUndefined(); expect(aiView.prizes[0].phone).toBeUndefined(); expect(aiView.prizes[0].seat).toBe(1);
     expect(JSON.stringify(aiView)).not.toMatch(/9876543210|3210|Asha/);
     const own = await j(await call("GET", "/api/z/CAP-2/prizes", undefined, o.h)); expect(own.prizes[0].phone).toBe("9876543210"); // the organizer sees it in full
-    expect((await call("POST", `/ai/${o.ai}/z/CAP-2/prizegiven`, { round: 1, pattern: "full", ordinal: 1, seat: 1, given: true })).status).toBe(200);
+    expect((await call("POST", `/ai/${o.ai}/z/CAP-2/prizegiven`, { round: 1, pattern: "blackout", ordinal: 1, seat: 1, given: true })).status).toBe(200);
     expect((raw.prepare("SELECT given_by FROM prize WHERE eid='CAP-2'").get() as any).given_by).toBe("organizer's AI");
   });
   test("it may mark a seat, and move a ticket to a new phone (change of phone)", async () => {

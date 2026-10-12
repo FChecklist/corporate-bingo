@@ -46,7 +46,7 @@ describe("validateCfg: the brand rules", () => {
     expect(v.ok).toBe(true); expect(v.cfg.brand.name).not.toMatch(/[<>"'&\\`]/); expect(v.cfg.brand.name).toContain("Acme");
   });
   test("the colour must be one of the 8 palette values (no free hex, no css, no names)", () => {
-    for (const c of ["#123456", "red", "#0B3D9", "#0B3D91; background:url(//evil)", "url(x)", "", 7, null]) expect(validateCfg({ brand: { name: "A", color: c as any } }).ok).toBe(false);
+    for (const c of ["#123456", "red", "#0B3D9", "#0B5D5B; background:url(//evil)", "url(x)", "", 7, null]) expect(validateCfg({ brand: { name: "A", color: c as any } }).ok).toBe(false);
     for (const c of BRAND_COLORS) expect(validateCfg({ brand: { name: "A", color: c } }).ok).toBe(true);
   });
   test("a logo's size in pixels: 48 to 192 on the longest side, at most 4 times wider than tall, read from the picture's own header", () => {

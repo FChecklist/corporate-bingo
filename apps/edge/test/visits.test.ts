@@ -148,7 +148,7 @@ describe("privacy signals: counts only", () => {
   });
   test("with the signal on, an account is only counted, never linked to a visit", async () => {
     await beacon(msg([pv()]), {}, T); // an earlier, tracked visit by the same browser
-    const r = await call("POST", "/api/start", { email: "priv@acme.com" }, { "sec-gpc": "1", cookie: `ctv=${VID}` });
+    const r = await call("POST", "/api/start", { email: "priv@acme.com" }, { "sec-gpc": "1", cookie: `cbv=${VID}` });
     expect(r.status).toBe(200);
     expect(one("SELECT org FROM visit_session").org).toBeNull();
     expect(one("SELECT n FROM visit_agg WHERE dim='gpc_fun' AND k='account'").n).toBe(1);
@@ -198,7 +198,7 @@ describe("from visit to sale: linking the person", () => {
     await beacon(msg([pv(), { k: "sec", p: "/", n: "pricing", m: 5000 }, { k: "act", p: "/", n: "pack", z: 500, v: "INR 3999" }, { k: "act", p: "/", n: "create", z: 500, v: "INR 3999" }]), {}, T);
     expect(one("SELECT stage FROM visit_session").stage).toBe(3);
     // the account: the browser's cookie and session header ride along on the call
-    const st = await j(await call("POST", "/api/start", { email: "Boss@Acme.com" }, { cookie: `ctv=${VID}`, "x-cb-vs": SID }, T + 60_000));
+    const st = await j(await call("POST", "/api/start", { email: "Boss@Acme.com" }, { cookie: `cbv=${VID}`, "x-cb-vs": SID }, T + 60_000));
     expect(st.token).toBeTruthy();
     const org = one("SELECT org FROM organizer_email").org;
     expect(one("SELECT org, stage, eh FROM visit_session")).toMatchObject({ org, stage: 4 }); expect(one("SELECT eh FROM visit_session").eh).toMatch(/^[0-9a-f]{32}$/); expect(JSON.stringify(q("SELECT * FROM visit_session"))).not.toContain("acme");
@@ -225,12 +225,12 @@ describe("from visit to sale: linking the person", () => {
   });
   test("a returning organizer signing in with their code is linked to a new visitor id, and the first visit stays the source", async () => {
     await beacon(msg([pv()]), {}, T);
-    const st = await j(await call("POST", "/api/start", { email: "boss@acme.com" }, { cookie: `ctv=${VID}`, "x-cb-vs": SID }, T + 1000));
+    const st = await j(await call("POST", "/api/start", { email: "boss@acme.com" }, { cookie: `cbv=${VID}`, "x-cb-vs": SID }, T + 1000));
     expect(st.ok).toBe(true); const org = one("SELECT org FROM organizer_email").org;
     await beacon(msg([pv()], { s: "c3".repeat(12), d: "f6".repeat(16), r: "" }), {}, T + DAY);
     await call("POST", "/api/auth/email", { email: "boss@acme.com" }, {}, T + DAY + 1000);
     const code = (await j(await call("POST", "/api/auth/email", { email: "boss@acme.com" }, {}, T + DAY + 2000))).devCode;
-    if (code) { const v = await call("POST", "/api/auth/verify", { email: "boss@acme.com", code }, { cookie: `ctv=${"f6".repeat(16)}` }, T + DAY + 3000); expect(v.status).toBe(200); expect(q("SELECT org FROM visit_session ORDER BY first_ms").map((r) => r.org)).toEqual([org, org]); }
+    if (code) { const v = await call("POST", "/api/auth/verify", { email: "boss@acme.com", code }, { cookie: `cbv=${"f6".repeat(16)}` }, T + DAY + 3000); expect(v.status).toBe(200); expect(q("SELECT org FROM visit_session ORDER BY first_ms").map((r) => r.org)).toEqual([org, org]); }
     expect(one("SELECT sid FROM visit_session WHERE org=? ORDER BY first_ms LIMIT 1", org).sid).toBe(SID);
   });
   test("an account with no visit on record only raises an anonymous counter", async () => {

@@ -64,7 +64,7 @@ const publish = async (a: Parameters<typeof nextMessage>[2]) => {
   return { status: r.status, body: await r.json() };
 };
 const reference = (pauseState?: ReturnType<typeof resolveControl>) => {
-  const sched = pauseState ? scheduleWithControl(pauseState, START, 2, 90) : Array.from({ length: 90 }, (_, k) => START + k * 2);
+  const sched = pauseState ? scheduleWithControl(pauseState, START, 2, 75) : Array.from({ length: 75 }, (_, k) => START + k * 2);
   return deriveCalls(EID, sched.map((r) => rnd(r!)));
 };
 
@@ -75,7 +75,7 @@ async function settleViaPhones(results: { pattern: string; ordinal?: number; rou
   return last;
 }
 describe("a phone from first open to full house", () => {
-  test("open, join, wait for the first call, play all 90 calls, claim every pattern, and match the public reference", async () => {
+  test("open, join, wait for the first call, play all 75 calls, claim every pattern, and match the public reference", async () => {
     const a = mkPhone(1);
     await a.rt.boot();
     expect(a.rt.phase).toBe("join");
@@ -86,7 +86,7 @@ describe("a phone from first open to full house", () => {
     expect(v.nextCallInSec).not.toBeNull();
     for (let i = 0; i < 200; i++) await step([a]);
     v = await a.rt.tick();
-    expect(v.log.length).toBe(90);
+    expect(v.log.length).toBe(75);
     expect(v.log).toEqual(reference());
     expect(v.phase).toBe("ended");
     expect(new Set(v.claimed)).toEqual(new Set(ALL_PATTERNS));
@@ -153,13 +153,13 @@ describe("a crowd and the awkward cases", () => {
     const claims = (await (await D.headCall("GET", `/api/z/${EID}/claims`, undefined, { "x-organizer": SECRET })).json() as any).claims;
     const chk = checkClaims(EID, claims.map((c: any) => ({ pid: c.pid, pattern: c.pattern, idx: c.idx })), ref);
     expect(chk.bad).toEqual([]);
-    expect(chk.good.length).toBe(40 * 7);
+    expect(chk.good.length).toBe(40 * 4);
     const settled = settleAll(EID, pids, ref);
     expect(await settleViaPhones(settled, pids)).toBe(200);
     const pub = await (await D.headCall("GET", `/api/z/${EID}/results`)).json() as any;
-    expect(pub.results.length).toBe(7);
+    expect(pub.results.length).toBe(4);
     // every phone's own results view agrees
-    for (const p of ps) { await step([p], 16000); expect(p.rt.view().results.length).toBe(7); }
+    for (const p of ps) { await step([p], 16000); expect(p.rt.view().results.length).toBe(4); }
   });
   test("a phone whose network drops while a claim is sent keeps it and sends it again later, exactly once", async () => {
     let off = false;
@@ -171,15 +171,15 @@ describe("a crowd and the awkward cases", () => {
     for (let i = 0; i < 200; i++) await step([a]);
     expect(a.rt.view().unsent).toBe(0);
     const n = (await (await D.headCall("GET", `/api/z/${EID}/claims`, undefined, { "x-organizer": SECRET })).json() as any).claims.filter((c: any) => c.pid === a.rt.pid).length;
-    expect(n).toBe(7);
+    expect(n).toBe(4);
   });
   test("a phone cannot claim something it has not completed: the organizer's check rejects it", async () => {
     const a = mkPhone(70); await a.rt.boot(); await a.rt.join(a.phone);
-    await api()("POST", `/api/z/${EID}/claims`, { pid: a.rt.pid, claims: [{ pattern: "full", idx: 12 }] });
+    await api()("POST", `/api/z/${EID}/claims`, { pid: a.rt.pid, claims: [{ pattern: "blackout", idx: 12 }] });
     const claims = (await (await D.headCall("GET", `/api/z/${EID}/claims`, undefined, { "x-organizer": SECRET })).json() as any).claims;
     expect(checkClaims(EID, claims, reference()).bad.length).toBe(1);
     // and settlement never uses it
-    expect(settleAll(EID, [a.rt.pid!], reference()).find((s) => s.pattern === "full")!.idx).toBe(completionIndex(ticketFor(EID, a.rt.pid!), "full", reference()));
+    expect(settleAll(EID, [a.rt.pid!], reference()).find((s) => s.pattern === "blackout")!.idx).toBe(completionIndex(ticketFor(EID, a.rt.pid!), "blackout", reference()));
   });
   test("the beacon unreachable for a stretch: nothing is invented, and the phone catches up exactly afterwards", async () => {
     let blocked = false;
@@ -231,7 +231,7 @@ describe("pause, resume and stop", () => {
     expect(Math.max(...dl) - Math.min(...dl)).toBe(0); // no number appeared during the pause
     const ref = reference(st);
     for (const p of ps) expect(p.rt.view().log).toEqual(ref);
-    expect(lenAtStart).toBeLessThan(90);
+    expect(lenAtStart).toBeLessThan(75);
   });
   test("nobody can pause but the organizer: an unsigned or wrongly signed message is refused", async () => {
     await registerKey();
@@ -275,7 +275,7 @@ describe("pause, resume and stop", () => {
     const [x, y] = ps.map((p) => p.rt.view());
     expect(x!.phase).toBe("ended"); expect(y!.phase).toBe("ended");
     expect(x!.log).toEqual(y!.log);
-    expect(x!.log.length).toBeLessThan(90);
+    expect(x!.log.length).toBeLessThan(75);
   });
   test("an engagement with no key registered simply cannot be paused and plays on", async () => {
     const a = mkPhone(150); await a.rt.boot(); await a.rt.join(a.phone);
@@ -356,7 +356,7 @@ describe("after the last call", () => {
     expect(a.rt.view().unsent).toBe(0);
     expect(stuck).toBeGreaterThanOrEqual(0);
     const n = (await (await D.headCall("GET", `/api/z/${EID}/claims`, undefined, { "x-organizer": SECRET })).json() as any).claims.filter((c: any) => c.pid === a.rt.pid).length;
-    expect(n).toBe(7);
+    expect(n).toBe(4);
   });
 });
 
@@ -382,7 +382,7 @@ describe("a late joiner who cannot hear about a pause", () => {
     const ref = reference(resolveControl(cfgOf(f), f.messages));
     expect(b.rt.view().log).toEqual(ref);
     const claims = (await (await D.headCall("GET", `/api/z/${EID}/claims`, undefined, { "x-organizer": SECRET })).json() as any).claims.filter((c: any) => c.pid === b.rt.pid);
-    expect(claims.length).toBe(7);
+    expect(claims.length).toBe(4);
     expect(checkClaims(EID, claims, ref).bad).toEqual([]);
   });
 });
@@ -407,7 +407,7 @@ describe("brand breaks, reward lines and two tickets on real phones", () => {
   const setCfg = async (o: { tickets?: number; rewards?: unknown; breaks?: unknown }) =>
     env.DB.prepare("UPDATE engagement SET tickets=?, config=? WHERE id=?").bind(o.tickets ?? 1, JSON.stringify({ rewards: o.rewards, breaks: o.breaks }), EID).run();
   const breaks = [{ after: 5, seconds: 30, kind: "speech", title: "CEO message" }, { after: 40, seconds: 45, kind: "youtube", title: "Our story", mediaUrl: "https://youtu.be/abc" }];
-  const refWith = (b: any[]) => deriveCalls(EID, (scheduleFull(null, START, 2, b, 90) as number[]).map((r) => rnd(r)));
+  const refWith = (b: any[]) => deriveCalls(EID, (scheduleFull(null, START, 2, b, 75) as number[]).map((r) => rnd(r)));
 
   test("a brand break pauses the numbers for exactly its length, shows its card, and everyone's logs stay identical", async () => {
     await setCfg({ breaks });
@@ -448,35 +448,35 @@ describe("brand breaks, reward lines and two tickets on real phones", () => {
     expect((await publish({ action: "pause", pauseForRounds: 20 })).status).toBe(200);
     for (let i = 0; i < 260; i++) await step(ps);
     const f = (await readPublished(kvOf(), EID))!; const st = resolveControl(cfgOf(f), f.messages);
-    const ref = deriveCalls(EID, (scheduleFull(st, START, 2, breaks as any, 90) as number[]).map((r) => rnd(r)));
+    const ref = deriveCalls(EID, (scheduleFull(st, START, 2, breaks as any, 75) as number[]).map((r) => rnd(r)));
     for (const p of ps) expect(p.rt.view().log).toEqual(ref);
   });
   test("only the houses with a reward are claimed and shown; the rest are not in play", async () => {
-    await setCfg({ rewards: [{ pattern: "top", scope: "ticket", ordinal: 1, text: "Voucher" }, { pattern: "full", scope: "ticket", ordinal: 1, text: "Hamper" }] });
+    await setCfg({ rewards: [{ pattern: "line", scope: "ticket", ordinal: 1, text: "Voucher" }, { pattern: "blackout", scope: "ticket", ordinal: 1, text: "Hamper" }] });
     const a = mkPhone(230); await a.rt.boot(); await a.rt.join(a.phone);
     for (let i = 0; i < 200; i++) await step([a]);
     const v = a.rt.view();
-    expect(new Set(v.claimed)).toEqual(new Set(["top", "full"]));
-    expect(Object.keys(v.myIdx).sort()).toEqual(["full", "top"]);
+    expect(new Set(v.claimed)).toEqual(new Set(["line", "blackout"]));
+    expect(Object.keys(v.myIdx).sort()).toEqual(["blackout", "line"]);
     const n = (await (await D.headCall("GET", `/api/z/${EID}/claims`, undefined, { "x-organizer": SECRET })).json() as any).claims.filter((c: any) => c.pid === a.rt.pid).length;
     expect(n).toBe(2);
   });
-  test("two tickets: the phone holds two different tickets, claims the two-ticket house, and the organizer's settlement agrees with the phone's own numbers", async () => {
-    await setCfg({ tickets: 2, rewards: [{ pattern: "full", scope: "ticket", ordinal: 1, text: "Hamper" }, { pattern: "full", scope: "ticket", ordinal: 2, text: "Mug" }, { pattern: "full", scope: "two_ticket", ordinal: 1, text: "Grand" }] });
+  test("two cards: the phone holds two different cards, claims its houses, and the organizer's settlement agrees with the phone's own numbers", async () => {
+    await setCfg({ tickets: 2, rewards: [{ pattern: "blackout", scope: "ticket", ordinal: 1, text: "Hamper" }, { pattern: "blackout", scope: "ticket", ordinal: 2, text: "Mug" }, { pattern: "corners", scope: "ticket", ordinal: 1, text: "Grand" }] });
     const ps = Array.from({ length: 12 }, (_, i) => mkPhone(240 + i));
     for (const p of ps) { await p.rt.boot(); await p.rt.join(p.phone); }
     for (let i = 0; i < 220; i++) await step(ps);
     const v = ps[0]!.rt.view();
     expect(v.tickets).toHaveLength(2);
     expect(JSON.stringify(v.tickets[0])).not.toBe(JSON.stringify(v.tickets[1]));
-    expect(new Set(v.claimed)).toEqual(new Set(["full", "full2"]));
+    expect(new Set(v.claimed)).toEqual(new Set(["blackout", "corners"]));
     const ref = refWith([]);
-    const cfg = { tickets: 2 as const, rewards: [{ pattern: "full" as const, scope: "ticket" as const, ordinal: 1, text: "" }, { pattern: "full" as const, scope: "ticket" as const, ordinal: 2, text: "" }, { pattern: "full" as const, scope: "two_ticket" as const, ordinal: 1, text: "" }], breaks: [], rounds: 1 };
+    const cfg = { tickets: 2 as const, rewards: [{ pattern: "blackout" as const, scope: "ticket" as const, ordinal: 1, text: "" }, { pattern: "blackout" as const, scope: "ticket" as const, ordinal: 2, text: "" }, { pattern: "corners" as const, scope: "ticket" as const, ordinal: 1, text: "" }], breaks: [], rounds: 1 };
     const pids = (await (await D.headCall("GET", `/api/z/${EID}/participants`, undefined, { "x-organizer": SECRET })).json() as any).participants.map((x: any) => x.pid);
     const claims = (await (await D.headCall("GET", `/api/z/${EID}/claims`, undefined, { "x-organizer": SECRET })).json() as any).claims;
     expect(checkClaims(EID, claims, ref, cfg).bad).toEqual([]);
     const settled = settleAll(EID, pids, ref, cfg);
-    expect(settled.map((s) => `${s.pattern}#${s.ordinal}`).sort()).toEqual(["full#1", "full#2", "full2#1"].filter((k) => settled.some((s) => `${s.pattern}#${s.ordinal}` === k)).sort());
+    expect(settled.map((s) => `${s.pattern}#${s.ordinal}`).sort()).toEqual(["blackout#1", "blackout#2", "corners#1"].filter((k) => settled.some((s) => `${s.pattern}#${s.ordinal}` === k)).sort());
     expect(await settleViaPhones(settled.map((s) => ({ pattern: s.pattern, ordinal: s.ordinal, idx: s.idx, pids: s.pids })), pids)).toBe(200);
     // each phone can tell whether it received a published reward line by comparing its own completion call with the published one
     await step(ps, 16000);
@@ -526,7 +526,7 @@ describe("lucky draw leaves out the people flagged as Organizer, Host or Co-host
 });
 
 describe("two rounds on real phones", () => {
-  const refRound = (r: number, st: any = null) => deriveCalls(roundEid(EID, r), Array.from({ length: 90 }, (_, k) => rnd(callRoundR(st, START, 2, [], r, k)!)));
+  const refRound = (r: number, st: any = null) => deriveCalls(roundEid(EID, r), Array.from({ length: 75 }, (_, k) => rnd(callRoundR(st, START, 2, [], r, k)!)));
   const two = { rewards: undefined as unknown, rounds: 2 };
   const setRounds = () => env.DB.prepare("UPDATE engagement SET config=? WHERE id=?").bind(JSON.stringify({ rounds: 2 }), EID).run();
 
@@ -549,32 +549,32 @@ describe("two rounds on real phones", () => {
   test("the engagement is not over after round 1: phones keep playing and wait for round 2", async () => {
     await setRounds();
     const a = mkPhone(410); await a.rt.boot(); await a.rt.join(a.phone);
-    for (let i = 0; i < 200; i++) await step([a]);
+    for (let i = 0; i < 160; i++) await step([a]);
     const v = a.rt.view();
-    expect(v.log.length).toBe(90); expect(v.round).toBe(1); expect(v.phase).toBe("play");
+    expect(v.log.length).toBe(75); expect(v.round).toBe(1); expect(v.phase).toBe("play");
     expect(v.nextCallInSec).not.toBeNull(); // counting down to round 2's first number
   });
-  test("claims go to the store per round (7 each), the organizer's check passes for both, and results show per round with what each phone received", async () => {
+  test("claims go to the store per round (4 each), the organizer's check passes for both, and results show per round with what each phone received", async () => {
     await setRounds();
     const ps = Array.from({ length: 10 }, (_, i) => mkPhone(420 + i));
     for (const p of ps) { await p.rt.boot(); await p.rt.join(p.phone); }
     for (let i = 0; i < 420; i++) await step(ps);
     const claims = (await (await D.headCall("GET", `/api/z/${EID}/claims`, undefined, { "x-organizer": SECRET })).json() as any).claims;
-    expect(claims.filter((c: any) => c.round === 1)).toHaveLength(70);
-    expect(claims.filter((c: any) => c.round === 2)).toHaveLength(70);
+    expect(claims.filter((c: any) => c.round === 1)).toHaveLength(40);
+    expect(claims.filter((c: any) => c.round === 2)).toHaveLength(40);
     const cfg = { tickets: 1 as const, rewards: defaultRewards(), breaks: [], rounds: 2 };
     const logs = { 1: refRound(1), 2: refRound(2) };
     const chk = checkClaims(EID, claims.map((c: any) => ({ pid: c.pid, pattern: c.pattern, idx: c.idx, round: c.round })), logs, cfg);
     expect(chk.bad).toEqual([]);
     const pids = (await (await D.headCall("GET", `/api/z/${EID}/participants`, undefined, { "x-organizer": SECRET })).json() as any).participants.map((x: any) => x.pid);
     const settled = [...settleAll(EID, pids, logs[1], cfg, 1), ...settleAll(EID, pids, logs[2], cfg, 2)];
-    expect(settled.filter((s) => s.round === 1)).toHaveLength(7); expect(settled.filter((s) => s.round === 2)).toHaveLength(7);
+    expect(settled.filter((s) => s.round === 1)).toHaveLength(4); expect(settled.filter((s) => s.round === 2)).toHaveLength(4);
     expect(await settleViaPhones(settled.map((s) => ({ pattern: s.pattern, ordinal: s.ordinal, round: s.round, idx: s.idx, pids: s.pids })), pids)).toBe(200);
     await step(ps, 16000);
     for (const p of ps) {
       const v = p.rt.view();
       expect(v.results.every((r) => (r.round ?? 1) === 2)).toBe(true); // the card shows the round being played
-      expect(v.results).toHaveLength(7);
+      expect(v.results).toHaveLength(4);
       const got1 = v.past.find((x) => x.round === 1)!.got.length;
       const expected1 = settled.filter((s) => s.round === 1 && s.pids.includes(p.rt.pid!)).length;
       expect(got1).toBe(expected1);
@@ -596,7 +596,7 @@ describe("two rounds on real phones", () => {
     await registerKey(); await setRounds();
     const ps = [mkPhone(450), mkPhone(451)];
     for (const p of ps) { await p.rt.boot(); await p.rt.join(p.phone); }
-    for (let i = 0; i < 195; i++) await step(ps);
+    for (let i = 0; i < 165; i++) await step(ps);
     expect((await publish({ action: "stop" })).status).toBe(200);
     for (let i = 0; i < 260; i++) await step(ps);
     for (const p of ps) { const v = p.rt.view(); expect(v.phase).toBe("ended"); expect(v.round).toBe(1); }
@@ -612,8 +612,8 @@ describe("winners hear it, and the engagement ends when the last prize is awarde
     const cfg = a.rt.cfg;
     const settledAt = (k: number) => settleAll(EID, pids, ref.slice(0, k), cfg, 1);
     const need = keysInPlayLines(cfg);
-    let K = 0; for (let k = 1; k <= 90 && !K; k++) { const got = settledAt(k); if (need.every((n) => got.some((x) => x.pattern === n.key && x.ordinal === n.ordinal))) K = k; }
-    expect(K).toBeGreaterThan(0); expect(K).toBeLessThan(90); // with two players every line is awarded before the last number
+    let K = 0; for (let k = 1; k <= 75 && !K; k++) { const got = settledAt(k); if (need.every((n) => got.some((x) => x.pattern === n.key && x.ordinal === n.ordinal))) K = k; }
+    expect(K).toBeGreaterThan(0); expect(K).toBeLessThan(75); // with two players every line is awarded before the last number
     for (let i = 0; i < 300 && a.rt.view().phase !== "ended"; i++) await step([a, b]);
     const results = settledAt(K);
     for (let i = 0; i < 8; i++) await step([a, b], 5000); // the last reports reach the store
@@ -636,7 +636,7 @@ describe("winners hear it, and the engagement ends when the last prize is awarde
     for (const p of [a, b]) { await p.rt.boot(); expect(await p.rt.join(p.phone)).toBe(true); }
     const pids = [a.rt.pid!, b.rt.pid!], ref = reference(), cfg = a.rt.cfg, need = keysInPlayLines(cfg);
     const settledAt = (k: number) => settleAll(EID, pids, ref.slice(0, k), cfg, 1);
-    let K = 0; for (let k = 1; k <= 90 && !K; k++) { const got = settledAt(k); if (need.every((n) => got.some((x) => x.pattern === n.key && x.ordinal === n.ordinal))) K = k; }
+    let K = 0; for (let k = 1; k <= 75 && !K; k++) { const got = settledAt(k); if (need.every((n) => got.some((x) => x.pattern === n.key && x.ordinal === n.ordinal))) K = k; }
     for (let i = 0; i < 300 && a.rt.view().phase !== "ended"; i++) await step([a, b]);
     for (let i = 0; i < 8; i++) await step([a, b], 5000);
     const results = settledAt(K);

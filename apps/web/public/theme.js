@@ -1,5 +1,5 @@
 (function () {
-  var T = [["maroon", "#7A1C33", "Maroon"], ["blue", "#1553B8", "Studio blue"], ["emerald", "#127A6F", "Emerald"]];
+  var T = [["maroon", "#117A77", "Maroon"], ["blue", "#1553B8", "Studio blue"], ["emerald", "#127A6F", "Emerald"]];
   function get() { try { return localStorage.getItem("cb-theme") || "blue"; } catch (e) { return "blue"; } }
   function apply(n) {
     document.documentElement.setAttribute("data-theme", n);

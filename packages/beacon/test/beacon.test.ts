@@ -75,14 +75,14 @@ describe("mirrors", () => {
 });
 
 describe("deterministic calls", () => {
-  const rs = Array.from({ length: 90 }, (_, k) => fakeRand("t", k));
+  const rs = Array.from({ length: 75 }, (_, k) => fakeRand("t", k));
   test("same inputs give the same log, on every phone", () => expect(deriveCalls("E1", rs)).toEqual(deriveCalls("E1", rs)));
-  test("all 90 numbers appear exactly once", () => {
+  test("all 75 numbers appear exactly once", () => {
     const c = deriveCalls("E1", rs);
-    expect(c.length).toBe(90);
-    expect(new Set(c).size).toBe(90);
+    expect(c.length).toBe(75);
+    expect(new Set(c).size).toBe(75);
     expect(Math.min(...c)).toBe(1);
-    expect(Math.max(...c)).toBe(90);
+    expect(Math.max(...c)).toBe(75);
   });
   test("different engagement or different randomness gives a different order", () => {
     expect(deriveCalls("E2", rs)).not.toEqual(deriveCalls("E1", rs));
@@ -93,12 +93,12 @@ describe("deterministic calls", () => {
     const b = deriveCalls("E1", rs.slice(0, 40).map((x, i) => (i < 30 ? x : fakeRand("other", i))));
     expect(b.slice(0, 30)).toEqual(a);
   });
-  test("no obvious bias: first call is roughly uniform over 1..90", () => {
-    const counts = new Array(91).fill(0);
+  test("no obvious bias: first call is roughly uniform over 1..75", () => {
+    const counts = new Array(76).fill(0);
     for (let s = 0; s < 9000; s++) counts[pickNumber("E", 0, fakeRand("s" + s, 0), [])]++;
-    for (let n = 1; n <= 90; n++) { expect(counts[n]).toBeGreaterThan(55); expect(counts[n]).toBeLessThan(150); } // mean 100
+    for (let n = 1; n <= 75; n++) { expect(counts[n]).toBeGreaterThan(55); expect(counts[n]).toBeLessThan(150); } // mean 100
   });
-  test("a call after all 90 throws", () => expect(() => pickNumber("E", 90, rs[0]!, Array.from({ length: 90 }, (_, i) => i + 1))).toThrow());
+  test("a call after all 75 throws", () => expect(() => pickNumber("E", 75, rs[0]!, Array.from({ length: 75 }, (_, i) => i + 1))).toThrow());
 });
 
 describe("schedule", () => {

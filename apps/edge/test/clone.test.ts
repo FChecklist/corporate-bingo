@@ -37,8 +37,8 @@ let ip = 0, lastAi = "";
 const start = async (email: string) => { const r = await j(await handle(new Request("http://x/api/start", { method: "POST", headers: { "content-type": "application/json", "cf-connecting-ip": `8.8.8.${++ip}` }, body: JSON.stringify({ email }) }), env as Env, T)); lastAi = r.aiKey as string; return r.token as string; };
 const PUB = { email: "boss@acme.com", phone: "9876543210" };
 const GAME_START = T + 3 * H;
-const BRAND = { name: "Acme Foods", color: "#0B3D91" };
-const REWARDS = [{ pattern: "full", text: "Hamper" }, { pattern: "top", text: "Voucher" }, { pattern: "corners", text: "Mug" }];
+const BRAND = { name: "Acme Foods", color: "#0B5D5B" };
+const REWARDS = [{ pattern: "blackout", text: "Hamper" }, { pattern: "line", text: "Voucher" }, { pattern: "corners", text: "Mug" }];
 /** An Organizer, a Host and a Co-host; OLD-1 (300 people, 2 tickets, 2 rounds, list-only, prizes, brand, guest invites) with a guest, a listed person and a waiting request. */
 const world = async (publish = true) => {
   const master = await start("boss@acme.com"); const ai = lastAi;

@@ -73,7 +73,7 @@ await section("cast: organizer, host, co-host with made-up e-mails and mobiles",
 const gameId = `G${String(spec.no).padStart(2, "0")}-${SEED.replace(/[^A-Za-z0-9]/g, "").slice(0, 6) || "x"}`;
 await section("organizer creates the game with every option of this row", async () => {
   const br = BREAKS[spec.b](spec.tickets), rewards = HOUSES[spec.h]();
-  const brandName = ["Acme Industries", "Bharat Textiles", "Kaveri Foods", "Zenith Labs", "Orchid Hotels"][spec.no % 5], colors = ["#0B3D91", "#1B7F5C", "#B3261E", "#6A1B9A", "#C26A00"];
+  const brandName = ["Acme Industries", "Bharat Textiles", "Kaveri Foods", "Zenith Labs", "Orchid Hotels"][spec.no % 5], colors = ["#0B5D5B", "#1B7F5C", "#B3261E", "#6A1B9A", "#C26A00"];
   const cfg = { id: gameId, cap: 1000, tickets: spec.tickets, rounds: spec.r, callSeconds: spec.g, name: `${spec.id} ${cal.id} ${spec.b}`, brand: { name: brandName, color: colors[spec.no % 5] }, ...br, ...(rewards ? { rewards } : {}) };
   const startRound = roundAt((await clock.now()) + cal.leadHours * HOUR);
   const r = await org.api("POST", "/api/z", { startRound, ...cfg });

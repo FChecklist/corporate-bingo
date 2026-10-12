@@ -30,7 +30,7 @@ const mkPhone = (n: number, earlyEnd = false) => {
 const step = async (ps: ReturnType<typeof mkPhone>[], ms = 3000) => { t += ms; for (const p of ps) await p.rt.tick(); };
 const FIRST = START; // effective first beacon round
 const callRound = (k: number) => FIRST + k * (CALL_SECONDS / 3);
-const ref = () => deriveCalls(EID, Array.from({ length: 90 }, (_, k) => rnd(callRound(k))));
+const ref = () => deriveCalls(EID, Array.from({ length: 75 }, (_, k) => rnd(callRound(k))));
 const shape = (xs: { pattern: string; ordinal: number; idx: number; count: number }[]) => xs.filter((x) => x.pattern !== "lucky").map((x) => `${x.pattern}:${x.ordinal}:${x.idx}:${x.count}`).sort();
 
 beforeEach(async () => {
@@ -71,8 +71,8 @@ describe("joining after the game began", () => {
     const a = mkPhone(11), b = mkPhone(12);
     for (const p of [a, b]) { await p.rt.boot(); await p.rt.join(p.phone); }
     for (let i = 0; i < 200; i++) await step([a, b]); // 600 s: every number is out and every house is long awarded
-    expect(a.rt.view().log.length).toBe(90);
-    const early5 = a.rt.view().results.find((x) => x.pattern === "early5" && x.ordinal === 1)!; expect(early5).toBeTruthy();
+    expect(a.rt.view().log.length).toBe(75);
+    const first = a.rt.view().results.find((x) => x.pattern === "line" && x.ordinal === 1)!; expect(first).toBeTruthy();
     const c = mkPhone(13); await c.rt.boot(); await c.rt.join(c.phone);
     for (let i = 0; i < 20; i++) await step([a, b, c]);
     expect(c.rt.view().log).toEqual([]); // the game is over: nothing is left for this phone to see or win

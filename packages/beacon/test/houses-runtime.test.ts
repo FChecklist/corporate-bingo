@@ -50,10 +50,7 @@ beforeEach(async () => {
 });
 
 const play = async (ps: ReturnType<typeof mkPhone>[]) => { for (const p of ps) { await p.rt.boot(); expect(await p.rt.join(p.phone)).toBe(true); } for (let i = 0; i < 215; i++) await step(ps); for (let i = 0; i < 6; i++) await step(ps, 5000); };
-const expected = (cfg: EngagementCfg, pids: string[], out = new Set<string>()) => {
-  const ref = reference(), randomness = ref.map((_, k) => rnd(START + k * 2));
-  return settleAll(EID, pids, ref, cfg, 1, undefined, { out, randomness, over: true });
-};
+const expected = (cfg: EngagementCfg, pids: string[]) => settleAll(EID, pids, reference(), cfg);
 const line = (x: { pattern: string; ordinal: number; idx: number }, n: number) => `${x.pattern}:${x.ordinal}:${x.idx}:${n}`;
 
 describe("phones playing every house", () => {

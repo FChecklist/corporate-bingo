@@ -101,7 +101,7 @@ describe("v.js on the home page", () => {
   test("the visitor id is made once, kept in browser storage and a one-year cookie, and the next page of the same visit keeps the same session", async () => {
     const s = await site(); await s.flush();
     const id = s.p.win.localStorage.getItem("cbv_id"); expect(id).toMatch(/^[a-f0-9]{32}$/);
-    expect(s.p.win.document.cookie).toContain("ctv=" + id);
+    expect(s.p.win.document.cookie).toContain("cbv=" + id);
     const t = await site("/legal.html", "legal.html", { storage: { cbv_id: id! } }); await t.flush();
     expect(t.sent[0]!.body.d).toBe(id); expect(t.p.win.localStorage.getItem("cbv_id")).toBe(id);
   });
@@ -117,7 +117,7 @@ describe("privacy signal", () => {
   test("with Global Privacy Control on, no visitor id is made, nothing is stored in the browser, no id header goes out, and the server keeps counts only", async () => {
     const s = await site("/", "index.html", { gpc: true });
     s.see("pricing", true); s.w.world.now += 2000; await s.flush();
-    expect(s.p.win.TBV.vid).toBe(""); expect(s.p.win.localStorage.getItem("cbv_id")).toBeNull(); expect(s.p.win.document.cookie).not.toContain("ctv=");
+    expect(s.p.win.TBV.vid).toBe(""); expect(s.p.win.localStorage.getItem("cbv_id")).toBeNull(); expect(s.p.win.document.cookie).not.toContain("cbv=");
     expect(s.sent[0]!.body.g).toBe(1); expect(s.sent[0]!.body.d).toBeUndefined();
     const calls: any[] = []; s.p.win.fetch = async (u: string, init: any) => { calls.push(init.headers); return new Response("{}", { headers: { "content-type": "application/json" } }); };
     await s.p.win.TB.api("GET", "/api/whoami"); expect(calls[0]["x-cb-vid"]).toBeUndefined(); expect(calls[0]["x-cb-vs"]).toBeUndefined();

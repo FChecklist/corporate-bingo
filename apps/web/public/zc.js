@@ -261,7 +261,7 @@
   }
 
   // ---------- brand strip on the guest's ticket (Phase 3): company name, accent colour, a small logo ----------
-  const BRAND_COLORS = [["#0B3D91", "Navy"], ["#1B7F5C", "Green"], ["#B3261E", "Red"], ["#6A1B9A", "Purple"], ["#C26A00", "Saffron"], ["#00798C", "Teal"], ["#37474F", "Charcoal"], ["#AD1457", "Pink"]]; // the eight colours the server accepts
+  const BRAND_COLORS = [["#0B5D5B", "Navy"], ["#1B7F5C", "Green"], ["#B3261E", "Red"], ["#6A1B9A", "Purple"], ["#C26A00", "Saffron"], ["#00798C", "Teal"], ["#37474F", "Charcoal"], ["#AD1457", "Pink"]]; // the eight colours the server accepts
   const previewUrl = () => "/preview.html#w=ticket&e=" + encodeURIComponent(eid);
   const previewButton = () => (canRun() && eid ? `<div class="zc-chips zc-gap"><a class="zc-chip" id="seeguests" href="${esc(previewUrl())}" target="_blank" rel="noopener">See what guests see</a></div>${small("A sample ticket, marked PREVIEW. Nothing is sent to anyone.")}` : "");
   function brandBox() {

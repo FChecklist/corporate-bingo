@@ -1,19 +1,22 @@
 /*
- * Number calling audio (owner decision): the voice only says the number, twice.
- *   24 -> "Next number is two four, twenty-four. Number twenty-four."     7 -> "Next number is seven. Number seven."
- * Plan: 90 pre-recorded clips (one fixed female Indian-English voice) are downloaded once to the device and
- * cached (Cache Storage), decoded into memory, and played when the tiny {call} message arrives.
- * Until the recorded clips exist, this falls back to the browser's own speech synthesis with the same words.
+ * Number calling voice: the phone's own speech voice says the letter and the number, twice (no audio files are used).
+ *   G 52 -> "Gee, fifty-two. Gee, five two."      B 7 -> "Bee, seven. Bee, seven."
+ * The words are the same as spokenPhrase() in packages/shared/src/audio.ts (a test keeps the two identical).
+ * Voice: US English (en-US) when the phone has one, otherwise any English voice.
  */
 (function () {
   const ONES = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
   const TENS = ["", "", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"];
+  const LETTER_WORDS = ["Bee", "Eye", "En", "Gee", "Oh"], LETTERS = ["B", "I", "N", "G", "O"];
   const words = (n) => (n < 20 ? ONES[n] : TENS[Math.floor(n / 10)] + (n % 10 ? "-" + ONES[n % 10] : ""));
   const digits = (n) => String(n).split("").map((d) => ONES[+d]).join(" ");
-  const phrase = (n) => (n < 10 ? `Next number is ${words(n)}. Number ${words(n)}.` : `Next number is ${digits(n)}, ${words(n)}. Number ${words(n)}.`);
+  const col = (n) => Math.floor((n - 1) / 15);
+  const letter = (n) => LETTERS[col(n)] || "";
+  const label = (n) => (n >= 1 && n <= 75 ? letter(n) + " " + n : String(n)); // "B 7", "G 52"
+  const phrase = (n) => { const l = LETTER_WORDS[col(n)]; return n < 10 ? `${l}, ${words(n)}. ${l}, ${words(n)}.` : `${l}, ${words(n)}. ${l}, ${digits(n)}.`; };
 
-  const VERSION = "v1-en-in-f";
-  const A = (window.TBAudio = { phrase, VERSION, enabled: true, unlocked: false, clips: new Map(), ctx: null, mode: "speech" });
+  const VERSION = "v1-en-us-speech";
+  const A = (window.TBAudio = { phrase, label, letter, VERSION, enabled: true, unlocked: false, ctx: null, mode: "speech" });
 
   // Call from a tap (Join audio). Phones only allow sound after a tap.
   A.unlock = async () => {
@@ -25,39 +28,16 @@
     } catch { A.unlocked = true; }
     return A.unlocked;
   };
+  A.preload = async () => 0; // nothing to download: the voice is the phone's own
 
-  // Download and cache the clips once; returns how many are ready. Safe to call every visit.
-  A.preload = async (onProgress) => {
-    if (!("caches" in window)) return 0;
-    let ok = 0;
-    try {
-      const cache = await caches.open("tb-audio-" + VERSION);
-      for (let n = 1; n <= 90; n++) {
-        const url = `/audio/${VERSION}/${String(n).padStart(2, "0")}.m4a`;
-        let res = await cache.match(url);
-        if (!res) { try { const r = await fetch(url); if (r.ok) { await cache.put(url, r.clone()); res = r; } } catch {} }
-        if (res && A.ctx) { try { A.clips.set(n, await A.ctx.decodeAudioData(await res.arrayBuffer())); ok++; } catch {} }
-        else if (res) ok++;
-        if (onProgress && n % 10 === 0) onProgress(n / 90);
-        if (!res && n === 1) break; // no recorded pack on the server yet: stay on speech synthesis
-      }
-    } catch {}
-    A.mode = A.clips.size >= 90 ? "clips" : "speech";
-    return ok;
-  };
-
+  const pickVoice = () => { const vs = speechSynthesis.getVoices(); return vs.find((v) => v.lang === "en-US" && /female|zira|samantha|natural|google/i.test(v.name)) || vs.find((v) => v.lang === "en-US") || vs.find((v) => /^en/.test(v.lang)); };
   A.play = (n) => {
-    if (!A.enabled) return;
-    const clip = A.clips.get(n);
-    if (clip && A.ctx) { const s = A.ctx.createBufferSource(); s.buffer = clip; s.connect(A.ctx.destination); s.start(); return; }
-    if (!window.speechSynthesis) return;
+    if (!A.enabled || !window.speechSynthesis) return;
     try {
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(phrase(n));
-      u.rate = 0.82; u.pitch = 1.05; u.lang = "en-IN";
-      const vs = speechSynthesis.getVoices();
-      const pick = vs.find((v) => v.lang === "en-IN" && /female|heera|neerja|veena|raveena|natural|google/i.test(v.name)) || vs.find((v) => v.lang === "en-IN") || vs.find((v) => /^en/.test(v.lang) && /female|zira|samantha|natural/i.test(v.name));
-      if (pick) u.voice = pick;
+      u.rate = 0.85; u.pitch = 1.0; u.lang = "en-US";
+      const pick = pickVoice(); if (pick) u.voice = pick;
       speechSynthesis.speak(u);
     } catch {}
   };
@@ -66,11 +46,11 @@
     if (!A.enabled || !window.speechSynthesis) return;
     try {
       speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(lead + text); u.rate = 0.9; u.lang = "en-IN";
-      const vs = speechSynthesis.getVoices(); const pick = vs.find((v) => v.lang === "en-IN") || vs.find((v) => /^en/.test(v.lang)); if (pick) u.voice = pick;
+      const u = new SpeechSynthesisUtterance(lead + text); u.rate = 0.9; u.lang = "en-US";
+      const pick = pickVoice(); if (pick) u.voice = pick;
       speechSynthesis.speak(u);
     } catch {}
   };
-  A.test = () => { A.unlock(); A.play(24); };
+  A.test = () => { A.unlock(); A.play(52); };
   A.stop = () => { try { window.speechSynthesis && speechSynthesis.cancel(); } catch {} };
 })();
