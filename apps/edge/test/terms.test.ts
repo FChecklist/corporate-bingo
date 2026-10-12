@@ -19,7 +19,7 @@ const LINKS = ["/terms.html", "/dpa.html", "/subprocessors.html", "/organizer-gu
 
 describe("the document pages", () => {
   const DOCS: Record<string, string[]> = {
-    "terms.html": ["For organizers", "For players", "You must not charge any fee, price, donation or purchase for taking part", "You must be 18 or older", "Taking part must be voluntary", "You provide the prizes and hand them over", "You make sure the game is allowed under the law", "Players are 18 or older", "parent&rsquo;s or guardian&rsquo;s own ticket", `Version ${TERMS_VERSION}`, "/dpa.html"],
+    "terms.html": ["For organizers", "For players", "You must not charge any fee, price, donation or purchase for taking part", "You must be 18 or older", "Taking part must be voluntary", "You provide the prizes and hand them over", "You make sure the game is allowed under the law", "Players are 18 or older", "parent&rsquo;s or guardian&rsquo;s own card", `Version ${TERMS_VERSION}`, "/dpa.html"],
     "dpa.html": ["controller", "processor", "All player data is deleted within 24 hours", "Backups clear within 7 days", "365 days", "without undue delay", "/subprocessors.html"],
     "subprocessors.html": ["Cloudflare", "Resend", "Razorpay", "Google", "drand", "YouTube"],
     "partner-terms.html": ["independent partner", "No spam", "Tax may be deducted at source", "You are responsible for your own taxes", "No payment from the buyer, no commission"],
@@ -38,6 +38,11 @@ describe("the document pages", () => {
     for (const f of ["index.html", "legal.html"]) for (const l of LINKS) expect(rd(f)).toContain(`href="${l}"`);
     const b = readFileSync(new URL("../../../pages/build.mjs", import.meta.url), "utf8");
     for (const n of ["terms", "dpa", "subprocessors", "partner-terms", "organizer-guide"]) { expect(b).toContain(`"${n}.html"`); expect(b).toContain(`["/${n}", PLAINCSP`); expect(rd("sitemap.xml")).toContain(`/${n}.html`); }
+  });
+  test("the public website pages describe Bingo only: no words of the game this product was copied from, and the software-only line is on the key pages", () => {
+    const files = ["index.html", "pricing.html", "about.html", "contact.html", "legal.html", "terms.html", "refund-policy.html", "dpa.html", "subprocessors.html", "partner.html", "partner-terms.html", "organizer-guide.html", "brochure.html", "404.html", "site.js"];
+    for (const f of files) expect([f, /tambola|housie|early five|full house|top line|\bIST\b|90 numbers|\bticket/i.test(rd(f).replace(/i-ticket|ic\("ticket"\)/g, ""))]).toEqual([f, false]);
+    for (const f of ["index.html", "terms.html", "organizer-guide.html"]) expect([f, /we never hold or pay prize money|we never hold prizes/i.test(rd(f))]).toEqual([f, true]);
   });
   test("the drafts README exists for the owner (not on the public pages)", () => {
     const t = readFileSync(new URL("../../../docs/compliance/DRAFTS_README.md", import.meta.url), "utf8"); expect(t).toMatch(/DRAFT FOR LAWYER REVIEW/); for (const f of Object.keys(DOCS)) expect(t).toContain(f);

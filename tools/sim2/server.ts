@@ -3,7 +3,7 @@
 //   clock  GET|POST /__sim/clock  {set: ms|iso} {advance: ms} {freeze: true|false} {reset: true}
 //   tick   POST /__sim/tick       {advance?: ms, step?: ms}  runs the cron Worker call (POST /api/lifecycle/tick) at the simulated time, stepping through the advance (default step 60 s)
 //   mail   GET /__sim/mail (viewer)  GET /__sim/mail.json?to=&subject=&since=  DELETE /__sim/mail.json   every e-mail the Worker "sent" (nothing is ever really sent)
-//   reset  POST /__sim/reset      fresh copy of sim/live-copy.sqlite -> sim/run.sqlite, clock back to real time
+//   reset  POST /__sim/reset      fresh copy of sim/pristine.sqlite -> sim/run.sqlite, clock back to real time
 //   mode   POST /__sim/mode {mode:"TEST"|"LIVE"}   sql  POST /__sim/sql {sql, params}  (SELECT only)   usage  GET /__sim/usage   google  GET /__sim/google-token?email=
 // Safety: a global fetch guard refuses every request that is not to localhost, so the Worker can never reach Resend, Razorpay, Google, drand or the live site from here.
 // Run: bun tools/sim2/server.ts   (env SIM_PORT=8801, SIM_BUILD=0 to skip rebuilding pages/public, SIM_GOOGLE=0 to leave Google sign-in off like live)
@@ -34,7 +34,7 @@ export const blockedFetches: string[] = [];
 export interface SimOpts { port?: number; pristine?: string; runFile?: string; build?: boolean; google?: boolean }
 export async function startSim(o: SimOpts = {}) {
   const port = o.port ?? Number(process.env.SIM_PORT ?? 8801);
-  const pristine = o.pristine ?? join(ROOT, "sim/live-copy.sqlite"), runFile = o.runFile ?? join(ROOT, "sim/run.sqlite");
+  const pristine = o.pristine ?? join(ROOT, "sim/pristine.sqlite"), runFile = o.runFile ?? join(ROOT, "sim/run.sqlite");
   if (o.build ?? process.env.SIM_BUILD !== "0") { const r = spawnSync(process.execPath, [join(ROOT, "pages/build.mjs")], { cwd: ROOT, encoding: "utf8" }); if (r.status !== 0) throw new Error("pages/build.mjs failed: " + r.stderr); }
   const pages = makePages(join(ROOT, "pages/public"));
   const toml = readFileSync(join(ROOT, "pages/wrangler.toml"), "utf8");

@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { FREE_CELL, PATTERN_RULES, cellOfNumber, generateTicket, ticketNumbers, type PatternId, type Ticket } from "../../shared/src/ticket";
 import { HOUSE_ORDER, HOUSES_LINE, PATTERN_ORDER, PRIZE_HOUSES, defaultCfg, defaultRewards, keysInPlay, linesFor, maxWinnersFor, validateCfg, type EngagementCfg, type RewardLine } from "../src/config";
 import { PrizeEngine, countFromOf } from "../src/prize-engine";
-import { completionIndex, settleAll, stillToWin, ticketsFor } from "../src/game";
+import { assignOrdinals, completionIndex, rankName, rankWinners, settleAll, stillToWin, ticketsFor } from "../src/game";
 import { ticketCompletion, ticketStillNeeds, winningNumbers } from "../src/house-rules";
 import { seededRand } from "../src";
 import { ticketAt } from "../src/unique-ticket";
@@ -119,23 +119,44 @@ describe("BG-03 each pattern completes on the exact call where its last square i
   });
 });
 
-describe("BG-04 ties share the reward; the 2nd reward goes to the next distinct call", () => {
-  test("two or more guests completing the same house on the same call are all recorded as winners of it", () => {
-    const pids = mkPids(400), cfg: EngagementCfg = { ...defaultCfg(), rewards: [{ pattern: "corners", scope: "ticket", ordinal: 1, text: "" }, { pattern: "corners", scope: "ticket", ordinal: 2, text: "" }] };
-    let found = false;
-    for (let s = 0; s < 40 && !found; s++) {
-      const log = shuffle75("tie" + s), r = settleAll("TIE", pids, log, cfg);
-      const first = r.find((x) => x.ordinal === 1)!, second = r.find((x) => x.ordinal === 2);
-      if (first.pids.length >= 2) {
-        found = true;
-        expect(first.pids.length).toBeGreaterThanOrEqual(2);
-        for (const pid of first.pids) expect(completionIndex(ticketsFor("TIE", pid, 1)[0]!, "corners", log)).toBe(first.idx);
-        if (second) expect(second.idx).toBeGreaterThan(first.idx);
-        const e = new PrizeEngine("TIE", cfg); e.addSeats(pids.map((pid) => ({ pid, countFrom: 0 }))); e.work(10_000); log.forEach((n, k) => e.feed(n, 100 + k));
-        expect(norm(e.results())).toEqual(norm(r));
-      }
+describe("BG-04 / BG-18 no shared prize: one winner per ordinal, ties decided by fate", () => {
+  const seatPid = (i: number) => i + "x00000000" + i.toString(16).padStart(4, "0");
+  test("a tie on the same call for 2, 3 and 10 guests: each ordinal has exactly one winner, ordered by fate, the same every time", () => {
+    for (const n of [2, 3, 10]) {
+      const pids = Array.from({ length: n }, (_, i) => seatPid(i + 1));
+      const ords = Array.from({ length: Math.min(n, 3) }, (_, i) => i + 1);
+      const r = assignOrdinals("TIE-" + n, "corners", [[20, pids]], ords, 1);
+      expect(r.length).toBe(ords.length);
+      for (const s of r) { expect(s.pids.length).toBe(1); expect(s.tied).toBe(n); expect(s.idx).toBe(20); }
+      expect(new Set(r.map((s) => s.pids[0])).size).toBe(r.length); // nobody wins two ordinals of one house here
+      expect(JSON.stringify(assignOrdinals("TIE-" + n, "corners", [[20, [...pids].reverse()]], ords, 1))).toBe(JSON.stringify(r)); // the order of the list does not matter
+      expect(r.map((s) => s.ordinal)).toEqual(ords);
     }
-    expect(found).toBe(true);
+  });
+  test("an earlier call always beats a later one; fate only orders guests on the SAME call", () => {
+    const r = assignOrdinals("TIE-X", "line", [[30, ["2x00000000bbbb", "3x00000000cccc"]], [10, ["1x00000000aaaa"]]], [1, 2, 3], 1);
+    expect(r[0]!.pids[0]).toBe("1x00000000aaaa"); expect(r[0]!.tied).toBeUndefined();
+    expect(r.slice(1).every((s) => s.idx === 30 && s.tied === 2)).toBe(true);
+  });
+  test("real cards: every house, 400 guests: no ordinal has more than one winner and the engine equals settleAll", () => {
+    const pids = mkPids(400), cfg = cfgAll(1);
+    for (let s = 0; s < 6; s++) {
+      const log = shuffle75("tie" + s), r = settleAll("TIE", pids, log, cfg), e = new PrizeEngine("TIE", cfg);
+      e.addSeats(pids.map((pid) => ({ pid, countFrom: 0 }))); e.work(10_000); log.forEach((n, k) => e.feed(n, 100 + k));
+      expect(norm(e.results())).toEqual(norm(r));
+      const seen = new Set<string>(); for (const x of r) { expect(x.pids.length).toBe(1); const k = x.pattern + "#" + x.ordinal; expect(seen.has(k)).toBe(false); seen.add(k); }
+    }
+  });
+  test("BG-19 ranking: unique ranks 1-10 in prize order, then call, then fate; a fate-decided tie is explained", () => {
+    const pids = mkPids(400), cfg = cfgAll(1), log = shuffle75("rank"), r = settleAll("RANK", pids, log, cfg);
+    const rows = rankWinners("RANK", cfg, r, 10);
+    expect(rows.length).toBe(10); expect(rows.map((x) => x.rank)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    expect(rankName(1)).toBe("1st"); expect(rankName(5)).toBe("5th");
+    const again = rankWinners("RANK", cfg, [...r].reverse(), 10); expect(JSON.stringify(again)).toBe(JSON.stringify(rows)); // stable whatever order the phone holds the results in
+    const vi = (x: { pattern: string; ordinal: number }) => cfg.rewards.findIndex((l) => l.pattern === x.pattern && l.ordinal === x.ordinal);
+    for (let i = 1; i < rows.length; i++) expect(vi(rows[i]!) > vi(rows[i - 1]!) || (vi(rows[i]!) === vi(rows[i - 1]!))).toBe(true);
+    const tied = rankWinners("T", { ...defaultCfg() }, assignOrdinals("T", "line", [[5, ["1x00000000aaaa", "2x00000000bbbb"]]], [1], 1), 10);
+    expect(tied[0]!.note).toMatch(/decided by fate/);
   });
 });
 

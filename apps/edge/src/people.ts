@@ -95,7 +95,7 @@ export const inviterOf = (o: FromOwner): string => (o.kind === "org" ? "o" : o.k
 /** What `seat.src` says for a person who came in under this inviter (a Co-host's count of people brought reads it). */
 export const srcOf = (inviter: string): string => (inviter.startsWith("c:") ? "co:" + inviter.slice(2) : inviter.startsWith("h:") ? "ho:" + inviter.slice(2) : "link");
 
-export const waMessage = (name: string | null, game: string, link: string) => `${name ? name + ", you" : "You"} are invited to ${game}. Open your ticket here: ${link}`;
+export const waMessage = (name: string | null, game: string, link: string) => `${name ? name + ", you" : "You"} are invited to ${game}. Open your card here: ${link}`;
 export const waLinkOf = (digits: string, text: string) => `https://wa.me/${digits}?text=${encodeURIComponent(text)}`;
 
 /** Callers of the people routes. `all` = sees every list of the game (Organizer, Host). */
@@ -120,7 +120,7 @@ const AI_REFUSAL = "Names and mobile numbers are handled by people in the consol
 const PERSON_COLS = "eid, id, ph, pii, inviter, role, status, tok_hash, tok_sealed, approved_by, approved_ms, added_ms, joined_ms, removed_ms, removed_by";
 interface PersonRow { eid: string; id: string; ph: string; pii: string; inviter: string; role: string | null; status: "invited" | "joined" | "removed"; tok_hash: string | null; tok_sealed: string | null; approved_by: string | null; approved_ms: number | null; added_ms: number; joined_ms: number | null; removed_ms: number | null; removed_by: string | null }
 
-/** Who may use the people routes, and as which list. Returns a response when they may not. A guest (level 1) is known by their ticket id (`me`), the same trust as the /invites route. */
+/** Who may use the people routes, and as which list. Returns a response when they may not. A guest (level 1) is known by their card id (`me`), the same trust as the /invites route. */
 async function callerOf(c: Ctx, bodyMe?: unknown): Promise<{ who: Caller } | { res: Response }> {
   const { a, e } = c;
   if (a.kind === "ai" || c.viaLink || c.req.headers.get("x-cb-link") === "1") return { res: c.json({ error: AI_REFUSAL }, 403) };
@@ -135,22 +135,22 @@ async function callerOf(c: Ctx, bodyMe?: unknown): Promise<{ who: Caller } | { r
     return { res: c.json({ error: "Not allowed." }, 403) };
   }
   const pid = c.req.headers.get("x-cb-pid") || c.url.searchParams.get("me") || (typeof bodyMe === "string" ? bodyMe : "");
-  if (!pid) return { res: c.json({ error: "Please sign in, or open your ticket link first." }, 403) };
+  if (!pid) return { res: c.json({ error: "Please sign in, or open your card link first." }, 403) };
   const seat = await c.env.DB.prepare("SELECT seq, role, inv, blocked FROM seat WHERE eid=? AND pid=?").bind(c.eid, pid).first<{ seq: number; role: string | null; inv: number | null; blocked: number | null }>();
   if (!seat) return { res: c.json({ error: "Not a participant of this game." }, 403) };
   if (seat.blocked) return { res: c.json({ error: "You were removed from this game.", code: "removed" }, 403) };
-  if (seat.role) return { res: c.json({ error: "Your team seat invites through the console, not through the ticket." }, 403) };
+  if (seat.role) return { res: c.json({ error: "Your team seat invites through the console, not through the card." }, 403) };
   if (seat.inv !== null) return { res: c.json({ error: "Guests invited by a guest can play but cannot invite more people." }, 403) };
   if (!c.invites.on) return { res: c.json({ error: "The organizer has not switched on guest invitations for this game." }, 403) };
   return { who: { id: "s:" + seat.seq, kind: "guest", all: false, limit: c.invites.per, label: "Guest", seat: seat.seq } };
 }
 
-/** The labels the console shows for inviter ids: Organizer, Host <label>, Co-host <label>, Guest (ticket n). */
+/** The labels the console shows for inviter ids: Organizer, Host <label>, Co-host <label>, Guest (card n). */
 async function labelsOf(c: Ctx): Promise<(id: string | null) => string> {
   const rows = (await c.env.DB.prepare("SELECT substr(hash,1,7) AS h, kind, label FROM organizer_key WHERE org=? AND kind IN ('host','cohost') AND (eid IS NULL OR eid=?)").bind(c.e.org, c.eid).all<{ h: string; kind: string; label: string | null }>()).results ?? [];
   const m = new Map<string, string>();
   for (const r of rows) m.set((r.kind === "host" ? "h:" : "c:") + r.h, `${r.kind === "host" ? "Host" : "Co-host"}${r.label ? " " + r.label : ""}`);
-  return (id) => (!id ? "" : id === "o" ? "Organizer" : id.startsWith("s:") ? `Guest (ticket ${id.slice(2)})` : m.get(id) ?? (id.startsWith("h:") ? "Host" : "Co-host"));
+  return (id) => (!id ? "" : id === "o" ? "Organizer" : id.startsWith("s:") ? `Guest (card ${id.slice(2)})` : m.get(id) ?? (id.startsWith("h:") ? "Host" : "Co-host"));
 }
 
 export interface PersonView { id: string; name: string; maskedPhone: string; status: "invited" | "joined" | "waiting" | "removed"; link: string | null; waLink: string | null; role?: string; inviter?: string; approvedBy?: string }
@@ -401,7 +401,7 @@ async function resendPerson(c: Ctx, who: Caller, id: string, b: any): Promise<Re
     if (!cl.ok) return c.json({ error: cl.why }, 400);
     ph = await phoneHashOf(c.env, cl.digits);
     if (ph !== row.ph) {
-      if (hasSeat) return c.json({ error: "They have already joined with their first number. Their ticket can move to a new phone, but not to a new number." }, 409);
+      if (hasSeat) return c.json({ error: "They have already joined with their first number. Their card can move to a new phone, but not to a new number." }, 409);
       if ((await db.prepare("SELECT 1 AS x FROM person WHERE eid=? AND ph=?").bind(c.eid, ph).first()) || (await db.prepare("SELECT 1 AS x FROM seat WHERE eid=? AND ph=?").bind(c.eid, ph).first())) return c.json({ error: "That number is already invited.", code: "duplicate" }, 409);
       newPii = await sealPii(c.env, { phone: cl.digits, name: pii?.name ?? null }); pii = { phone: cl.digits, name: pii?.name ?? null };
     }
@@ -410,7 +410,7 @@ async function resendPerson(c: Ctx, who: Caller, id: string, b: any): Promise<Re
   const token = newToken();
   const res = await batched(db, [
     db.prepare("UPDATE person SET tok_hash=?, tok_sealed=?, ph=COALESCE(?, ph), pii=COALESCE(?, pii) WHERE eid=? AND id=? AND status<>'removed'").bind(await tokenHash(token), await sealText(c.env, token), newPii ? ph : null, newPii, c.eid, row.id),
-    db.prepare("UPDATE seat SET dev=NULL WHERE eid=? AND ph=?").bind(c.eid, row.ph), // the first phone to open the new link keeps the ticket
+    db.prepare("UPDATE seat SET dev=NULL WHERE eid=? AND ph=?").bind(c.eid, row.ph), // the first phone to open the new link keeps the card
   ]);
   if ((res[0]?.meta?.changes ?? 0) === 0) return c.json({ error: "That number is already invited.", code: "duplicate" }, 409);
   const link = `${c.origin}/j/${token}`;
@@ -419,7 +419,7 @@ async function resendPerson(c: Ctx, who: Caller, id: string, b: any): Promise<Re
 
 /** The caller's OWN play seat: Organizer, Host and Co-host also play, through a personal link, and their seat is flagged so they stay out of the lucky draws. */
 async function myOwnSeat(c: Ctx, who: Caller, b: any): Promise<Response> {
-  if (who.kind === "guest") return c.json({ error: "Your ticket link is the one you were sent." }, 403);
+  if (who.kind === "guest") return c.json({ error: "Your card link is the one you were sent." }, 403);
   const db = c.env.DB;
   const role = who.kind === "organizer" ? "organizer" : who.kind === "host" ? "host" : "co-host";
   let name: string | null = null, digits: string | null = null;
@@ -537,7 +537,7 @@ async function decideAll(c: Ctx, who: Caller, b: any): Promise<Response> {
 }
 
 // ------------------------------------------------------------------------------------------------------------------------------- the phone's own status (public)
-/** GET /api/z/{id}/me?pid=<ticket id> or ?wid=<waiting id>: a phone asks whether it is still in, or whether its request has been answered. No names, no numbers. */
+/** GET /api/z/{id}/me?pid=<card id> or ?wid=<waiting id>: a phone asks whether it is still in, or whether its request has been answered. No names, no numbers. */
 async function meRoute(c: Ctx): Promise<Response> {
   const db = c.env.DB, pid = c.url.searchParams.get("pid"), wid = c.url.searchParams.get("wid");
   if (pid) {
@@ -553,9 +553,9 @@ async function meRoute(c: Ctx): Promise<Response> {
     const ended = c.now >= await c.endBound();
     const state = w.status === "waiting" && ended ? "lapsed" : w.status;
     const who = await waitingWho(c, w.overlimit ? "o" : w.inviter);
-    return c.json({ state, with: who, message: state === "waiting" ? `Your request is with ${who}. You can come in as soon as they say yes.` : state === "admitted" ? "You are in. Open your ticket again to join." : state === "declined" ? "This game could not add you. Please talk to whoever invited you." : "This game has ended." });
+    return c.json({ state, with: who, message: state === "waiting" ? `Your request is with ${who}. You can come in as soon as they say yes.` : state === "admitted" ? "You are in. Open your card again to join." : state === "declined" ? "This game could not add you. Please talk to whoever invited you." : "This game has ended." });
   }
-  return c.json({ error: "Say which: ?pid=<your ticket id> or ?wid=<your request id>." }, 400);
+  return c.json({ error: "Say which: ?pid=<your card id> or ?wid=<your request id>." }, 400);
 }
 /** Who a waiting guest is told their request is with: the Organizer, a Host or Co-host by the name the Organizer gave them, or "the person who invited you". */
 export async function waitingWho(c: { env: Env; e: any; eid: string }, inviter: string): Promise<string> {
@@ -601,9 +601,9 @@ export async function joinLinkPage(env: Env, token: string, origin: string, game
   if (!e || e.cancelled_ms || e.unplayed_ms) return gone();
   const pii = await openPii(env, row.pii), first = (pii?.name ?? "").trim().split(/\s+/)[0] ?? "", game = gameNameOf(e);
   const target = `${origin}/z.html?e=${encodeURIComponent(row.eid)}&t=${encodeURIComponent(token.toLowerCase())}`;
-  const title = `You are invited to ${game}`, desc = `${first ? first + ", tap" : "Tap"} to open your ticket. Corporate Bingo needs no app and no sign-up.`;
+  const title = `You are invited to ${game}`, desc = `${first ? first + ", tap" : "Tap"} to open your card. Corporate Bingo needs no app and no sign-up.`;
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><meta http-equiv="refresh" content="0;url=${esc(target)}"><title>${esc(title)}</title>`
     + `<meta property="og:type" content="website"><meta property="og:site_name" content="Corporate Bingo"><meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(desc)}"><meta property="og:url" content="${esc(origin + "/j/" + token.toLowerCase())}">`
-    + `<meta name="twitter:card" content="summary"><meta name="twitter:title" content="${esc(title)}"></head><body style="font-family:system-ui;max-width:32rem;margin:3rem auto;padding:0 1rem"><h1>${esc(title)}</h1><p><a href="${esc(target)}">Open your ticket</a></p></body></html>`;
+    + `<meta name="twitter:card" content="summary"><meta name="twitter:title" content="${esc(title)}"></head><body style="font-family:system-ui;max-width:32rem;margin:3rem auto;padding:0 1rem"><h1>${esc(title)}</h1><p><a href="${esc(target)}">Open your card</a></p></body></html>`;
   return new Response(html, { headers });
 }

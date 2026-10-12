@@ -6,8 +6,8 @@
   const q = new URLSearchParams(location.search);
   const EID = (q.get("e") || "").trim();
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const NAMES = { early5: "Early Five", top: "Top line", mid: "Middle line", bot: "Bottom line", corners: "Four corners", star: "Star", full: "Full house", full2: "Full Two-Ticket House", lucky: "Lucky draw" };
-  (ZG.PRIZE_HOUSES || []).forEach((h) => { if (!NAMES[h.id]) NAMES[h.id] = h.label; }); // the newer houses come from the shared table
+  const NAMES = { lucky: "Lucky draw" };
+  (ZG.PRIZE_HOUSES || []).forEach((h) => { if (!NAMES[h.id]) NAMES[h.id] = h.label; }); // every house name comes from the shared table
   const ORD = (k) => ["", "1st", "2nd", "3rd"][k] || k + "th";
   const S = { info: null, cf: null, store: new ZG.RoundStore({}), logs: {}, round: 1, now: null, st: null, results: [], err: "", lastNum: null };
   const j = async (url) => { const r = await fetch(url, { cache: "no-store" }); if (!r.ok) throw Object.assign(new Error("http " + r.status), { status: r.status }); return r.json(); };
@@ -26,7 +26,7 @@
       const stride = S.info.callSeconds / 3;
       let budget = 60;
       for (let r = 1; r <= cfg.rounds; r++) {
-        const sched = Array.from({ length: 90 }, (_, k) => ZG.callRoundR(S.st, S.info.startRound + ZG.GRACE_ROUNDS, stride, cfg.breaks, r, k));
+        const sched = Array.from({ length: 75 }, (_, k) => ZG.callRoundR(S.st, S.info.startRound + ZG.GRACE_ROUNDS, stride, cfg.breaks, r, k));
         const upto = sched.filter((x) => x !== null && !S.locked && x <= S.now);
         const need = upto.filter((x) => !S.store.rounds.has(x)).slice(0, budget); budget -= need.length;
         await Promise.all(need.map((x, i) => (S.now - x <= 2 ? S.store.fetchLive(x, i) : S.store.fetchBackfill(x, i))));
@@ -50,19 +50,22 @@
     const paused = S.st && S.now !== null && S.st.intervals.some((i) => S.now >= i.start && S.now < i.end);
     const annBar = S.ann ? `<div class="annbar" role="alert">${esc(S.ann.text)}</div>` : "";
     const bd = info.brand && typeof info.brand === "object" ? info.brand : null, bLogo = bd && typeof bd.logo === "string" && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(bd.logo) ? bd.logo : ""; // the organizer's own logo and name, or ours in writing
-    const head = `${annBar}<div class="top"><div class="brand">${bLogo ? `<img class="blogo" alt="" src="${esc(bLogo)}">` : ""}${esc(bd && bd.name ? bd.name : "Corporate Bingo")}</div><div class="meta">${cfg.rounds > 1 ? "Round " + S.round + " of " + cfg.rounds + " · " : ""}${log.length} of 90 numbers called</div></div>`;
-    const wins = (S.results || []).filter((r) => r.round === S.round || r.round === undefined).map((r) => `<span><b>${esc(ORD(r.ordinal || 1))} ${esc(NAMES[r.pattern] || r.pattern)}</b> · ${r.count} winner${r.count === 1 ? "" : "s"}</span>`).join("");
+    const head = `${annBar}<div class="top"><div class="brand">${bLogo ? `<img class="blogo" alt="" src="${esc(bLogo)}">` : ""}${esc(bd && bd.name ? bd.name : "Corporate Bingo")}</div><div class="meta">${cfg.rounds > 1 ? "Round " + S.round + " of " + cfg.rounds + " · " : ""}${log.length} of 75 numbers called</div></div>`;
+    const sett = (S.results || []).filter((r) => (r.round === S.round || r.round === undefined) && r.pattern !== "lucky" && r.winners && r.winners.length).map((r) => ({ pattern: r.pattern, ordinal: r.ordinal, idx: r.idx, pids: r.winners, round: S.round, tied: r.tied }));
+    const ranked = sett.length ? ZG.rankWinners(ZG.roundEid(EID, S.round), ZG.validateCfg({ tickets: info.tickets, rewards: info.rewards }, undefined, { stored: true }).cfg, sett, 10) : [];
+    const wins = ranked.map((x) => `<span><b>${esc(ZG.rankName(x.rank))} ${esc(NAMES[x.pattern] || x.pattern)}</b> · card ${esc(String((/^(\d+)x/.exec(x.pid) || [0, "?"])[1]))}${x.note ? " · decided by fate" : ""}</span>`).join("");
     if (!log.length) {
       const sec = secsToStart;
-      return ($app.innerHTML = `${head}<div class="big">${sec !== null && sec > 120 ? `<p>The engagement starts in</p><div class="cd">${hms(sec - 120)}</div><p>Open the link on your phone and get your ticket.</p>` : sec !== null && sec > 0 ? `<h1>Your game is setting up</h1><p>We are waiting 2 minutes more for everyone to join.</p><div class="cd">${mmss(sec)}</div><p>Open the link on your phone and get your ticket.</p>` : `<h1>Get ready</h1><p>The first number is about to be called…</p>`}</div><div class="foot">${esc(location.host)}</div>`);
+      return ($app.innerHTML = `${head}<div class="big">${sec !== null && sec > 120 ? `<p>The engagement starts in</p><div class="cd">${hms(sec - 120)}</div><p>Open the link on your phone and get your card.</p>` : sec !== null && sec > 0 ? `<h1>Your game is setting up</h1><p>We are waiting 2 minutes more for everyone to join.</p><div class="cd">${mmss(sec)}</div><p>Open the link on your phone and get your card.</p>` : `<h1>Get ready</h1><p>The first number is about to be called…</p>`}</div><div class="foot">${esc(location.host)}</div>`);
     }
     const last = log[log.length - 1];
     const fresh = S.lastNum !== null && S.lastNum !== last; S.lastNum = last;
     const called = new Set(log);
-    const board = Array.from({ length: 90 }, (_, i) => i + 1).map((n) => `<div class="${n === last ? "l" : called.has(n) ? "c" : ""}">${n}</div>`).join("");
-    const recent = log.slice(-6, -1).reverse().map((n) => `<span>${n}</span>`).join("");
+    const LET = ["B", "I", "N", "G", "O"], colOf = (n) => Math.floor((n - 1) / 15);
+    const board = LET.map((l, c) => `<div class="bl l${c}" aria-hidden="true">${l}</div>` + Array.from({ length: 15 }, (_, i) => c * 15 + i + 1).map((n) => `<div class="${n === last ? "l" : called.has(n) ? "c" : ""}" aria-label="${LET[colOf(n)]} ${n}${called.has(n) ? ", called" : ""}">${n}</div>`).join("")).join("");
+    const recent = log.slice(-6, -1).reverse().map((n) => `<span class="l${colOf(n)}" aria-label="${LET[colOf(n)]} ${n}">${LET[colOf(n)]} ${n}</span>`).join("");
     const banner = paused ? `<div class="big" style="margin-bottom:1vh"><h1>Paused</h1><p>The organizer has paused the engagement. It will resume shortly.</p></div>` : "";
-    $app.innerHTML = `${head}${banner}<div class="main"><div class="now"><div class="lbl">Number</div><div class="num ${fresh ? "fresh" : ""}">${last}</div><div class="recent" aria-label="Recent numbers">${recent}</div></div><div class="board" aria-label="Numbers called so far">${board}</div></div><div>${wins ? `<div class="wins">${wins}</div>` : ""}<div class="foot">Join: ${esc(location.host)}/z?e=${esc(EID)}</div></div>`;
+    $app.innerHTML = `${head}${banner}<div class="main"><div class="now"><div class="lbl">Now calling</div><div class="num l${colOf(last)} ${fresh ? "fresh" : ""}" aria-label="${LET[colOf(last)]} ${last}"><small>${LET[colOf(last)]}</small>${last}</div><div class="recent" aria-label="Recent numbers">${recent}</div></div><div class="board" role="group" aria-label="Call board, 75 numbers">${board}</div></div><div>${wins ? `<div class="wins">${wins}</div>` : ""}<div class="foot">Join: ${esc(location.host)}/z?e=${esc(EID)}</div></div>`;
   }
 
   if (!EID) { $app.innerHTML = `<p class="msg">No engagement was chosen.</p>`; return; }

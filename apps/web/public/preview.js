@@ -6,7 +6,7 @@
   const $app = document.getElementById("app");
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const q = new URLSearchParams(location.hash.replace(/^#/, ""));
-  if (q.get("w") === "ticket") { ticketPreview(); return; }
+  if (q.get("w") === "card") { ticketPreview(); return; }
   const when = ["break", "opening", "closing"].includes(q.get("w")) ? q.get("w") : "break";
   const b = { kind: q.get("k") || "speech", title: (q.get("t") || "Your message").slice(0, 80), mediaUrl: q.get("u") || "", seconds: Math.max(15, Math.min(600, Number(q.get("s")) || 60)) };
   if (b.mediaUrl && !/^https:\/\/[^\s<>"'`]+$/i.test(b.mediaUrl)) b.mediaUrl = "";
@@ -57,8 +57,9 @@
   addEventListener("resize", placeMedia);
 
   const kind = mediaKind(b);
-  const sample = [[4, 0, 23, 0, 41, 0, 0, 72, 85], [0, 12, 0, 34, 0, 56, 0, 78, 0], [7, 0, 29, 0, 0, 58, 63, 0, 90]];
-  const ticket = `<div class="zcard"><h2>Your ticket (sample)</h2><table style="border-collapse:collapse;margin:0 auto"><tbody>${sample.map((r) => `<tr>${r.map((n) => `<td style="width:30px;height:30px;text-align:center;border:1px solid #cdd5e0;font:700 14px system-ui,sans-serif;${n ? "background:#fff" : "background:#eef2f8"}">${n || ""}</td>`).join("")}</tr>`).join("")}</tbody></table><p class="zsmall" style="margin:8px 0 0">In the real game your ticket stays on the screen under the break, and the numbers carry on from where they stopped.</p></div>`;
+  const SAMPLE_CARD = [[7, 18, 34, 52, 66], [3, 25, 41, 47, 70], [12, 29, null, 59, 73], [14, 21, 38, 46, 62], [9, 27, 43, 55, 68]];
+  const cardGrid = (label) => `<div class="zticket" role="group" aria-label="${label}">${["B", "I", "N", "G", "O"].map((l, c) => `<div class="h l${c}" aria-hidden="true">${l}</div>`).join("")}${SAMPLE_CARD.flat().map((n) => n === null ? `<div class="m free"><span>FREE</span></div>` : `<div class="c">${n}</div>`).join("")}</div>`;
+  const card = `<div class="zcard"><h2>Your card (sample)</h2>${cardGrid("Sample card")}</div>`;
   const what = b.kind === "speech" ? "Please listen to the host." : b.kind === "slides" ? "Please look at the screen." : "";
   const heading = when === "break" ? "A short break" : when === "opening" ? "A message from your organizer" : "Thank you from your organizer";
   const verdict = !b.mediaUrl ? "No link: guests see your message only." : kind ? "This link plays inside the game." : "<b>This link will NOT play inside the game.</b> It opens in a new tab and takes the guest out of the game. Use a YouTube link, or a direct link to a video (.mp4) or audio (.mp3) file.";
@@ -68,11 +69,11 @@
     const over = secondsLeft !== null && secondsLeft <= 0;
     const act = b.mediaUrl && !over ? (kind ? `<div id="mslot" class="zmslot"></div><a class="zsmall" target="_blank" rel="noopener noreferrer" href="${esc(b.mediaUrl)}">Trouble playing? Open it in a new tab</a>` : `<a class="zbtn s" style="display:inline-flex;align-items:center;text-decoration:none;margin-top:10px" target="_blank" rel="noopener noreferrer" href="${esc(b.mediaUrl)}">${b.kind === "youtube" ? "Watch the video" : "Open"}</a>`) : "";
     const tail = when === "break" ? ` The numbers continue in ${Math.max(0, secondsLeft)}s.` : when === "opening" ? " The game starts in a moment." : "";
-    const card = over ? `<div class="zcard zbreak" role="status"><h2>${when === "break" ? "The break is over" : "The opening is over"}</h2><div class="zsmall" style="margin:0">The message and the video have gone, and ${when === "break" ? "the numbers carry on" : "the first number comes next"}. This is what your guests see: their ticket is right there again.</div><button class="zbtn s" id="again" type="button" style="margin-top:10px">Play it again</button></div>`
+    const card = over ? `<div class="zcard zbreak" role="status"><h2>${when === "break" ? "The break is over" : "The opening is over"}</h2><div class="zsmall" style="margin:0">The message and the video have gone, and ${when === "break" ? "the numbers carry on" : "the first number comes next"}. This is what your guests see: their card is right there again.</div><button class="zbtn s" id="again" type="button" style="margin-top:10px">Play it again</button></div>`
       : `<div class="zcard zbreak" role="status"><h2>${heading}</h2><div style="font:700 20px var(--sans,inherit);margin:2px 0 4px">${esc(b.title)}</div><div class="zsmall" style="margin:0">${what}${tail}</div>${act}</div>`;
     $app.innerHTML = `<div class="zhead"><b>Corporate Bingo</b></div>
       <div class="zbanner info" role="note"><b>Test only.</b> No game is running. It shows what a guest's phone shows during your ${when === "break" ? "break" : when}.</div>
-      <div class="zcard"><div class="zsmall" id="pvnote" style="margin:0">${verdict}</div></div>${card}${ticket}`;
+      <div class="zcard"><div class="zsmall" id="pvnote" style="margin:0">${verdict}</div></div>${card}${card}`;
     if (!over && kind && mediaHost.dataset.k !== "on") { mediaHost.dataset.k = "on"; startMedia(kind); }
     if (over) { mediaHost.textContent = ""; mediaHost.style.display = "none"; delete mediaHost.dataset.k; }
     else placeMedia();
@@ -85,12 +86,12 @@
     timer = setInterval(() => { const left = Math.round((endsAt - Date.now()) / 1000); const el = document.querySelector(".zbreak .zsmall"); if (left <= 0) { clearInterval(timer); paint(0); } else if (el && when === "break") el.textContent = `${what} The numbers continue in ${left}s.`.trim(); }, 1000);
   }
   run();
-  // ---------- "See what guests see": a sample ticket, marked PREVIEW. #w=ticket&e=<game id> reads the game's PUBLIC settings (a read only, with the signed-in tab's own key when there is one);
+  // ---------- "See what guests see": a sample card, marked PREVIEW. #w=card&e=<game id> reads the game's PUBLIC settings (a read only, with the signed-in tab's own key when there is one);
   // without a game it uses the sample values in the address: n=<company name> c=<#colour> p=<prize|prize> b=<break title> l=<lucky draw title>. Nothing here ever writes anything. ----------
   function ticketPreview() {
-    // the newer houses: names and "how to win" copied from PRIZE_HOUSES in packages/beacon/src/config.ts (a test keeps them identical); the seven original names keep their spelling
-    const NAMES = Object.assign({ early5: "Early Five", top: "Top line", mid: "Middle line", bot: "Bottom line", corners: "Four corners", star: "Star", full: "Full house", full2: "Full Two-Ticket House" }, {"early5": "Early Five", "early7": "Early Seven", "early10": "Early Ten", "top": "Top Line", "mid": "Middle Line", "bot": "Bottom Line", "twolines": "Two Lines", "corners": "Four Corners", "star": "Star", "plus": "Plus", "frame": "Frame", "topbottom": "Top and Bottom", "midcorners": "Middle and Corners", "odd5": "Odd Five", "even5": "Even Five", "low5": "Low Five", "high5": "High Five", "full": "Full House", "full2": "Full Two-Ticket House", "unlucky": "Unlucky"}, { early5: "Early Five", top: "Top line", mid: "Middle line", bot: "Bottom line", corners: "Four corners", star: "Star", full: "Full house", full2: "Full Two-Ticket House" });
-    const HOW = {"early5": "Be the first to mark any 5 of your numbers.", "early7": "Be the first to mark any 7 of your numbers.", "early10": "Be the first to mark any 10 of your numbers.", "top": "Mark all 5 numbers of the top line.", "mid": "Mark all 5 numbers of the middle line.", "bot": "Mark all 5 numbers of the bottom line.", "twolines": "Be the first to complete any two of your three lines.", "corners": "Mark the first and last number of the top and bottom lines.", "star": "Mark the four corners and the centre number of the middle line.", "plus": "Mark the whole middle line and the middle number of the top and bottom lines.", "frame": "Mark the top line, the bottom line and the first and last number of the middle line.", "topbottom": "Mark both the top line and the bottom line.", "midcorners": "Mark the whole middle line and the four corners.", "odd5": "Be the first to mark any 5 odd numbers.", "even5": "Be the first to mark any 5 even numbers.", "low5": "Be the first to mark 5 numbers from 1 to 30.", "high5": "Be the first to mark 5 numbers from 61 to 90.", "full": "Mark all 15 numbers of your ticket.", "full2": "Mark all 30 numbers across your two tickets.", "unlucky": "Goes to the ticket with the fewest numbers marked when the first Full House is completed (or when the game ends). A tie is settled fairly by the game's public random number."};
+    // names and "how to win" copied from PRIZE_HOUSES in packages/beacon/src/config.ts (a test keeps them identical)
+    const NAMES = {"line":"Line","twolines":"Two Lines","corners":"Four Corners","plus":"Plus","x":"X","frame":"Frame","stamp":"Postage Stamp","letterL":"Letter L","letterT":"Letter T","blackout":"Blackout"};
+    const HOW = {"line":"Mark any one row, column or diagonal. FREE counts.","twolines":"Mark any two different lines.","corners":"Mark the four corner squares.","plus":"Mark the whole middle row and the whole middle column.","x":"Mark both diagonals.","frame":"Mark the whole outer border.","stamp":"Mark a 2 x 2 block in any corner.","letterL":"Mark the whole B column and the bottom row.","letterT":"Mark the whole top row and the whole N column.","blackout":"Mark every square on your card. FREE counts."};
     const lin = (h) => { const c = parseInt(h, 16) / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
     const cleanBrand = (b) => {
       if (!b || typeof b !== "object") return null;
@@ -102,7 +103,6 @@
       const L = 0.2126 * lin(color.slice(1, 3)) + 0.7152 * lin(color.slice(3, 5)) + 0.0722 * lin(color.slice(5, 7));
       return { name, color, logo, fg: 1.05 / (L + 0.05) >= (L + 0.05) / 0.05 ? "#ffffff" : "#111111" };
     };
-    const sample = [[4, 0, 23, 0, 41, 0, 0, 72, 85], [0, 12, 0, 34, 0, 56, 0, 78, 0], [7, 0, 29, 0, 0, 58, 63, 0, 90]];
     const eid = (q.get("e") || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
     let key = ""; try { key = sessionStorage.getItem("cbz-org") || ""; } catch {}
     const fromHash = () => ({
@@ -113,16 +113,16 @@
     });
     function draw(d, note) {
       const brand = cleanBrand(d.brand);
-      const rewards = d.rewards && d.rewards.length ? d.rewards : [{ pattern: "early5", ordinal: 1, text: "" }, { pattern: "corners", ordinal: 1, text: "" }, { pattern: "full", ordinal: 1, text: "" }];
+      const rewards = d.rewards && d.rewards.length ? d.rewards : [{ pattern: "line", ordinal: 1, text: "" }, { pattern: "corners", ordinal: 1, text: "" }, { pattern: "blackout", ordinal: 1, text: "" }];
       const prizeLi = rewards.map((r) => { const nm = r.pattern ? (NAMES[r.pattern] || r.pattern) : ""; const t = r.text ? String(r.text) : ""; return `<li>${esc((r.ordinal > 1 ? r.ordinal + "nd " : "") + nm)}${nm && t ? ": " : ""}${t ? "<b>" + esc(t) + "</b>" : ""}${HOW[r.pattern] ? `<br><small class="zsmall">${esc(HOW[r.pattern])}</small>` : ""}</li>`; }).join("");
       const brk = (d.breaks || []).find((x) => x && x.kind !== "lucky");
       const lucky = (d.breaks || []).find((x) => x && x.kind === "lucky");
       const luckyTitle = lucky ? lucky.title : d.lucky || "Lucky draw prize";
       const luckyN = lucky && lucky.winners ? lucky.winners : 3;
       $app.innerHTML = `<div class="zhead"><b>Corporate Bingo</b></div>
-        <div class="zbanner info" role="note"><b>PREVIEW.</b> This is a sample ticket, not a real one. Nothing is saved, nobody is told, and no game is running.${note ? " " + esc(note) : ""}</div>
+        <div class="zbanner info" role="note"><b>PREVIEW.</b> This is a sample card, not a real one. Nothing is saved, nobody is told, and no game is running.${note ? " " + esc(note) : ""}</div>
         ${brand ? `<div class="zbrand" id="pvbrand">${brand.logo ? `<img class="zblogo" alt="" src="${esc(brand.logo)}">` : ""}${brand.name ? `<b>${esc(brand.name)}</b>` : ""}</div><div class="zpow">Powered by Corporate Bingo</div>` : `<div class="zbrand" id="pvbrand0">CORPORATE BINGO</div><div class="zsmall" style="margin:4px 0 0">No company name or logo is set yet, so guests see our name. Set yours in the Brand step to see it here.</div>`}
-        <div class="zcard"><h2>Your ticket <span class="zdemotag">PREVIEW</span></h2><div class="zticket" aria-label="Sample ticket">${sample.flat().map((n) => n ? `<div>${n}</div>` : `<div class="e"></div>`).join("")}</div></div>
+        <div class="zcard"><h2>Your card <span class="zdemotag">PREVIEW</span></h2>${cardGrid("Sample card")}${brand && brand.logo ? `<p class="zsmall" style="margin:8px 0 0">Your logo sits in the FREE square.</p>` : ""}</div>
         <div class="zcard"><h2>What you can win</h2><ul class="zlist">${prizeLi}</ul></div>
         <div class="zcard zbreak"><h2>A short break</h2><div style="font:700 20px var(--sans,inherit);margin:2px 0 4px">${esc(brk ? brk.title : "A message from your organizer")}</div><div class="zsmall" style="margin:0">Please listen to the host. The numbers continue in ${esc(String(brk && brk.seconds ? brk.seconds : 60))}s.</div></div>
         <div class="zcard"><h2>Lucky draw</h2><div class="zrow"><span>${esc(luckyTitle)}<br><small class="zsmall" style="margin:0">${luckyN} ${luckyN === 1 ? "person is" : "people are"} picked at random</small></span><i>at the end of the break</i></div></div>`;

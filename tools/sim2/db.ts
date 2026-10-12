@@ -3,7 +3,7 @@
 // (apps/edge/src/local.ts dies with "duplicate column name: jr" on a second start). Here every statement is applied one by one, and an ALTER whose column exists is skipped.
 // The statements that really CHANGED the database are returned, which is also the schema-parity answer: "what would the code add to a copy of live".
 import { Database } from "bun:sqlite";
-import { existsSync, rmSync, copyFileSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, rmSync, copyFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { SCHEMA, type D1, type D1Stmt } from "../../apps/edge/src/worker";
 
@@ -33,22 +33,18 @@ export function d1Of(raw: Database): D1 {
   return { prepare: (s) => stmt(s), batch: async (xs) => Promise.all(xs.map((x) => x.run())) };
 }
 
-/** Builds sim/live-copy.sqlite from the read-only export of the live D1 (data-backup/live-export.sql), then lets the current code's SCHEMA catch it up. */
-export function importLiveExport(sqlFile: string, outFile: string): { tables: Record<string, number>; schemaAdded: string[] } {
-  mkdirSync(dirname(outFile), { recursive: true });
-  for (const x of ["", "-wal", "-shm"]) if (existsSync(outFile + x)) rmSync(outFile + x);
-  const raw = new Database(outFile, { create: true });
-  raw.exec(readFileSync(sqlFile, "utf8"));
-  const { applied } = applySchemaIdempotent(raw);
-  const tables: Record<string, number> = {};
-  for (const t of raw.query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%'").all() as { name: string }[]) tables[t.name] = (raw.query(`SELECT COUNT(*) c FROM "${t.name}"`).get() as any).c;
+/** The pristine database every run starts from: an EMPTY database with the current schema (Corporate Bingo has no live data to copy). Made once, never written by a run. */
+export function ensurePristine(pristine: string): void {
+  if (existsSync(pristine)) return;
+  mkdirSync(dirname(pristine), { recursive: true });
+  const raw = new Database(pristine, { create: true });
+  applySchemaIdempotent(raw);
   raw.run("PRAGMA wal_checkpoint(TRUNCATE)"); raw.close();
-  return { tables, schemaAdded: applied };
 }
 
 /** A fresh working copy for one run: the pristine live copy is never opened for writing. */
 export function freshRunCopy(pristine: string, runFile: string): void {
-  if (!existsSync(pristine)) throw new Error(`${pristine} missing: run  bun tools/sim2/import-live.ts`);
+  ensurePristine(pristine);
   mkdirSync(dirname(runFile), { recursive: true });
   for (const x of ["", "-wal", "-shm"]) if (existsSync(runFile + x)) rmSync(runFile + x);
   copyFileSync(pristine, runFile);

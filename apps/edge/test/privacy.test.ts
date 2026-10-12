@@ -151,7 +151,7 @@ describe("the winners record", () => {
     expect(raw.query("SELECT COUNT(*) c FROM winner").get()).toEqual({ c: 1 });
     // a result already accepted is never replaced by later reports
     await settleByPhones(call, "PRV-1", [{ pattern: "line", idx: 30, pids: [pids[2]!] }], pids);
-    expect(raw.query("SELECT seat, idx FROM winner WHERE pattern='top'").all()).toEqual([{ seat: 1, idx: 33 }]);
+    expect(raw.query("SELECT seat, idx FROM winner WHERE pattern='line'").all()).toEqual([{ seat: 1, idx: 33 }]);
   });
   test("a game is over only when several different phones say so, and never before it could be", async () => {
     await create(); for (let i = 1; i <= 5; i++) await joinAs(i, "P" + i);
@@ -205,7 +205,7 @@ describe("the report and the deletion", () => {
     const link = linkOf(m); expect(link).toMatch(/report\.html\?e=PRV-1&k=/);
     const r = await buildReport(link); const pdf = r.text;
     expect(pdf.startsWith("%PDF-1.4")).toBe(true); expect(pdf).toMatch(/%%EOF\s*$/);
-    for (const needle of ["Organizer Olga", "Guest 3", "98765 00001", "98765 00002", "Zed ??", "organizer", "Full House", "Top Line", "Early Five", "boss@acme.com", "Sent on:", "deleted", "365th day", "backups"]) expect(pdf.toLowerCase()).toContain(needle.toLowerCase());
+    for (const needle of ["Organizer Olga", "Guest 3", "98765 00001", "98765 00002", "Zed ??", "organizer", "Blackout", "Line", "boss@acme.com", "Sent on:", "deleted", "365th day", "backups"]) expect(pdf.toLowerCase()).toContain(needle.toLowerCase());
     for (const needle of ["Our commitment to your data", "permanently deleted from our systems within 24 hours", "DPDP", "GDPR", "California Consumer Privacy Act", "advertising", "encryption", "winners record", "Agreed by", "Prize given"]) expect(pdf).toContain(needle);
     expect(pdf).not.toMatch(/personal data(?! protection)/i);
     expect(pdf).not.toMatch(/the law requires|required by law/i);

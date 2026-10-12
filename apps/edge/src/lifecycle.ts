@@ -1,9 +1,10 @@
 // The life of an engagement's personal data. When a game ends (as seen from the public schedule, or sooner when enough phones say so):
 //   1. the organizer's report is built from the sealed records and e-mailed as PDF(s), in small steps because a free Worker has ~10 ms of CPU per call;
-//   2. the report link stops working 22 hours after the end; 23 hours after the end (we promise 24) every participant's name, number, seat, invite record and ticket link is deleted, the report's working copies too,
+//   2. the report link stops working 22 hours after the end; 23 hours after the end (we promise 24) every participant's name, number, seat, invite record and card link is deleted, the report's working copies too,
 //      and the participants' personal part of the audit log is crypto-shredded (audit.ts `shredParticipantAudit`: its per-engagement key is destroyed, the hash chain still verifies);
 //   3. only the organizer / host / co-host details and the winners record (seat, prize, round, time) remain, until 00:00 IST at the end of the 365th day, then everything goes.
 // Called by the scheduled job (and, as a fallback, by any outside timer with the platform key). Every call does a bounded amount of work and can be repeated safely.
+import { tzOfRow } from "./tz";
 import { restoreCreditUses } from "./credit";
 import { keepLegalParty } from "./legal";
 import { sweepVisits } from "./visits";
@@ -47,7 +48,7 @@ export const personalDeleteAt = (endMs: number) => endMs + PURGE_AFTER_MS;
 export const reportLinkUntil = (endMs: number) => endMs + REPORT_LINK_MS;
 
 export function cfgOfRow(e: { tickets?: number; config?: string | null }): EngagementCfg {
-  try { const j = e.config ? JSON.parse(e.config) : {}; const v = validateCfg({ tickets: e.tickets ?? 1, rewards: j.rewards, breaks: j.breaks, rounds: j.rounds, invites: j.invites }, undefined, { stored: true }); if (v.ok) return v.cfg; } catch { /* plain defaults */ }
+  try { const j = e.config ? JSON.parse(e.config) : {}; const v = validateCfg({ tickets: e.tickets ?? 1, rewards: j.rewards, breaks: j.breaks, rounds: j.rounds, invites: j.invites, mark: j.mark, join: j.join, tz: j.tz }, undefined, { stored: true }); if (v.ok) return v.cfg; } catch { /* plain defaults */ }
   return (validateCfg({}) as { ok: true; cfg: EngagementCfg }).cfg;
 }
 
@@ -124,7 +125,7 @@ export async function acceptOver(env: Env, e: any, eid: string, b: any, now: num
 }
 
 // ------------------------------------------------------------------------------------------------ deletion
-/** Deletes every participant's name, number, seat, invite record, ticket link and working copy of the report, and crypto-shreds the participants' personal part of the audit log (unless the owner set a legal hold). The winners record, the prize hand-over record, the organizer's details and the engagement itself stay. */
+/** Deletes every participant's name, number, seat, invite record, card link and working copy of the report, and crypto-shreds the participants' personal part of the audit log (unless the owner set a legal hold). The winners record, the prize hand-over record, the organizer's details and the engagement itself stay. */
 export async function erasePersonal(env: Env, eid: string, now: number, by: string): Promise<void> {
   await env.DB.batch([
     env.DB.prepare("DELETE FROM claim WHERE eid=?").bind(eid), env.DB.prepare("DELETE FROM settled WHERE eid=?").bind(eid), env.DB.prepare("DELETE FROM rvote WHERE eid=?").bind(eid), env.DB.prepare("DELETE FROM rcand WHERE eid=?").bind(eid),
@@ -210,7 +211,7 @@ async function reportStep(env: LifeEnv, e: any, life: { end_ms: number }, now: n
     const cfg = sch.cfg, endMs = life.end_ms, first = roundMs(sch.start);
     const base = await baseData(env, e, cfg, sch, st, email, now, endMs, first);
     const link = await reportLink(env, eid);
-    const ok = await sendReportMail(env, email, `Your Corporate Bingo engagement report ${eid}: open it before ${istFull(reportLinkUntil(endMs))}`, bodyFor(eid, base, link), []);
+    const ok = await sendReportMail(env, email, `Your Corporate Bingo engagement report ${eid}: open it before ${istFull(reportLinkUntil(endMs), cfg.tz)}`, bodyFor(eid, base, link), []);
     if (!ok) return false; // try again at the next call
     st.stage = "done"; await save(); return true;
   }
@@ -294,7 +295,7 @@ async function baseData(env: LifeEnv, e: any, cfg: EngagementCfg, sch: Awaited<R
     endReason: held ? "The game did not start." : early ? "Every prize was awarded, so the game ended early." : "All numbers were called (or the organizer ended the game).",
     rounds: cfg.rounds, callSeconds: e.call_seconds, ticketsPerPerson: cfg.tickets, cap: e.cap, inviteOnly: !!e.closed, numbersCalled: early ? Math.max(1, ...wrows.map((w: any) => (w.idx ?? 0) + 1)) : 75,
     agg: st.agg, people: [], prizes, lucky, timeline: st.tl, breaks: cfg.breaks.map((b) => ({ after: b.after, kind: b.kind, title: b.title })),
-    personalDeleteAtMs: personalDeleteAt(endMs), fullDeleteAtMs: fullDeleteAt(endMs), backupDays: BACKUP_DAYS,
+    personalDeleteAtMs: personalDeleteAt(endMs), fullDeleteAtMs: fullDeleteAt(endMs), backupDays: BACKUP_DAYS, tz: cfg.tz,
     ...(cfg.brand ? { brand: { name: cfg.brand.name, ...(cfg.brand.logo ? { logo: cfg.brand.logo } : {}) } } : {}),
   };
 }
@@ -307,7 +308,7 @@ async function remindReport(env: LifeEnv, e: any, life: any, now: number) {
   const email = contact ? (JSON.parse(contact.v).email as string) : null;
   await env.DB.prepare("INSERT OR IGNORE INTO kv(k,v) VALUES(?,?)").bind(`rptremind/${eid}`, String(now)).run();
   if (!email) return;
-  await sendReportMail(env, email, `Reminder: open your Corporate Bingo report ${eid} before ${istFull(reportLinkUntil(life.end_ms))}`, `Hello,\n\nYour engagement ${eid} report has not been opened yet. The link closes at ${istFull(reportLinkUntil(life.end_ms))} and the participants' details are permanently deleted at ${istFull(personalDeleteAt(life.end_ms))}, and the report cannot be made after that.\n\nOpen it here and save the PDF:\n${await reportLink(env, eid)}\n\nCorporate Bingo`, []);
+  await sendReportMail(env, email, `Reminder: open your Corporate Bingo report ${eid} before ${istFull(reportLinkUntil(life.end_ms), tzOfRow(e))}`, `Hello,\n\nYour engagement ${eid} report has not been opened yet. The link closes at ${istFull(reportLinkUntil(life.end_ms), tzOfRow(e))} and the participants' details are permanently deleted at ${istFull(personalDeleteAt(life.end_ms), tzOfRow(e))}, and the report cannot be made after that.\n\nOpen it here and save the PDF:\n${await reportLink(env, eid)}\n\nCorporate Bingo`, []);
 }
 
 // ------------------------------------------------------------------------------------------------ games that did not start

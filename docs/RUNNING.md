@@ -1,43 +1,18 @@
-# Running Corporate Bingo on this laptop (everything local)
+# Running Corporate Bingo on this laptop
 
-Nothing here uses a cloud account. Data lives in `C:\ct\bingo\data\` (SQLite file, dev mail outbox).
+Bun is not on PATH on the build machine: use the full path of `bun.exe` (or `bun` if installed). Everything is local.
 
-## Start the system
 ```
-cd C:\ct\bingo
-bun install                                   # once
-bun run dev                                   # server + website on http://localhost:8787  (4-second gap between numbers; edit BINGO_GAP to change)
-bun run seed                                  # creates a ready demo engagement and prints every link (also data/seed.json)
+bun install
+bun run zlocal                 # website + API on http://localhost:8788 (SQLite in memory unless DB_FILE is set)
+bun run build:zgame            # rebuild apps/web/public/zgame.js after changing packages/beacon or packages/shared
+bun run build:control ; bun run build:report
+bun test packages apps tools/control-worker
+node tools/sim2/smoke.mjs                          # stack + real Chrome smoke
+node tools/sim2/scenarios/life/run.mjs --seed 7    # life-cycle scenarios
+bun tools/sim2/scenarios/matrix/run.ts --seed 7    # configuration matrix
+node tools/sim2/scenarios/ui/run.mjs               # UI scenarios (run `bun run pages/build.mjs` first; real Chrome)
 ```
-Open http://localhost:8787 (website), log in with the printed organizer email (the 6-digit code is shown on screen in local test mode and saved in `data/outbox`).
 
-## Tests
-```
-bun test packages                             # engine + shared unit tests (40)
-bun run sim                                   # 100-participant full-cycle simulation against a FAST server (see below)
-```
-Simulation needs a fast server in another terminal:
-```
-set BINGO_FAST=1&& set BINGO_DATA=C:\ct\bingo\data-sim&& bun run apps/server/src/index.ts
-bun run tools/sim/run.ts
-```
-It runs the full cycle through the real HTTP and WebSocket interfaces: organizer buys and logs in, sets up a 2-ticket engagement with 4 Full Houses and 2 Two-Ticket Houses and 3 brand breaks, uploads 100 participants, appoints 2 Hosts and 4 Team Leads, passes, family, waiting room, second-phone alerts, start, ~84 numbers called with bots claiming (including cheaters and late claims), emergency pause, end, report, privacy audit of every message, purge.
-
-## Environment switches (server)
-| Variable | Meaning |
-|---|---|
-| `PORT` | default 8787 |
-| `BINGO_GAP` | milliseconds between AI-called numbers (default 10000) |
-| `BINGO_FAST=1` | test speed: 120 ms gap, short claim windows (for the simulation) |
-| `BINGO_DEV=0` | production-like: no login code returned in responses, free-mail addresses refused, no dev routes |
-| `BINGO_DATA` | data folder |
-| `BINGO_IP_LIMIT` | joins per network address per 10 minutes (default 1000 locally) |
-| `BINGO_PURGE_MS` | when ended engagements are purged (default 24 hours) |
-
-## What is a stand-in for Cloudflare
-| Local | Production plan |
-|---|---|
-| `apps/server` (Bun, in-memory engine per engagement, SQLite snapshots, timers) | Worker + GameRoom Durable Object (alarms) + D1 |
-| dev mail outbox in `data/outbox` | transactional email provider |
-| fake always-succeeds payment in `/api/checkout` | Razorpay / Stripe |
-| browser speech synthesis fallback for numbers | pre-recorded clips cached on each device (decision pending on the voice) |
+Test mode: set `TEST_MODE=1` for test payments and echoed sign-in codes. Never set payment keys locally.
+RAM rule on the shared laptop: one heavy job at a time (take `C:/ct/heavy.lock`).

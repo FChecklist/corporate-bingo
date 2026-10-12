@@ -118,24 +118,25 @@ describe("the legal page carries the owner's final text, and each line matches w
   test("anchors, headings, counts, and one short line each", () => {
     for (const id of ["rules", "privacy", "disclaimer"]) expect(html).toContain(`<section id="${id}"`);
     expect(html).toContain(">Rules</h2>"); expect(html).toContain(">Privacy &amp; Data Policy</h2>"); expect(html).toContain(">Disclaimer</h2>");
-    expect(items("rules").length).toBe(11); expect(items("privacy").length).toBe(15); expect(items("disclaimer").length).toBe(6);
+    expect(items("rules").length).toBe(12); expect(items("privacy").length).toBe(17); expect(items("disclaimer").length).toBe(6);
     for (const id of ["rules", "privacy", "disclaimer"]) for (const l of items(id)) expect(l.split(/\s+/).length).toBeLessThanOrEqual(30);
     expect(html).toMatch(/<p class="muted">[^<]{1,80}<\/p>/);
   });
-  test("the fifteen privacy lines, word for word, with typographic apostrophes", () => {
+  test("the seventeen privacy lines, word for word, with typographic apostrophes", () => {
     expect(items("privacy")).toEqual([
       "We delete all participant data from our systems within 24 hours after the game ends.", "A game that never starts is treated the same way: its guests’ names and numbers are deleted 23 hours after the time it was meant to end.", "All data is encrypted, in transit and at rest.", "Participants never see each other’s data.", "We provide the software. The organizer runs the game.", "Backups clear within 7 days.",
-      "No advertising cookies or trackers. We never sell data.", "Your phone keeps a random device id, your ticket and saved game files, so the game works offline.", "Exception: winner prize details are kept for 365 days, so the organizer can confirm the prize was handed over. They are then deleted automatically.", "Fair play. We keep a private, encrypted record of game activity to keep every game fair. Only we can see it. Removed automatically 365 days after your game ends.", "Public pages: a first-party visitor id and shortened network address, never names or mobile numbers, kept 365 days. With Global Privacy Control or Do Not Track, we only count visits.", "Designed to follow India’s DPDP Act 2023, EU GDPR and US CCPA.", "Your phone contacts drand for public random numbers, and YouTube (privacy mode) only if your organizer adds a video.", "You may also complain to the Data Protection Board of India.",
+      "No advertising cookies or trackers. We never sell data.", "Your phone keeps a random device id, your card and saved game files, so the game works offline.", "Exception: winner prize details are kept for 365 days, so the organizer can confirm the prize was handed over. They are then deleted automatically.", "Fair play. We keep a private, encrypted record of game activity to keep every game fair. Only we can see it. Removed automatically 365 days after your game ends.", "Public pages: a first-party visitor id and shortened network address, never names or mobile numbers, kept 365 days. With Global Privacy Control or Do Not Track, we only count visits.", "Designed to follow India’s DPDP Act 2023, the EU GDPR and US state privacy laws such as the CCPA.",
+      "Your phone contacts drand for public random numbers, and YouTube (privacy mode) only if your organizer adds a video.", "Guests are never e-mailed. Only the organizer and Hosts have an e-mail address on file.", "Names and numbers are sealed with AES-256 at rest. We store no payment card details.", "You may also complain to a data protection authority, such as the Data Protection Board of India.",
       "Questions or requests: our Grievance Officer, rajatsiroffice@gmail.com. We reply within 30 days."]);
     expect(html).toContain('href="mailto:rajatsiroffice@gmail.com"');
   });
   test("the six disclaimer lines, word for word", () => {
-    expect(items("disclaimer")).toEqual(["This is a private game for a closed group, run by the organizer named on your ticket.", "Corporate Bingo provides the software only. Participants pay nothing to play.", "The organizer provides and hands over the prizes.", "The software decides the winners. Results are final.", "The organizer makes sure the game is allowed under local law.", "We are not responsible for prize handover or for disputes between the organizer and participants."]);
+    expect(items("disclaimer")).toEqual(["This is a private game for a closed group, run by your organizer.", "Corporate Bingo provides the software only. We never hold or pay prize money. Participants pay nothing to play.", "The organizer provides and hands over the prizes.", "The software decides the winners. Results are final.", "The organizer makes sure the game is allowed under local law.", "We are not responsible for prize handover or for disputes between the organizer and participants."]);
   });
   test("the rules say only what the software does (no claims, no manual cutting, no blocking), and the privacy timings match lifecycle.ts", () => {
     const r = items("rules").join(" ");
     expect(r).not.toMatch(/Cut your own|Late claims|wrong claim|block your ticket|for fun/i);
-    expect(r).toContain("Numbers 1 to 75 come from a public random beacon."); expect(r).not.toMatch(/No one can choose or change|not even the organizer|twice|every claim is checked/); expect(r).toContain("The 2nd Full House can only follow the 1st."); expect(r).toContain("One ticket per phone.");
+    expect(r).toContain("The 75 numbers come from a public random beacon (drand)."); expect(r).not.toMatch(/No one can choose or change|not even the organizer|twice|every claim is checked/); expect(r).toContain("The game ends when every prize is won or all 75 numbers are called."); expect(r).toContain("You get one card per phone."); expect(r).not.toMatch(/ticket|Full House|Tambola|housie/i);
     const lc = read("apps/edge/src/lifecycle.ts");
     expect(lc).toMatch(/PURGE_AFTER_MS = 23 \* 3_600_000/); // 23 h is inside "within 24 hours"
     expect(lc).toMatch(/endMs \+ 365 \* DAY/); expect(lc).toMatch(/DELETE FROM prize WHERE eid=\?/); // prize details go with the 365-day deletion

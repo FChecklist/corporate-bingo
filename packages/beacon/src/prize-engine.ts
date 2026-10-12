@@ -9,7 +9,7 @@
 // (their join round plus LATE_LAG_ROUNDS), so every phone has heard of them before their first number counts and nobody's result changes later.
 import { PATTERN_RULES, cellOfNumber, ticketNumbers, FREE_CELL, type PatternId } from "../../shared/src/ticket";
 import { LATE_LAG_ROUNDS, keysInPlay, linesFor, roundEid, type EngagementCfg, type PatternKey } from "./config";
-import { ticketsFor, type Settled } from "./game";
+import { assignOrdinals, ticketsFor, type Settled } from "./game";
 import { NUMBERS } from "./index";
 
 /** The first beacon round whose number counts for a seat that joined in round `jr` (0 or missing: joined in time, everything counts). */
@@ -133,8 +133,7 @@ export class PrizeEngine {
   results(): Settled[] {
     const out: Settled[] = [];
     this.keys.forEach((k, h) => {
-      const groups = [...this.byKey[h]!.entries()].sort((a, c) => a[0] - c[0]);
-      for (const line of linesFor(this.cfg.rewards, k)) { const g = groups[line.ordinal - 1]; if (g) out.push({ pattern: k, ordinal: line.ordinal, idx: g[0], pids: g[1].slice(), round: this.round }); }
+      out.push(...assignOrdinals(this.eid, k, [...this.byKey[h]!.entries()], linesFor(this.cfg.rewards, k).map((l) => l.ordinal), this.round));
     });
     return out;
   }

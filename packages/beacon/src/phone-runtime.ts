@@ -29,7 +29,7 @@ export interface RuntimeView {
   phase: Phase; error: string | null; pid: string | null; ticket: Ticket | null; log: number[]; nowRound: number | null;
   locked: boolean;
   startRound: number; scheduledRound: number; callSeconds: number; mode: "live" | "hold" | "blind" | "none"; paused: boolean; stopped: boolean;
-  claimed: PatternKey[]; unsent: number; results: { pattern: PatternKey | "lucky"; ordinal: number; idx: number; count: number; winners?: string[]; round?: number }[]; pendingChecks: number; discarded: number;
+  claimed: PatternKey[]; unsent: number; results: { pattern: PatternKey | "lucky"; ordinal: number; idx: number; count: number; winners?: string[]; tied?: number; round?: number }[]; pendingChecks: number; discarded: number;
   nextCallInSec: number | null;
   tickets: Ticket[]; cfg: EngagementCfg;
   /** The brand break showing right now, with seconds left; null when none. */
@@ -132,7 +132,7 @@ export class PhoneRuntime {
 
   /** Tickets, rewards and brand breaks come from the engagement's public settings; anything malformed falls back to the plain engagement. */
   private readCfg(info: any) {
-    const v = validateCfg({ tickets: info?.tickets, rewards: info?.rewards, breaks: info?.breaks, rounds: info?.rounds, invites: info?.invites, opening: info?.opening, closing: info?.closing }, undefined, { stored: true });
+    const v = validateCfg({ mark: info?.mark, tickets: info?.tickets, rewards: info?.rewards, breaks: info?.breaks, rounds: info?.rounds, invites: info?.invites, opening: info?.opening, closing: info?.closing }, undefined, { stored: true });
     this.cfg = v.ok ? v.cfg : defaultCfg();
   }
   private adopt(pid: string) {
@@ -393,7 +393,7 @@ export class PhoneRuntime {
     const local = this.localOk;
     if (local) {
       const mine: NonNullable<RuntimeView["results"]> = [];
-      for (const [r, e] of this.engines) for (const x of e.results()) mine.push({ pattern: x.pattern, ordinal: x.ordinal, idx: x.idx, count: x.pids.length, round: r });
+      for (const [r, e] of this.engines) for (const x of e.results()) mine.push({ pattern: x.pattern, ordinal: x.ordinal, idx: x.idx, count: x.pids.length, round: r, winners: x.pids, ...(x.tied ? { tied: x.tied } : {}) });
       this.allResults = [...mine, ...this.luckyResults(), ...this.serverResults.filter((x) => x.pattern === "lucky" && !this.luckyLocal.some((l) => l.ordinal === x.ordinal))];
     }
     // the organizer's published results: the fallback while the seat list is not here yet, and the only source for lucky draws
@@ -486,13 +486,17 @@ export class PhoneRuntime {
       const got: { pattern: PatternKey; ordinal: number }[] = [];
       for (const x of this.allResults) {
         if ((x.round ?? 1) !== r || x.pattern === "lucky") continue;
-        if (completionIndexKey(tk, x.pattern as PatternKey, log) === x.idx) got.push({ pattern: x.pattern as PatternKey, ordinal: x.ordinal });
+        if (this.isWinner(x, tk, log)) got.push({ pattern: x.pattern as PatternKey, ordinal: x.ordinal });
       }
       out.push({ round: r, got });
     }
     return out;
   }
 
+  private isWinner(x: { pattern: string; idx: number; winners?: string[] }, tk: readonly Ticket[], log: readonly number[]): boolean {
+    if (Array.isArray(x.winners) && x.winners.length) return !!this.pid && x.winners.includes(this.pid);
+    return completionIndexKey(tk, x.pattern as PatternKey, log) === x.idx; // an older store that names no winner: the call decides
+  }
   private wonView(): RuntimeView["won"] {
     const out: RuntimeView["won"] = [];
     if (!this.pid) return out;
@@ -500,7 +504,7 @@ export class PhoneRuntime {
       if (x.pattern === "lucky") continue;
       const r = x.round ?? 1, key = x.pattern as PatternKey, tk = this.ticketsOf(r), log = this.maskedLog(r);
       if (!tk.length) continue;
-      if (completionIndexKey(tk, key, log) !== x.idx) continue;
+      if (!this.isWinner(x, tk, log)) continue;
       const line = linesFor(this.cfg.rewards, key).find((l) => l.ordinal === x.ordinal);
       out.push({ round: r, pattern: key, ordinal: x.ordinal, text: line?.text ?? "", cells: winCells(tk, key, log, x.idx), idx: x.idx });
     }

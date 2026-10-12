@@ -12,23 +12,23 @@ const foot = tpl.slice(tpl.indexOf("</main>"));
 // Search-engine and sharing tags, one set per page (unique description, canonical, Open Graph, Twitter card). Written idempotently: old copies are removed first, so the template's own tags never leak into the other pages.
 const SITE = "https://corporate-bingo.pages.dev";
 const META = {
-  "legal.html": ["Rules, privacy and disclaimer", "The rules of a Corporate Bingo game, how participant names and mobile numbers are deleted within 24 hours, and the disclaimer. Plain English."],
-  "terms.html": ["Terms", "The short, plain-English terms for organizers who run a Corporate Bingo engagement for their company."],
-  "dpa.html": ["Data processing terms", "Data processing terms for organizers: what we do with your participants' details, on one page."],
+  "legal.html": ["Rules, privacy and disclaimer", "The rules of a Corporate Bingo game, how guest names are erased within 24 hours, and the disclaimer. Plain English."],
+  "terms.html": ["Terms", "The short, plain-English terms for organizers who run a Corporate Bingo game for their company or team."],
+  "dpa.html": ["Data processing terms", "Data processing terms for organizers: what we do with your players' details, on one page."],
   "subprocessors.html": ["Sub-processors", "The providers that help us run Corporate Bingo, and what each one receives."],
   "partner-terms.html": ["Partner terms", "The terms for Corporate Bingo's Refer and earn partners, in plain English."],
-  "organizer-guide.html": ["Organizer guide", "Short notes for a safe, simple Corporate Bingo: how to set up, share, run and close an engagement."],
+  "organizer-guide.html": ["Organizer guide", "Short notes for a safe, simple Corporate Bingo: how to set up, share, run and close a game."],
 };
 const attr = (v) => v.replace(/&(?!amp;|rsquo;|ldquo;|rdquo;)/g, "&amp;").replace(/"/g, "&quot;");
 export function withSeo(html, file) {
   const [t, d] = META[file], title = `${t} | Corporate Bingo`, url = `${SITE}/${file}`;
   const strip = html.replace(/[ \t]*<meta name="description"[^>]*>\r?\n?/g, "").replace(/[ \t]*<link rel="canonical"[^>]*>\r?\n?/g, "").replace(/[ \t]*<meta property="og:[^>]*>\r?\n?/g, "").replace(/[ \t]*<meta name="twitter:[^>]*>\r?\n?/g, "");
   const tags = [`<meta name="description" content="${attr(d)}">`, `<link rel="canonical" href="${url}">`,
-    `<meta property="og:type" content="website"><meta property="og:site_name" content="Corporate Bingo"><meta property="og:title" content="${attr(title)}"><meta property="og:description" content="${attr(d)}"><meta property="og:url" content="${url}"><meta property="og:image" content="${SITE}/img/ticket.webp"><meta property="og:image:alt" content="The bingo ticket a participant sees on their phone"><meta property="og:locale" content="en_IN">`,
-    `<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${attr(title)}"><meta name="twitter:description" content="${attr(d)}"><meta name="twitter:image" content="${SITE}/img/ticket.webp">`].join(nl);
+    `<meta property="og:type" content="website"><meta property="og:site_name" content="Corporate Bingo"><meta property="og:title" content="${attr(title)}"><meta property="og:description" content="${attr(d)}"><meta property="og:url" content="${url}"><meta property="og:image" content="${SITE}/img/card.webp"><meta property="og:image:alt" content="A Corporate Bingo card on a phone: a 5 by 5 grid under the letters B I N G O with a FREE center square"><meta property="og:locale" content="en_US">`,
+    `<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${attr(title)}"><meta name="twitter:description" content="${attr(d)}"><meta name="twitter:image" content="${SITE}/img/card.webp">`].join(nl);
   return strip.replace(/(<title>[^<]*<\/title>)\r?\n?/, (m, a) => a + nl + tags + nl);
 }
-const FOOTNAV = '<nav class="fl" aria-label="Legal"><a href="/legal.html#rules">Rules</a><a href="/legal.html#privacy">Privacy</a><a href="/legal.html#disclaimer">Disclaimer</a><a href="/terms.html">Terms</a><a href="/dpa.html">Data processing</a><a href="/subprocessors.html">Sub-processors</a><a href="/organizer-guide.html">Organizer guide</a><a href="/partner-terms.html">Partner terms</a><a href="/partner.html">Refer &amp; earn</a><a href="/demo.html">Demo</a><a href="/brochure.pdf">Brochure</a><a href="/">Home</a></nav>';
+const FOOTNAV = '<nav class="fl" aria-label="Legal"><a href="/legal.html#rules">Rules</a><a href="/legal.html#privacy">Privacy</a><a href="/legal.html#disclaimer">Disclaimer</a><a href="/about.html">About</a><a href="/pricing.html">Pricing</a><a href="/contact.html">Contact</a><a href="/terms.html">Terms</a><a href="/refund-policy.html">Refund policy</a><a href="/dpa.html">Data processing</a><a href="/subprocessors.html">Sub-processors</a><a href="/organizer-guide.html">Organizer guide</a><a href="/partner-terms.html">Partner terms</a><a href="/partner.html">Refer &amp; earn</a><a href="/demo.html">Demo</a><a href="/brochure.pdf">Brochure</a><a href="/">Home</a></nav>';
 const newFoot = foot.replace(/<nav class="fl"[\s\S]*?<\/nav>/, FOOTNAV);
 export const footNav = FOOTNAV;
 const e = (s) => s.replace(/&(?!rsquo;|amp;)/g, "&amp;");
@@ -40,10 +40,10 @@ const PAGES = {
       "You must be 18 or older, or act for a company.",
       "You must not charge any fee, price, donation or purchase for taking part. Not directly, not indirectly.",
       "Taking part must be voluntary. Tell your people what you do with their details.",
-      "You provide the prizes and hand them over. We never hold prizes or money for them.",
+      "You provide the prizes and hand them over. Corporate Bingo is software only: we never hold or pay prize money.",
       "You make sure the game is allowed under the law where you and your players are.",
       "You are responsible for tax on prizes you give.",
-      "Do not register a child&rsquo;s number. See Players.",
+      "Do not enter a child as a player. See Players.",
       "If you break these terms, we may stop your game.",
     ]],
     ["payment", "Payment and credit", [
@@ -61,8 +61,8 @@ const PAGES = {
     ]],
     ["players", "For players", [
       "Players are 18 or older.",
-      "A child may only watch, on a parent&rsquo;s or guardian&rsquo;s own ticket and phone, with that adult&rsquo;s permission.",
-      "Playing is free and voluntary. One ticket per phone.",
+      "A child may only watch, on a parent&rsquo;s or guardian&rsquo;s own card and phone, with that adult&rsquo;s permission.",
+      "Playing is free and voluntary. One card per phone.",
       "The software decides every winner. Results are final.",
     ]],
     ["service", "The service", [
@@ -84,9 +84,9 @@ const PAGES = {
     ]],
   ] },
   "dpa.html": { title: "Data processing terms", h1: "Data processing terms", lead: "For organizers. One page.", sections: [
-    ["roles", "Roles", ["You are in charge of the players&rsquo; details (the controller, or data fiduciary). We process them for you (the processor).", "We act only on your instructions: run your game and send you the report."]],
-    ["data", "What we process", ["Names and mobile numbers of players, and, if you switch invitations on, who invited whom and what kind of guest.", "Winners&rsquo; prize hand-over details, which winners confirm on their own phone."]],
-    ["security", "Security", ["Names and numbers are sealed in our database and are also encrypted in transit and at rest.", "Players never see each other&rsquo;s data.", "Access to your game is limited to you, your co-hosts and your AI assistant, as you choose."]],
+    ["roles", "Roles", ["You are in charge of the players&rsquo; details (the controller, or business, or data fiduciary in India). We process them for you (the processor).", "We act only on your instructions: run your game and send you the report."]],
+    ["data", "What we process", ["Names of players, mobile numbers only if you choose to ask for them, and, if you switch invitations on, who invited whom and what kind of guest.", "Winners&rsquo; prize hand-over details, which winners confirm on their own phone."]],
+    ["security", "Security", ["Names and numbers are sealed (AES-256) in our database and are also encrypted in transit and at rest.", "Players never see each other&rsquo;s data.", "Access to your game is limited to you, your co-hosts and your AI assistant, as you choose."]],
     ["delete", "Deletion", ["All player data is deleted within 24 hours after the game ends. Backups clear within 7 days.", "A game that did not start (nobody paid) is treated the same way: its player data is deleted 23 hours after it was meant to end.", "Its people lists, waiting requests and personal links go too. Its settings stay for 30 days so you can reuse them.", "Winners&rsquo; prize details and the winners record stay 365 days, then are deleted automatically.", "At the end of day 365 everything else about the game is deleted.", "Only these stay, as tax and accounting need them: payment and invoice records, the organizer&rsquo;s details on the invoice (name, e-mail, mobile), and who paid.","You can delete a game&rsquo;s player data any time from your console."]],
     ["help", "Helping you", ["We help you answer a player&rsquo;s request to see or delete their data. Use your console, or write to us.", "If we learn of a breach that affects your game, we tell you without undue delay."]],
     ["subs", "Sub-processors", ["We use the <a href=\"/subprocessors.html\">sub-processors</a> on our list. Changes are shown there.", "Data may be processed in other countries by these providers, under their own safeguards."]],
@@ -119,8 +119,8 @@ const PAGES = {
       "Using credit is not a new sale and earns no new commission.",
       "We may refuse or reverse commission for self-referral or misuse.",
     ]],
-    ["tax", "Tax (TDS note)", [
-      "Tax may be deducted at source from your commission, as the law requires.",
+    ["tax", "Tax", [
+      "Tax may be deducted at source from your commission, where the law requires it (for example TDS in India).",
       "You are responsible for your own taxes.",
       "We keep the details we need for payment and tax records.",
     ]],
@@ -128,7 +128,7 @@ const PAGES = {
   ] },
   "organizer-guide.html": { title: "Organizer guide", h1: "Organizer guide", lead: "Short notes for a safe, simple game.", sections: [
     ["rules", "Keep it a private game", [
-      "Invite people you know: employees, families, dealers, customers.",
+      "Invite people you know: colleagues, families, customers, partners.",
       "Never ask for a fee, a purchase or a donation to take part.",
       "Taking part must be voluntary.",
       "Players are 18 or older.",
@@ -139,13 +139,19 @@ const PAGES = {
       "In India, prizes above INR 10,000 may carry tax deducted at source. Check with your tax adviser.",
       "You are responsible for tax on the prizes you give.",
     ]],
+    ["run", "Running the game", [
+      "Share one link in Slack, Teams, Zoom chat, e-mail or WhatsApp.",
+      "Pick the gap between calls: 6, 9, 12 or 15 seconds.",
+      "Show the big-screen page on a projector or in a shared video call.",
+    ]],
     ["prizes", "Prizes", [
       "You provide the prizes and hand them over.",
+      "Corporate Bingo is software only. We never hold or pay prize money.",
       "Winners confirm their details on their own phone. Tick &ldquo;Prize given&rdquo; in your console.",
     ]],
     ["data", "Your players&rsquo; data", [
       "Tell your players what you do with their details.",
-      "Names and numbers are deleted within 24 hours after the game. Open your report before then.",
+      "Names and numbers are deleted within 24 hours after the game. Your report link works for 22 hours, so open it before then.",
       "To delete earlier, use your console.",
     ]],
     ["pay", "Payment", ["Build and publish for free. The game does not begin until it is paid for.", "You can pay at any time until the guest data is erased. A late payment starts the game 2 minutes after it is confirmed.", "To cancel, tap Cancel this game in your console.", "We do not give refunds. If you cancel a paid game before it starts, your payment stays as credit for your next game for 365 days. Unused credit lapses at the end of day 365.", "Once the start time has passed, a paid game cannot be cancelled.", "Want another game like this one? Tap Create a new game like this one. Your credit is offered first on the Pay step."]],

@@ -334,7 +334,7 @@
       <p class="zsmall" style="font-size:15px;margin:6px 0 10px">${n ? "You won " + n + " prize" + (n === 1 ? "" : "s") + ". They are listed below and stay on this phone." : "Every game is a good game. We hope you had fun, and we would love to see you at the next one."}</p>
       <button class="zbtn" id="shr">Share with friends and colleagues</button>
       <a class="zbtn s alt" style="display:inline-flex;align-items:center;text-decoration:none;margin-top:8px" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent("I just played Corporate Bingo with my team. Bring it to your company: " + shareLink)}">WhatsApp</a>
-      <p class="zsmall" style="margin:10px 0 0"><a href="/partner.html?from=ticket">Earn 50% by sharing: Refer &amp; earn</a></p></div>`;
+      <p class="zsmall" style="margin:10px 0 0"><a href="/partner.html?from=card">Earn 50% by sharing: Refer &amp; earn</a></p></div>`;
   }
   function bindShare() {
     const b = document.getElementById("shr"); if (!b) return;
@@ -544,7 +544,7 @@
         const name = (total > 1 ? ordinalName(line.ordinal) + " " : "") + KEYNAME(key);
         const res = v.results.find((r) => r.pattern === key && r.ordinal === line.ordinal);
         let right;
-        if (res) right = mine === res.idx ? `<em>Yours${res.count > 1 ? " · shared by " + res.count : ""}</em>` : `<i>Awarded${res.count > 1 ? " to " + res.count : ""}</i>`;
+        if (res) right = (res.winners || []).includes(v.pid) ? `<em>Yours${res.tied > 1 ? " · decided by fate" : ""}</em>` : `<i>Awarded</i>`;
         else if (line.ordinal === 1) right = mine >= 0 ? `<em>Complete</em>` : n >= 99 ? `<i>not possible on your card</i>` : `<i>${n} to go</i>`;
         else right = `<i>after the ${ordinalName(line.ordinal - 1)}</i>`;
         return `<div class="zrow"><span>${esc(name)}${line.text ? `<br><small class="zsmall" style="margin:0">${esc(line.text)}</small>` : ""}<br>${howLine(key)}</span>${right}</div>`;
@@ -564,6 +564,14 @@
     if (!miss.length) return "";
     const shown = miss.slice(-3).map(lblOf).join(", ");
     return `<p class="zsmall znudge" role="status" style="margin:0 0 8px">You missed ${esc(shown)}${miss.length > 3 ? " and " + (miss.length - 3) + " more" : ""}. Tap ${miss.length === 1 ? "it" : "them"} to mark. Your prizes never depend on this: the software checks every card.</p>`;
+  }
+  /** The ranking: 1st, 2nd, 3rd ... and the top-10 list (prize order, then call number, then fate). One winner per prize line, so there is never a shared prize. */
+  function rankCard(v) {
+    const sett = (v.results || []).filter((r) => r.pattern !== "lucky" && r.winners && r.winners.length).map((r) => ({ pattern: r.pattern, ordinal: r.ordinal, idx: r.idx, pids: r.winners, round: v.round, tied: r.tied }));
+    if (!sett.length) return "";
+    const rows = ZG.rankWinners(ZG.roundEid(EID, v.round), v.cfg, sett, 10);
+    const li = rows.map((x) => `<li><b>${esc(ZG.rankName(x.rank))}</b> ${esc(lineName(v.cfg, x.pattern, x.ordinal))}${x.text ? " (" + esc(x.text) + ")" : ""}: card ${esc(String(seatOf(x.pid)))}${x.pid === v.pid ? " <em>(you)</em>" : ""}${x.note ? `<br><small class="zsmall" style="margin:0">${esc(x.note)}</small>` : ""}</li>`).join("");
+    return `<div class="zcard zrank"><h2>Winners</h2><ol class="zlist" style="padding-left:0;list-style:none">${li}</ol></div>`;
   }
   function playView(v) {
     const called = new Set(v.log);
@@ -591,10 +599,11 @@
       ${lateCard(v)}
       ${roundCards(v)}
       ${v.brk ? breakCard(v.brk) : ""}
+      ${rankCard(v)}
       <div class="zcard"><div class="zball"><div class="zbig ${last ? "l" + colOf(last) : "none"}" id="big" role="status" aria-live="assertive" aria-label="${last ? "Number " + lblOf(last) : "No number yet"}">${last ? `<small>${LET[colOf(last)]}</small><span>${last}</span>` : "–"}</div></div>
         <div class="zsub">${sub}</div>
         <div class="zlast" aria-label="Last numbers called">${recent.map((n) => `<span class="l${colOf(n)}" aria-label="${lblOf(n)}"><i>${LET[colOf(n)]}</i>${n}</span>`).join("")}</div></div>
-      <div class="zcard${curWins.length ? " zwon" : ""}"><h2>${DEMO ? 'Demo card <span class="zdemotag">DEMO</span>' : v.tickets.length > 1 ? "Your cards" : "Your card"}${TAP() ? ' <span class="zmode">tap to mark</span>' : ""}</h2>${ribbon}${nudge}${tix}<a class="zref" href="/partner.html?from=ticket">Refer &amp; earn</a></div>
+      <div class="zcard${curWins.length ? " zwon" : ""}"><h2>${DEMO ? 'Demo card <span class="zdemotag">DEMO</span>' : v.tickets.length > 1 ? "Your cards" : "Your card"}${TAP() ? ' <span class="zmode">tap to mark</span>' : ""}</h2>${ribbon}${nudge}${tix}<a class="zref" href="/partner.html?from=card">Refer &amp; earn</a></div>
       ${v.phase === "ended" ? "" : prizesCard()}
       ${mineCard(v)}${inviteCard(v)}
       <div class="zcard"><h2>Still to win</h2>${still}${chk}</div>

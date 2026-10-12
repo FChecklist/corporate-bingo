@@ -38,7 +38,32 @@ export function completionIndexKey(tickets: readonly Ticket[], key: PatternKey, 
   return best;
 }
 
-export interface Settled { pattern: PatternKey; ordinal: number; idx: number; pids: string[]; round: number }
+/** One reward line has exactly ONE winner (`pids` holds one seat). `tied` is how many guests completed the house on that same call (1 = nobody tied); more than 1 means fate decided who got which ordinal. */
+export interface Settled { pattern: PatternKey; ordinal: number; idx: number; pids: string[]; round: number; tied?: number }
+
+/** The fate number of a seat for one reward line: the same on every phone, from public data only (game id, seat, prize, ordinal). Lowest wins. */
+export function fateOf(engagementId: string, pid: string, pattern: string, ordinal: number): string {
+  const seat = seatOfPid(pid) ?? pid;
+  return bytesToHex(sha256(utf8ToBytes(`CB1-TIE|${engagementId}|${seat}|tie|${pattern}|${ordinal}`)));
+}
+/**
+ * No ties: every reward line (ordinal) of a house has exactly one winner. `groups` are the guests who completed the house, by call (earliest first). The 1st ordinal goes to the earliest call;
+ * when several guests completed it on the same call, fate orders them (lowest fate number first) and they take the next ordinals in turn, before any later call.
+ */
+export function assignOrdinals(engagementId: string, key: PatternKey, groups: readonly (readonly [number, readonly string[]])[], ordinals: readonly number[], round: number): Settled[] {
+  const out: Settled[] = []; let o = 0;
+  const ord = [...ordinals].sort((a, b) => a - b);
+  for (const [idx, pids] of [...groups].sort((a, b) => a[0] - b[0])) {
+    const left = [...pids];
+    while (left.length && o < ord.length) {
+      const k = ord[o]!;
+      left.sort((a, b) => { const fa = fateOf(engagementId, a, key, k), fb = fateOf(engagementId, b, key, k); return fa < fb ? -1 : fa > fb ? 1 : a < b ? -1 : 1; });
+      out.push({ pattern: key, ordinal: k, idx, pids: [left.shift()!], round, ...(pids.length > 1 ? { tied: pids.length } : {}) }); o++;
+    }
+    if (o >= ord.length) break;
+  }
+  return out;
+}
 
 /**
  * The organizer console's settlement: from the public log, the participant list and the engagement's own settings alone, who completed each house first.
@@ -63,8 +88,7 @@ export function settleAll(engagementId: string, pids: readonly string[], log: re
   }
   const out: Settled[] = [];
   for (const k of keys) {
-    const groups = [...best.get(k)!.entries()].sort((a, b) => a[0] - b[0]);
-    for (const line of linesFor(cfg.rewards, k)) { const g = groups[line.ordinal - 1]; if (g) out.push({ pattern: k, ordinal: line.ordinal, idx: g[0], pids: g[1], round }); }
+    out.push(...assignOrdinals(eid, k, [...best.get(k)!.entries()], linesFor(cfg.rewards, k).map((l) => l.ordinal), round));
   }
   return out;
 }
@@ -217,3 +241,15 @@ export function logFrom(engagementId: string, schedule: readonly number[], store
   }
   return out;
 }
+
+export interface RankRow { rank: number; pid: string; pattern: PatternKey; ordinal: number; idx: number; text: string; note: string }
+/**
+ * The ranking shown on the results screen, the big screen, the report and at prize hand-over: 1st, 2nd, 3rd ... and a top-10 list of winners.
+ * Order: prize value first (the organizer's own prize list, first = most valuable), then the call number, then fate. Every row has a unique rank; a tie that fate resolved is explained in `note`.
+ */
+export function rankWinners(engagementId: string, cfg: EngagementCfg, settled: readonly Settled[], n = 10): RankRow[] {
+  const valueOf = (s: Settled) => { const i = cfg.rewards.findIndex((l) => l.pattern === s.pattern && l.ordinal === s.ordinal); return i < 0 ? 1e9 : i; };
+  const rows = [...settled].filter((s) => s.pids.length > 0).sort((a, b) => valueOf(a) - valueOf(b) || a.idx - b.idx || (fateOf(engagementId, a.pids[0]!, a.pattern, a.ordinal) < fateOf(engagementId, b.pids[0]!, b.pattern, b.ordinal) ? -1 : 1));
+  return rows.slice(0, Math.max(0, n)).map((s, i) => ({ rank: i + 1, pid: s.pids[0]!, pattern: s.pattern, ordinal: s.ordinal, idx: s.idx, text: cfg.rewards.find((l) => l.pattern === s.pattern && l.ordinal === s.ordinal)?.text ?? "", note: s.tied && s.tied > 1 ? `${s.tied} guests completed it on the same call; decided by fate` : "" }));
+}
+export const rankName = (r: number): string => ["", "1st", "2nd", "3rd"][r] ?? `${r}th`;

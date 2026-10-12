@@ -378,7 +378,7 @@ describe("removing people", () => {
     expect((await j(await call("GET", `/api/z/PPL-1/me?pid=${asha.pid}`))).state).toBe("removed");
     const back = await join("PPL-1", { token: tokenOf(p.link), device: dev(1) }, DURING); expect(back.status).toBe(404);
     expect((await joinAs("PPL-1", 1, {}, DURING)).status).toBe(403);
-    raw.prepare("INSERT INTO prize(eid,round,pattern,ordinal,seat) VALUES('PPL-1',1,'early5',1,1)").run();
+    raw.prepare("INSERT INTO prize(eid,round,pattern,ordinal,seat) VALUES('PPL-1',1,'line',1,1)").run();
     const prizes = (await j(await call("GET", "/api/z/PPL-1/prizes", undefined, t.master, DURING))).prizes;
     expect(prizes[0]).toMatchObject({ notGiven: "removed", given: false });
     expect((await call("POST", "/api/z/PPL-1/prizegiven", { round: 1, pattern: "line", ordinal: 1, seat: 1, given: true }, t.master, DURING)).status).toBe(409);

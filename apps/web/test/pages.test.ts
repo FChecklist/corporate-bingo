@@ -746,7 +746,7 @@ describe("Refer & Earn page", () => {
     expect(rows[0]).toMatch(/2,399/); expect(rows[0]).toMatch(/1,199\.50/); expect(rows[1]).toMatch(/1,749\.50/); expect(rows[2]).toMatch(/2,349\.50/);
     expect(body).not.toMatch(/per person|per participant|per head/i); // we never show a per-person price
     (doc.getElementById("calc-n") as any).value = "4"; (doc.getElementById("calc-pack") as any).value = "0"; (doc.getElementById("calc-n") as any).dispatchEvent(new p.win.Event("input"));
-    expect(doc.getElementById("calc-out")!.textContent).toBe("₹4,798"); // 4 first purchases x Rs 1,199.50
+    expect(doc.getElementById("calc-out")!.textContent).toBe("₹4,798 / US$ 68"); // 4 first purchases x Rs 1,199.50
   });
   test("joining takes a mobile number and an e-mailed code: the code is random, the link is /?ref=<code>, and the page switches to the partner's own dashboard", async () => {
     const o = await organizer(); const p = await page(o, "/partner.html", "partner.html", ["common.js", "partner.js"]);
@@ -761,20 +761,20 @@ describe("Refer & Earn page", () => {
     expect(p.win.document.body.classList.contains("signed")).toBe(true);
     expect(p.errors).toEqual([]);
   });
-  test("Create your engagement pop-up: brand top right, role pill, eight true bullets, an email field (not work email), one button, trust line, Esc closes, the sign-up still works", async () => {
+  test("Create your game pop-up: brand top right, role pill, eight true bullets, an email field (not work email), one button, trust line, Esc closes, the sign-up still works", async () => {
     const o = await organizer();
     const p = await page(o, "/", "index.html", ["common.js", "site.js"], {});
     p.click("#payBtn"); await new Promise((r) => setTimeout(r, 200));
-    const t = (p.$("#sheet") as any).textContent as string; expect(t).toMatch(/Create your engagement/);
+    const t = (p.$("#sheet") as any).textContent as string; expect(t).toMatch(/Create your game/);
     expect(t).toContain("Build it and publish it free."); expect(t).not.toMatch(/Pay (only )?before it starts/); expect(t).toMatch(/For the organizer or host/);
-    for (const b of ["Play a video or audio message between numbers", "Set several prizes, and add a lucky draw", "A closed-group corporate bingo", "Every ticket is unique: no two can ever match", "Each participant gets their own ticket", "A free AI assistant sets it up for you", "Participants never pay. You provide the rewards", "All participant data is deleted within 24 hours of the game ending", "Built for DPDP Act, GDPR and US privacy laws"]) expect(t).toContain(b);
+    for (const b of ["Add a message, video or lucky draw between calls", "Pick your prizes: Line, Four Corners, X, Blackout", "A closed-group Bingo for your company", "Every card is unique: no two can ever match", "Each guest gets their own card on their phone", "A free AI assistant sets it up for you", "Players never pay. You provide the prizes", "Guest names are erased within 24 hours of the game ending", "Designed to follow DPDP Act, GDPR and CCPA"]) expect(t).toContain(b);
     expect(p.win.document.querySelectorAll(".bgrid li").length).toBe(9); expect(p.win.document.querySelectorAll(".bgrid .bico svg").length).toBe(9); for (const li of p.win.document.querySelectorAll(".bgrid li")) expect(li.textContent.trim().split(/s+/).length).toBeLessThanOrEqual(13); // one short line each
     expect(t).toContain("Free to build and publish. No password."); expect(t).toContain("Your console opens at once. We use your email for your invoice and to sign you in later.");
     expect(t).not.toMatch(/work email/i); expect(t.split(/s+/).length).toBeLessThan(150);
     const f = p.$("#fMail") as any; expect(p.win.document.querySelector('label[for="fMail"]').textContent).toBe("Your email");
     expect(f.getAttribute("type")).toBe("email"); expect(f.getAttribute("inputmode")).toBe("email"); expect(f.getAttribute("autocomplete")).toBe("email"); expect(f.getAttribute("placeholder")).toBe("you@example.com");
     expect(p.win.document.querySelector(".sheet .sbrand")!.getAttribute("aria-label")).toBe("Corporate Bingo"); expect(p.win.document.querySelector(".sheethead .rolepill")).toBeTruthy();
-    expect((p.$("#frGo") as any).textContent).toMatch(/^s*Create my engagement/);
+    expect((p.$("#frGo") as any).textContent).toMatch(/^s*Create my game/);
     p.win.document.dispatchEvent(new p.win.KeyboardEvent("keydown", { key: "Escape" })); await new Promise((r) => setTimeout(r, 50));
     { const sh = p.win.document.getElementById("sheet")!; const l = [...sh.querySelectorAll(".spriv a")] as any[]; expect(l.map((x) => x.getAttribute("href"))).toEqual(["/terms.html", "/legal.html#privacy"]); expect(sh.querySelector(".spriv")!.textContent).toBe("By continuing you accept the Terms and the Privacy & Data Policy."); for (const x of l) { expect(x.getAttribute("target")).toBe("_blank"); expect(x.getAttribute("rel")).toBe("noopener"); } expect(sh.querySelectorAll('input[type="checkbox"]').length).toBe(0); }
     expect(p.win.document.getElementById("modal").classList.contains("hidden")).toBe(true);

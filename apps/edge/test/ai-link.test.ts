@@ -209,7 +209,7 @@ describe("what the organizer's AI may and may not do now", () => {
   test("it may read prizes with the mobile number cut down, and tick a prize as given, recorded as the AI", async () => {
     const o = await liveEngagement("CAP-2");
     const sealed = await sealPii(env as any, { phone: "9876543210", name: "Asha" });
-    raw.prepare("INSERT INTO prize(eid,round,pattern,ordinal,seat,pii,orig,trail,confirmed_ms) VALUES('CAP-2',1,'full',1,1,?,?,NULL,1)").run(sealed, sealed);
+    raw.prepare("INSERT INTO prize(eid,round,pattern,ordinal,seat,pii,orig,trail,confirmed_ms) VALUES('CAP-2',1,'blackout',1,1,?,?,NULL,1)").run(sealed, sealed);
     const aiView = await j(await call("GET", `/ai/${o.ai}/z/CAP-2/prizes`)); expect(aiView.prizes[0].name).toBeUndefined(); expect(aiView.prizes[0].phone).toBeUndefined(); expect(aiView.prizes[0].seat).toBe(1);
     expect(JSON.stringify(aiView)).not.toMatch(/9876543210|3210|Asha/);
     const own = await j(await call("GET", "/api/z/CAP-2/prizes", undefined, o.h)); expect(own.prizes[0].phone).toBe("9876543210"); // the organizer sees it in full

@@ -52,7 +52,7 @@ describe("joining", () => {
     expect(r.startRound).toBe(1000);
     expect(r.callSeconds).toBe(6);
     expect(r.pid).toMatch(/^1x[0-9a-f]{12}$/); // seat number + hash: the seat makes the ticket collision-free
-    expect(Object.keys(r).sort()).toEqual(["breaks", "callSeconds", "closing", "invites", "jr", "opening", "pid", "rewards", "rounds", "startRound", "tickets", "trackClaims"]);
+    expect(Object.keys(r).sort()).toEqual(["breaks", "callSeconds", "closing", "invites", "joinPhone", "jr", "opening", "pid", "rewards", "rounds", "startRound", "tickets", "trackClaims"]);
   });
   test("the same number joining twice, even typed differently, is one participant and one write", async () => {
     const a = await (await call("POST", "/api/z/ENG1/join", { phone: "+91 98765-43210" })).json() as any;
@@ -149,8 +149,8 @@ describe("winners are decided by the software", () => {
   test("phones that disagree do not settle anything, and a made-up result cannot outvote an honest one", async () => {
     await vote(pids[0]!, [res(70, [pids[0]!])]); await vote(pids[1]!, [res(71, [pids[1]!])]);
     expect(raw.query("SELECT COUNT(*) c FROM settled").get()).toEqual({ c: 0 });
-    for (const p of [pids[2]!, pids[3]!, pids[4]!]) await vote(p, [res(80, [pids[3]!])]);
-    expect((raw.query("SELECT idx FROM settled").get() as any).idx).toBe(80);
+    for (const p of [pids[2]!, pids[3]!, pids[4]!]) await vote(p, [res(72, [pids[3]!])]);
+    expect((raw.query("SELECT idx FROM settled").get() as any).idx).toBe(72);
   });
   test("the same phone reporting again counts once", async () => {
     for (let i = 0; i < 5; i++) await vote(pids[0]!, [res(70, [pids[1]!])]);
@@ -162,11 +162,11 @@ describe("winners are decided by the software", () => {
     expect((await vote(pids[0]!, [])).status).toBe(400);
     expect(raw.query("SELECT COUNT(*) c FROM rvote").get()).toEqual({ c: 0 });
   });
-  test("public results show counts only, never who", async () => {
-    await settleByPhones(call, "ENG1", [{ pattern: "blackout", idx: 70, pids: [pids[1]!, pids[2]!] }], pids.slice(0, 3));
+  test("public results name winning seats (opaque ids), never names or numbers", async () => {
+    await settleByPhones(call, "ENG1", [{ pattern: "blackout", idx: 70, pids: [pids[1]!] }], pids.slice(0, 3));
     const txt = await (await call("GET", "/api/z/ENG1/results")).text();
-    expect(/[0-9]x[0-9a-f]{12}/.test(txt)).toBe(false);
-    expect(JSON.parse(txt).results[0]).toEqual({ pattern: "blackout", ordinal: 1, round: 1, idx: 70, count: 2 });
+    expect(/phone|mobile|9876/i.test(txt)).toBe(false);
+    expect(JSON.parse(txt).results[0]).toEqual({ pattern: "blackout", ordinal: 1, round: 1, idx: 70, count: 1, winners: [pids[1]!] });
   });
   test("a winner confirms the details on their own phone; a change is kept with the original; the organizer ticks 'prize given'", async () => {
     await settleByPhones(call, "ENG1", [{ pattern: "blackout", idx: 70, pids: [pids[1]!] }], pids.slice(0, 3));
@@ -613,7 +613,7 @@ describe("tickets, reward lines and brand breaks", () => {
     await mk();
     const i = await info();
     expect(i.tickets).toBe(1);
-    expect(i.rewards).toHaveLength(7);
+    expect(i.rewards).toHaveLength(4);
     expect(i.breaks).toEqual([]);
   });
   test("settings given at creation are kept and shown to every phone; bad ones refuse the whole creation", async () => {
@@ -644,10 +644,10 @@ describe("tickets, reward lines and brand breaks", () => {
   test("results carry which reward line each outcome is for, and an accepted result is final", async () => {
     await mk({ tickets: 1, rewards: [{ pattern: "blackout", ordinal: 1 }, { pattern: "blackout", ordinal: 2 }] });
     const p1 = ((await (await join(1, "CFG01")).json()) as any).pid, p2 = ((await (await join(2, "CFG01")).json()) as any).pid;
-    await settleByPhones(call, "CFG01", [{ pattern: "blackout", ordinal: 1, idx: 50, pids: [p1] }, { pattern: "blackout", ordinal: 2, idx: 53, pids: [p1, p2] }], [p1]);
+    await settleByPhones(call, "CFG01", [{ pattern: "blackout", ordinal: 1, idx: 50, pids: [p1] }, { pattern: "blackout", ordinal: 2, idx: 53, pids: [p2] }], [p1]);
     await settleByPhones(call, "CFG01", [{ pattern: "blackout", ordinal: 1, idx: 51, pids: [p2] }], [p2]); // a later, different report does not replace it
     const r = await (await call("GET", "/api/z/CFG01/results")).json() as any;
-    expect(r.results).toEqual([{ pattern: "blackout", ordinal: 1, round: 1, idx: 50, count: 1 }, { pattern: "blackout", ordinal: 2, round: 1, idx: 53, count: 2 }]);
+    expect(r.results).toEqual([{ pattern: "blackout", ordinal: 1, round: 1, idx: 50, count: 1, winners: [p1] }, { pattern: "blackout", ordinal: 2, round: 1, idx: 53, count: 1, winners: [p2] }]);
     await settleByPhones(call, "CFG01", [{ pattern: "blackout", ordinal: 3, idx: 1, pids: [p1] }, { pattern: "twolines", ordinal: 1, idx: 1, pids: [p1] }], [p1]); // a line this engagement does not have is ignored
     expect(((await (await call("GET", "/api/z/CFG01/results")).json()) as any).results).toHaveLength(2);
   });
@@ -668,7 +668,7 @@ describe("lucky draw results", () => {
   });
   test("house results still carry counts only", async () => {
     await settleByPhones(call, "LUCK1", [{ pattern: "blackout", idx: 70, pids: [pids[0]!] }], pids);
-    expect(/[0-9]x[0-9a-f]{12}/.test(JSON.stringify(await pub()))).toBe(false);
+    expect(/phone|mobile|9876/i.test(JSON.stringify(await pub()))).toBe(false); // seat ids may be named, never names or numbers
   });
   test("a draw that is not in the engagement's settings, or with too many winners, is ignored", async () => {
     await settleByPhones(call, "LUCK1", [{ pattern: "lucky", ordinal: 2, idx: 20, pids: [pids[0]!] }], pids);
@@ -920,7 +920,7 @@ describe("brand moments: five for each ticket, placed by the software", () => {
   test("an engagement created with openings, a closing and automatic breaks shows every phone where each one goes", async () => {
     expect((await mk({ tickets: 2, opening: [open, { kind: "speech", title: "Hello", seconds: 30 }], breaks: [mid(), mid(), mid()], closing: [{ kind: "speech", title: "Thank you" }] })).status).toBe(200);
     const i = await info();
-    expect(i.breaks.map((b: any) => b.after)).toEqual([23, 45, 68]);
+    expect(i.breaks.map((b: any) => b.after)).toEqual([19, 38, 56]);
     expect(i.opening.map((x: any) => x.title)).toEqual(["Welcome", "Hello"]);
     expect(i.closing).toEqual([{ kind: "speech", title: "Thank you" }]);
   });
@@ -948,14 +948,14 @@ describe("brand moments: five for each ticket, placed by the software", () => {
     expect(((await r.json()) as any).error).toContain("switch some off");
     expect((await info()).tickets).toBe(2);
     expect((await call("PATCH", "/api/z/BM01/settings", { tickets: 1, opening: [open], breaks: [mid(), mid()] }, org)).status).toBe(200);
-    expect(await info()).toMatchObject({ tickets: 1, breaks: [{ after: 30 }, { after: 60 }] });
+    expect(await info()).toMatchObject({ tickets: 1, breaks: [{ after: 25 }, { after: 50 }] });
   });
   test("saving the breaks again spreads them again; an older break with its own number keeps it", async () => {
     await mk({ tickets: 2, breaks: [mid(), mid()] });
-    expect((await info()).breaks.map((b: any) => b.after)).toEqual([30, 60]);
+    expect((await info()).breaks.map((b: any) => b.after)).toEqual([25, 50]);
     const cur = (await info()).breaks;
     await call("PATCH", "/api/z/BM01/settings", { breaks: [...cur, mid()] }, org);
-    expect((await info()).breaks.map((b: any) => b.after)).toEqual([23, 45, 68]);
+    expect((await info()).breaks.map((b: any) => b.after)).toEqual([19, 38, 56]);
     await mk({ breaks: [{ after: 20, seconds: 30, kind: "speech", title: "Old style" }] }, "BM05");
     expect((await info("BM05")).breaks[0]).toMatchObject({ after: 20, seconds: 30 });
   });

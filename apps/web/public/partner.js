@@ -1,5 +1,5 @@
 /* Corporate Bingo, Refer & earn. A sales partner's reference code is a random 8-character code; their unique link is /?ref=<code>.
-   Anyone may join (a participant from their ticket, or anyone from this page). Nothing is shown to anyone but the partner themselves. */
+   Anyone may join (a participant from their card, or anyone from this page). Nothing is shown to anyone but the partner themselves. */
 (function () {
   const $app = document.getElementById("app"), $dash = document.getElementById("dash");
   const q = new URLSearchParams(location.search);
@@ -24,8 +24,8 @@
       <a class="zbtn s alt" style="display:inline-flex;align-items:center;text-decoration:none" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent(text)}">Share on WhatsApp</a>`;
   }
   function enrollView() {
-    const fromTicket = q.get("from") === "ticket";
-    return `<div class="zcard zform"><h2>${fromTicket ? "Start earning: get your link" : "Get your link in 20 seconds"}</h2>
+    const fromCard = q.get("from") === "card";
+    return `<div class="zcard zform"><h2>${fromCard ? "Start earning: get your link" : "Get your link in 20 seconds"}</h2>
         <label for="ph">Your mobile number</label><input id="ph" inputmode="tel" autocomplete="tel" placeholder="98765 43210">
         <label for="em">Your e-mail (we send you a code)</label><input id="em" type="email" inputmode="email" autocomplete="email" placeholder="you@example.com">
         <label for="nm">Your name (optional)</label><input id="nm" autocomplete="name" maxlength="60">
@@ -73,7 +73,7 @@
       $("join").disabled = true;
       try {
         S.email = $("em").value.trim();
-        await api("POST", "/api/partner/enroll", { phone: $("ph").value, email: S.email, name: $("nm").value.trim(), consent: true, source: q.get("from") === "ticket" ? "ticket" : "direct" });
+        await api("POST", "/api/partner/enroll", { phone: $("ph").value, email: S.email, name: $("nm").value.trim(), consent: true, source: q.get("from") === "card" ? "card" : "direct" });
         draw(codeView());
       } catch (e) { S.err = e.message; draw(enrollView()); }
     };
@@ -98,13 +98,15 @@
   // ---------- earnings table and calculator (prices come from the same list the checkout uses) ----------
   const RATE = 0.5, packs = (window.TB && window.TB.PACKS) || [];
   const money = (n) => "₹" + Number(n).toLocaleString("en-IN", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 });
+  const usd = (n) => "US$ " + Number(n).toLocaleString("en-US", { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 });
+  const both = (p, f = 1) => money(p[1] * f) + " / " + usd(p[2] * f); // rupees and US dollars side by side
   const table = document.getElementById("earn-table");
   if (table && packs.length) {
-    table.innerHTML = `<div class="rrow rh" role="row"><span>Pack</span><span>Software price</span><span>You earn, first purchase (50%)</span></div>` + packs.map((p, i) => `<div class="rrow${i === 2 ? " hot" : ""}" role="row"><span>Up to <b>${p[0].toLocaleString("en-IN")}</b> people</span><span>${money(p[1])}</span><span><b class="e">${money(p[1] * RATE)}</b> per sale</span></div>`).join("");
-    const top = document.getElementById("top-earn"); if (top) top.textContent = money(Math.floor(packs[packs.length - 1][1] * RATE));
+    table.innerHTML = `<div class="rrow rh" role="row"><span>Pack</span><span>Software price</span><span>You earn, first purchase (50%)</span></div>` + packs.map((p, i) => `<div class="rrow${i === 2 ? " hot" : ""}" role="row"><span>Up to <b>${p[0].toLocaleString("en-IN")}</b> people</span><span>${both(p)}</span><span><b class="e">${both(p, RATE)}</b> per sale</span></div>`).join("");
+    const top = document.getElementById("top-earn"); if (top) top.textContent = money(Math.floor(packs[packs.length - 1][1] * RATE)) + " / " + usd(Math.floor(packs[packs.length - 1][2] * RATE));
     const sel = document.getElementById("calc-pack"), n = document.getElementById("calc-n"), out = document.getElementById("calc-out"), nv = document.getElementById("calc-nv");
-    sel.innerHTML = packs.map((p, i) => `<option value="${i}"${i === 2 ? " selected" : ""}>Up to ${p[0].toLocaleString("en-IN")} people (${money(p[1])})</option>`).join("");
-    const calc = () => { nv.textContent = n.value; out.textContent = money(Number(n.value) * packs[Number(sel.value)][1] * RATE); };
+    sel.innerHTML = packs.map((p, i) => `<option value="${i}"${i === 2 ? " selected" : ""}>Up to ${p[0].toLocaleString("en-IN")} people (${both(p)})</option>`).join("");
+    const calc = () => { nv.textContent = n.value; const k = Number(n.value) * RATE, pk = packs[Number(sel.value)]; out.textContent = money(k * pk[1]) + " / " + usd(k * pk[2]); };
     sel.onchange = calc; n.oninput = calc; calc();
   }
   // the sticky "get my link" bar steps aside while the form (or the last call to action) is on screen

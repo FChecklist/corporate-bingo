@@ -76,7 +76,7 @@ export async function cloneGame(env: Env, e: any, b: any, now: number, origin: s
   }
   let cfg: any = {}; try { cfg = e.config ? JSON.parse(e.config) : {}; } catch { cfg = {}; }
   const copied = [
-    "Occasion and name", "Number of players", "Tickets for each person", "Gap between numbers", "Who can join", "Co-host limit",
+    "Occasion and name", "Number of players", "Cards for each person", "Gap between numbers", "Who can join", "Co-host limit",
     ...(cfg.rounds ? ["Rounds"] : []), ...(cfg.invites ? ["Guest invites"] : []), ...(Array.isArray(cfg.rewards) && cfg.rewards.length ? ["Prizes (all houses and their texts)"] : []),
     ...(cfg.brand ? ["Brand strip"] : []), ...((cfg.breaks?.length || cfg.opening || cfg.closing) ? ["Brand moments and lucky draw"] : []),
   ];

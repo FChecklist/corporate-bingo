@@ -165,3 +165,7 @@ body{overflow-x:hidden}
 /* "Continue with Google" (only when the server has a client id) */
 .gwrap{margin:12px 0 4px;display:flex;justify-content:center;min-height:44px}.gwrap[hidden],.gor[hidden]{display:none}
 .gor{margin:6px 0;text-align:center;font-size:13px;color:var(--muted,#6b7385)}.ggnote{margin:0;text-align:center;font-size:13px}
+
+/* contrast: amber text on light backgrounds must reach 4.5:1 (#8A5F00 on white is about 5.9:1); on the dark teal band use the bright yellow */
+:root{--accd:#8A5F00}
+.aihost .eyebrow{color:var(--acc)}

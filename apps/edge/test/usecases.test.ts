@@ -348,7 +348,8 @@ describe("D. participants", () => {
   });
   test("UC-31 numbers that are not numbers are refused with a human message", async () => {
     await published("BADNUM-1");
-    for (const p of ["", "123", "abcdefghij", "1".repeat(40), null, 12345678901234567890 as any]) { const r = await call("POST", "/api/z/BADNUM-1/join", { phone: p }); expect(r.status).toBe(400); expect((await j(r)).error).toMatch(/mobile number/i); }
+    for (const p of ["123", "abcdefghij", "1".repeat(40), 12345678901234567890 as any]) { const r = await call("POST", "/api/z/BADNUM-1/join", { phone: p }); expect(r.status).toBe(400); expect((await j(r)).error).toMatch(/mobile number/i); }
+    for (const p of ["", null]) { const r = await call("POST", "/api/z/BADNUM-1/join", { phone: p }); expect(r.status).toBe(400); expect((await j(r)).error).toMatch(/your name/i); } // no number and no name: the name-only door asks for a name
   });
   test("UC-32 a crowd arriving at the same instant never passes the limit, and the last places are fair", async () => {
     await published("CROWD-1", { cap: 5 });
@@ -532,7 +533,7 @@ describe("G2. the organizer's AI: round 2 findings", () => {
   test("UC-64 a partial rewards patch is refused with a message that explains rewards REPLACE the list, and nothing changes", async () => {
     const o = await organizer(); await call("POST", "/api/z", eng("REPL-1"), o.ai);
     await call("PATCH", "/api/z/REPL-1/settings", { rewards: [{ pattern: "line", ordinal: 1, text: "A" }, { pattern: "line", ordinal: 2, text: "B" }] }, o.ai);
-    const r = await call("PATCH", "/api/z/REPL-1/settings", { rewards: [{ pattern: "line", ordinal: 5, text: "E" }] }, o.ai);
+    const r = await call("PATCH", "/api/z/REPL-1/settings", { rewards: [{ pattern: "line", ordinal: 3, text: "E" }] }, o.ai);
     expect(r.status).toBe(400); expect((await j(r)).error).toMatch(/REPLACES the whole list/);
     expect((await j(await call("GET", "/api/z/REPL-1/summary", undefined, o.ai))).rewards.length).toBe(2);
     expect((await call("PATCH", "/api/z/REPL-1/settings", { rewards: [{ pattern: "line", ordinal: 1, text: "A" }, { pattern: "line", ordinal: 2, text: "B" }, { pattern: "line", ordinal: 3, text: "C" }] }, o.ai)).status).toBe(200);

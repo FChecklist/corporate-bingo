@@ -9,11 +9,13 @@
 import { join } from "node:path";
 import type { Database } from "bun:sqlite";
 import { startSim } from "../../server";
+import { ensurePristine } from "../../db";
 import { sentReports } from "../../../../apps/edge/src/pay";
 
 const ROOT = join(import.meta.dir, "../../../..");
 const port = Number(process.env.LIFE_PORT ?? 8803);
-const pristine = join(ROOT, "sim/live-copy.sqlite");
+const pristine = join(ROOT, "sim/pristine.sqlite");
+ensurePristine(pristine);
 let sim: Awaited<ReturnType<typeof startSim>> | null = null;
 
 function wipeAndRefill(raw: Database): { tables: number; rows: number } {

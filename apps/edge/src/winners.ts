@@ -1,6 +1,6 @@
 // Winners are decided by the software, never by a person.
 //   - Every phone works out the winners from the public numbers and the public seat list, and reports them here (`vote`).
-//   - A result is accepted only when `quorumFor(people)` DIFFERENT phones (one ticket per phone) reported exactly the same winners. The organizer, co-host and AI have no way to
+//   - A result is accepted only when `quorumFor(people)` DIFFERENT phones (one card per phone) reported exactly the same winners. The organizer, co-host and AI have no way to
 //     post, change or remove a winner.
 //   - Each accepted winner gets a prize record: the winner confirms their name and mobile number on their own phone after the game (every change is kept as an audit trail and
 //     shown to the organizer / co-host), and the organizer / co-host ticks "prize given" with the date.
@@ -16,7 +16,7 @@ export const WINNERS_SCHEMA: string[] = [
   `CREATE TABLE IF NOT EXISTS rcand (eid TEXT NOT NULL, round INTEGER NOT NULL, pattern TEXT NOT NULL, ordinal INTEGER NOT NULL, digest TEXT NOT NULL, idx INTEGER NOT NULL, pids TEXT NOT NULL, PRIMARY KEY (eid, round, pattern, ordinal, digest))`,
   `CREATE TABLE IF NOT EXISTS prize (eid TEXT NOT NULL, round INTEGER NOT NULL, pattern TEXT NOT NULL, ordinal INTEGER NOT NULL, seat INTEGER NOT NULL, pii TEXT, orig TEXT, trail TEXT, confirmed_ms INTEGER, given_ms INTEGER, given_by TEXT, PRIMARY KEY (eid, round, pattern, ordinal, seat))`,
   `CREATE TABLE IF NOT EXISTS ai_audit (id INTEGER PRIMARY KEY AUTOINCREMENT, org TEXT NOT NULL, eid TEXT, at_ms INTEGER NOT NULL, key_id TEXT, method TEXT NOT NULL, path TEXT NOT NULL, status INTEGER, ip TEXT, ua TEXT, country TEXT)`,
-  // one ticket per phone per engagement: finding a phone's seat must not read the whole seat list (a free database counts rows read)
+  // one card per phone per engagement: finding a phone's seat must not read the whole seat list (a free database counts rows read)
   `CREATE INDEX IF NOT EXISTS seat_dev ON seat (eid, dev)`,
 ];
 
@@ -73,21 +73,21 @@ async function makePrizeRows(env: Env, eid: string, round: number, pattern: stri
   } catch { /* the winner record itself already stands; the prize list is filled the next time */ }
 }
 
-/** The winner, on their own phone, confirms (or corrects) the name and mobile number the prize goes to. The phone proves it is the one that holds the ticket. Every change is kept. */
+/** The winner, on their own phone, confirms (or corrects) the name and mobile number the prize goes to. The phone proves it is the one that holds the card. Every change is kept. */
 export async function confirmPrize(env: Env & PiiEnv, eid: string, b: any, now: number, json: Json, spend: Spend): Promise<Response> {
   const seat = typeof b?.pid === "string" ? seatOfPid(b.pid) : null;
   if (!b || seat === null || typeof b.device !== "string" || !/^[0-9a-f]{16,64}$/.test(b.device)) return json({ error: "Bad request." }, 400);
   const dev = (await sha(`dev|${eid}|${b.device}`)).slice(0, 32);
   const mine = await env.DB.prepare("SELECT 1 AS x FROM seat WHERE eid=? AND pid=? AND dev=?").bind(eid, b.pid, dev).first();
-  if (!mine) return json({ error: "This is not the phone that holds this ticket." }, 403);
+  if (!mine) return json({ error: "This is not the phone that holds this card." }, 403);
   const rows = (await env.DB.prepare("SELECT round, pattern, ordinal, pii, orig, trail FROM prize WHERE eid=? AND seat=?").bind(eid, seat).all<any>()).results ?? [];
-  if (!rows.length) return json({ error: "No reward recorded for this ticket." }, 404);
-  const name = cleanName(b.name), phone = digitsOf(b.phone);
+  if (!rows.length) return json({ error: "No reward recorded for this card." }, 404);
+  const name = cleanName(b.name), typedPhone = typeof b.phone === "string" ? b.phone.trim() : "", phone = typedPhone ? digitsOf(typedPhone) : ""; // a mobile number is optional: guests who joined with a name only may leave it empty
   if (!name) return json({ error: "Please write your name." }, 400);
-  if (!phone) return json({ error: "Please enter a valid mobile number." }, 400);
+  if (phone === null) return json({ error: "That mobile number does not look right. Leave it empty or check it." }, 400);
   if (!(await spend(env, now, rows.length + 1))) return json({ error: "Busy day. Please try again after midnight UTC." }, 503);
   const cur = await openPii(env, rows[0].pii);
-  const changed = !cur || cur.phone.slice(-10) !== phone || (cur.name ?? "") !== name;
+  const changed = !cur || (cur.phone ?? "").slice(-10) !== phone.slice(-10) || (cur.name ?? "") !== name;
   const sealed = await sealPii(env, { phone, name });
   for (const r of rows) {
     let trail: any[] = []; try { trail = JSON.parse((await openText(env, r.trail)) ?? "[]"); } catch { /* none yet */ }
@@ -97,13 +97,13 @@ export async function confirmPrize(env: Env & PiiEnv, eid: string, b: any, now: 
   return json({ ok: true, changed });
 }
 
-/** What a winner's own phone needs: which of its rewards are recorded and the details currently on file (only to the phone that holds the ticket). */
+/** What a winner's own phone needs: which of its rewards are recorded and the details currently on file (only to the phone that holds the card). */
 export async function myPrizes(env: Env & PiiEnv, eid: string, url: URL, json: Json): Promise<Response> {
   const pid = url.searchParams.get("pid") ?? "", device = url.searchParams.get("device") ?? "";
   const seat = seatOfPid(pid);
   if (seat === null || !/^[0-9a-f]{16,64}$/.test(device)) return json({ error: "Bad request." }, 400);
   const dev = (await sha(`dev|${eid}|${device}`)).slice(0, 32);
-  if (!(await env.DB.prepare("SELECT 1 AS x FROM seat WHERE eid=? AND pid=? AND dev=?").bind(eid, pid, dev).first())) return json({ error: "This is not the phone that holds this ticket." }, 403);
+  if (!(await env.DB.prepare("SELECT 1 AS x FROM seat WHERE eid=? AND pid=? AND dev=?").bind(eid, pid, dev).first())) return json({ error: "This is not the phone that holds this card." }, 403);
   const rows = (await env.DB.prepare("SELECT round, pattern, ordinal, pii, confirmed_ms FROM prize WHERE eid=? AND seat=? ORDER BY round, pattern, ordinal").bind(eid, seat).all<any>()).results ?? [];
   const cur = rows.length ? await openPii(env, rows[0].pii) : null;
   return json({ prizes: rows.map((r: any) => ({ round: r.round, pattern: r.pattern, ordinal: r.ordinal })), name: cur?.name ?? "", phone: cur?.phone ?? "", confirmed: rows.some((r: any) => r.confirmed_ms) });
