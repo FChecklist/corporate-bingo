@@ -5,7 +5,7 @@ export default async function gen({ R, L }) {
   const { A, mobile, personName } = L;
   const out = [];
   const TEXTS = ["Gift voucher: Rs 1000", "", "No prize", "Smartphone", "Dinner or restaurant voucher: Rs 2000", "Extra day off", "Holiday or weekend stay: Goa", "Something else", "Movie tickets: 4", "Gift hamper"];
-  const lines = (h, n, textOf) => Array.from({ length: n }, (_, i) => ({ pattern: h.id === "full2" ? "full" : h.id, scope: h.id === "full2" ? "two_ticket" : "ticket", ordinal: i + 1, text: textOf(i) }));
+  const lines = (h, n, textOf) => Array.from({ length: n }, (_, i) => ({ pattern: h.id === "full2" ? "blackout" : h.id, scope: h.id === "full2" ? "two_ticket" : "ticket", ordinal: i + 1, text: textOf(i) }));
   const keyOf = (l) => `${l.scope}:${l.pattern}#${l.ordinal}=${l.text}`;
   const same = (got, want) => JSON.stringify(got.map(keyOf).sort()) === JSON.stringify(want.map(keyOf).sort());
   let ti = 0;
@@ -43,21 +43,21 @@ export default async function gen({ R, L }) {
     t.eq("line count equals the sum of all maxima", all.length, MAX_REWARD_LINES);
     const g = await t.game(org, { cap: 100, tickets: 2, rewards: all }); t.expect("create", g.r, "ok");
     t.check("all lines saved", ((await org.summary(g.id)).body.rewards ?? []).length === all.length);
-    const extra = await org.settings(g.id, { rewards: [...all, { pattern: "top", scope: "ticket", ordinal: 3, text: "" }] }); t.expect("one line above the total is refused", extra, "bad");
+    const extra = await org.settings(g.id, { rewards: [...all, { pattern: "line", scope: "ticket", ordinal: 3, text: "" }] }); t.expect("one line above the total is refused", extra, "bad");
   } });
   for (const [label, rewards, tickets] of [
-    ["a 2nd winner without a 1st", [{ pattern: "top", scope: "ticket", ordinal: 2, text: "" }], 1],
-    ["the same line twice", [{ pattern: "top", scope: "ticket", ordinal: 1, text: "" }, { pattern: "top", scope: "ticket", ordinal: 1, text: "" }], 1],
-    ["winner number 0", [{ pattern: "top", scope: "ticket", ordinal: 0, text: "" }], 1],
-    ["winner number -1", [{ pattern: "top", scope: "ticket", ordinal: -1, text: "" }], 1],
-    ["winner number 1.5", [{ pattern: "top", scope: "ticket", ordinal: 1.5, text: "" }], 1],
-    ["winner number as text", [{ pattern: "top", scope: "ticket", ordinal: "1", text: "" }], 1],
-    ["a two-ticket house on a one-ticket game", [{ pattern: "full", scope: "two_ticket", ordinal: 1, text: "" }], 1],
-    ["two-ticket scope on a house other than Full", [{ pattern: "top", scope: "two_ticket", ordinal: 1, text: "" }], 2],
+    ["a 2nd winner without a 1st", [{ pattern: "line", scope: "ticket", ordinal: 2, text: "" }], 1],
+    ["the same line twice", [{ pattern: "line", scope: "ticket", ordinal: 1, text: "" }, { pattern: "line", scope: "ticket", ordinal: 1, text: "" }], 1],
+    ["winner number 0", [{ pattern: "line", scope: "ticket", ordinal: 0, text: "" }], 1],
+    ["winner number -1", [{ pattern: "line", scope: "ticket", ordinal: -1, text: "" }], 1],
+    ["winner number 1.5", [{ pattern: "line", scope: "ticket", ordinal: 1.5, text: "" }], 1],
+    ["winner number as text", [{ pattern: "line", scope: "ticket", ordinal: "1", text: "" }], 1],
+    ["a two-ticket house on a one-ticket game", [{ pattern: "blackout", scope: "two_ticket", ordinal: 1, text: "" }], 1],
+    ["two-ticket scope on a house other than Full", [{ pattern: "line", scope: "two_ticket", ordinal: 1, text: "" }], 2],
     ["the id full2 used as a pattern", [{ pattern: "full2", scope: "ticket", ordinal: 1, text: "" }], 2],
     ["house id with markup", [{ pattern: "<b>top</b>", scope: "ticket", ordinal: 1, text: "" }], 1],
-    ["a line that is not an object", ["top"], 1],
-    ["42 lines (one above the total)", Array.from({ length: MAX_REWARD_LINES + 1 }, (_, i) => ({ pattern: "top", scope: "ticket", ordinal: i + 1, text: "" })), 2],
+    ["a line that is not an object", ["line"], 1],
+    ["42 lines (one above the total)", Array.from({ length: MAX_REWARD_LINES + 1 }, (_, i) => ({ pattern: "line", scope: "ticket", ordinal: i + 1, text: "" })), 2],
   ]) {
     out.push({ name: `house-invalid|${label}`, run: async (t) => {
       const org = await t.newOrg(); const g = await t.game(org, { cap: 50, tickets }); const before = (await org.summary(g.id)).body.rewards;
@@ -66,22 +66,22 @@ export default async function gen({ R, L }) {
     } });
   }
   out.push({ name: "house|prize text longer than 80 characters is trimmed and markup is removed", run: async (t) => {
-    const org = await t.newOrg(); const g = await t.game(org, { cap: 50, rewards: [{ pattern: "full", scope: "ticket", ordinal: 1, text: "<img src=x onerror=alert(1)> " + "Z".repeat(120) }] });
+    const org = await t.newOrg(); const g = await t.game(org, { cap: 50, rewards: [{ pattern: "blackout", scope: "ticket", ordinal: 1, text: "<img src=x onerror=alert(1)> " + "Z".repeat(120) }] });
     t.expect("create", g.r, "ok"); const text = (await org.summary(g.id)).body.rewards?.[0]?.text ?? "";
     t.check("no angle brackets", !/[<>]/.test(text), text); t.check("at most 80 characters", text.length <= 80, `${text.length}`);
   } });
   out.push({ name: "house|going from two tickets to one removes the two-ticket house and keeps the rest", run: async (t) => {
-    const org = await t.newOrg(); const g = await t.game(org, { cap: 50, tickets: 2, rewards: [{ pattern: "early5", scope: "ticket", ordinal: 1, text: "" }, { pattern: "full", scope: "two_ticket", ordinal: 1, text: "" }] });
+    const org = await t.newOrg(); const g = await t.game(org, { cap: 50, tickets: 2, rewards: [{ pattern: "corners", scope: "ticket", ordinal: 1, text: "" }, { pattern: "blackout", scope: "two_ticket", ordinal: 1, text: "" }] });
     t.expect("create with two tickets", g.r, "ok");
     const s = await org.settings(g.id, { tickets: 1 }); t.expect("switch to one ticket", s, "ok");
-    const r = (await org.summary(g.id)).body.rewards ?? []; t.check("no two-ticket line left", !r.some((l) => l.scope === "two_ticket"), JSON.stringify(r)); t.check("Early Five is still there", r.some((l) => l.pattern === "early5"));
+    const r = (await org.summary(g.id)).body.rewards ?? []; t.check("no two-ticket line left", !r.some((l) => l.scope === "two_ticket"), JSON.stringify(r)); t.check("Early Five is still there", r.some((l) => l.pattern === "corners"));
   } });
   out.push({ name: "house|every prize left as 'I will decide later' still publishes and pays", run: async (t) => {
     const org = await t.newOrg(); const g = await t.game(org, { cap: 50, rewards: PRIZE_HOUSES.filter((h) => h.legacy && h.id !== "full2").map((h) => ({ pattern: h.id, scope: "ticket", ordinal: 1, text: "" })) });
     const pp = await t.publishPay(org, g.id); t.expect("publish", pp.p, "ok"); t.expect("pay", pp.q, "ok");
   } });
   out.push({ name: "house|every prize set to 'No prize' shows those words to the guest", run: async (t) => {
-    const org = await t.newOrg(); const g = await t.game(org, { cap: 50, rewards: ["early5", "top", "mid", "bot", "full"].map((p) => ({ pattern: p, scope: "ticket", ordinal: 1, text: "No prize" })) });
+    const org = await t.newOrg(); const g = await t.game(org, { cap: 50, rewards: ["corners", "line", "x", "frame", "blackout"].map((p) => ({ pattern: p, scope: "ticket", ordinal: 1, text: "No prize" })) });
     await t.publishPay(org, g.id); const j = await t.guest(g.id).join(); t.expect("join", j, "ok");
     t.check("all five lines say No prize", (j.body.rewards ?? []).length === 5 && j.body.rewards.every((l) => l.text === "No prize"), JSON.stringify(j.body.rewards).slice(0, 200));
   } });
@@ -91,7 +91,7 @@ export default async function gen({ R, L }) {
     const g = await t.game(org, { cap: 250, rewards }); t.expect("create", g.r, "ok"); t.check("saved", same((await org.summary(g.id)).body.rewards ?? [], rewards));
   } });
   out.push({ name: "house|the Unlucky house next to a Full House (the pair the rules describe)", run: async (t) => {
-    const org = await t.newOrg(); const rewards = [{ pattern: "full", scope: "ticket", ordinal: 1, text: "Gift hamper" }, { pattern: "unlucky", scope: "ticket", ordinal: 1, text: "A consolation box" }];
+    const org = await t.newOrg(); const rewards = [{ pattern: "blackout", scope: "ticket", ordinal: 1, text: "Gift hamper" }, { pattern: "unlucky", scope: "ticket", ordinal: 1, text: "A consolation box" }];
     const g = await t.game(org, { cap: 50, rewards }); t.expect("create", g.r, "ok"); const j = await (async () => { await t.publishPay(org, g.id); return t.guest(g.id).join(); })();
     t.check("guest sees both lines", same(j.body.rewards ?? [], rewards));
   } });

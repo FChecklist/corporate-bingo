@@ -10,7 +10,6 @@
     "test": "bun test packages apps tools/control-worker",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "dev": "bun run apps/edge/src/local.ts",
-    "sim:pause": "bun run tools/sim/pause.ts",
     "build:control": "bun build packages/beacon/src/control-browser.ts --target browser --format iife --minify --outfile apps/web/public/control.js",
     "build:report": "bun build apps/edge/src/report-browser.ts --target browser --format iife --minify --outfile apps/web/public/reportgen.js",
     "build:zgame": "bun build packages/beacon/src/zgame-browser.ts --target browser --format iife --minify --outfile apps/web/public/zgame.js",

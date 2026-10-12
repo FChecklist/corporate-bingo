@@ -146,7 +146,7 @@ export default async function gen({ R, L }) {
     await goto(Date.now() + 31 * DAY, 3); await org.history(); const g2 = await t.game(org, { cap: 20, days: 1 }); const r = await org.summary(g.id); t.check("gone after 30 days", r.status === 404 || r.status === 403 || /gone|not found/i.test(JSON.stringify(r.body)), `HTTP ${r.status}`);
   });
   add("keep|the settings of a game that did not start stay 30 days after it expired, then are forgotten", async (t) => {
-    const { org, g } = await listGame(t, { days: 2 }); await org.settings(g.id, { name: "Dealer meet - Mehta and Sons", rewards: [{ pattern: "full", scope: "ticket", ordinal: 1, text: "Smartphone" }] }); const s = await sum(org, g.id);
+    const { org, g } = await listGame(t, { days: 2 }); await org.settings(g.id, { name: "Dealer meet - Mehta and Sons", rewards: [{ pattern: "blackout", scope: "ticket", ordinal: 1, text: "Smartphone" }] }); const s = await sum(org, g.id);
     await goto(s.erasureMs + 2 * HOUR, 4); const a = await sum(org, g.id); t.check("just after the erasure the prizes are kept", (a.rewards ?? []).some((l) => l.text === "Smartphone"), JSON.stringify(a.rewards)?.slice(0, 120));
     const c1 = await org.api("POST", `/api/z/${g.id}/clone`, {}); t.expect("'Create a new game like this one' still works", c1, "ok"); t.check("and says the old guest list has been erased", /erased|add your people again/i.test(JSON.stringify(c1.body)) || c1.body.peopleCopied === 0, JSON.stringify(c1.body).slice(0, 200));
     await goto(s.erasureMs + 29 * DAY, 3); await org.history(); t.expect("29 days after: still there", await org.summary(g.id), "ok");

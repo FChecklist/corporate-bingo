@@ -117,7 +117,7 @@ try {
 
   // ---- 6 a 30-phone game on the fake beacon
   step("6 30 phones, fake beacon, virtual time");
-  const g2 = await org.createGame({ leadMs: 20 * 60_000, cfg: { rewards: [{ pattern: "early5", scope: "ticket", ordinal: 1, text: "" }, { pattern: "top", scope: "ticket", ordinal: 1, text: "" }, { pattern: "mid", scope: "ticket", ordinal: 1, text: "" }, { pattern: "bot", scope: "ticket", ordinal: 1, text: "" }, { pattern: "corners", scope: "ticket", ordinal: 1, text: "" }, { pattern: "star", scope: "ticket", ordinal: 1, text: "" }, { pattern: "full", scope: "ticket", ordinal: 1, text: "" }] } });
+  const g2 = await org.createGame({ leadMs: 20 * 60_000, cfg: { rewards: [{ pattern: "corners", scope: "ticket", ordinal: 1, text: "" }, { pattern: "line", scope: "ticket", ordinal: 1, text: "" }, { pattern: "x", scope: "ticket", ordinal: 1, text: "" }, { pattern: "frame", scope: "ticket", ordinal: 1, text: "" }, { pattern: "corners", scope: "ticket", ordinal: 1, text: "" }, { pattern: "plus", scope: "ticket", ordinal: 1, text: "" }, { pattern: "blackout", scope: "ticket", ordinal: 1, text: "" }] } });
   await org.publish(g2.id); await org.pay(g2.id);
   const c = spawnSync(H.BUN, [join(H.ROOT, "tools/sim2/crowd.ts"), JSON.stringify({ eid: g2.id, startRound: g2.startRound, phones: 30, seed: "smoke", base: H.SIM })], { cwd: H.ROOT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024, timeout: 240000 });
   let cr; try { cr = JSON.parse(c.stdout.trim().split("\n").pop()); } catch { cr = { ok: false, failures: ["no JSON from crowd.ts: " + (c.stderr || c.stdout).slice(0, 300)] }; }

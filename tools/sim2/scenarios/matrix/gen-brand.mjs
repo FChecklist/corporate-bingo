@@ -46,20 +46,20 @@ export default async function gen({ R, L }) {
 
   // ---------- brand moments: how many, where, which kind ----------
   const MOMENT = (kind, i = 0) => ({ speech: { kind: "speech", title: `A message from your organizer ${i}` }, youtube: { kind: "youtube", title: "Our year in 60 seconds", mediaUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" }, file: { kind: "file", title: "Welcome video", mediaUrl: "https://cdn.example.com/welcome.mp4" }, slides: { kind: "slides", title: "Awards slides" }, lucky: { kind: "lucky", title: "Lucky draw", winners: 3 } })[kind];
-  for (const tickets of [1, 2]) for (const slot of ["opening", "mid", "closing"]) for (const count of [0, "max", "max+1"]) out.push({ name: `moments|${tickets} ticket${tickets > 1 ? "s" : ""}: ${slot} x ${count}`, run: async (t) => {
-    const { org, g } = await draft(t, { tickets }); const max = slot === "mid" ? 3 * tickets : tickets; const n = count === 0 ? 0 : count === "max" ? max : max + 1;
-    const list = Array.from({ length: n }, (_, i) => ({ ...MOMENT("speech", i), ...(slot === "mid" ? { after: 10 * (i + 1) + 5, seconds: 30 } : slot === "opening" ? { seconds: Math.floor(120 / Math.max(1, n) / 3) * 3 || 15 } : {}) }));
+  for (const tickets of [1, 2]) for (const slot of ["opening", "x", "closing"]) for (const count of [0, "max", "max+1"]) out.push({ name: `moments|${tickets} ticket${tickets > 1 ? "s" : ""}: ${slot} x ${count}`, run: async (t) => {
+    const { org, g } = await draft(t, { tickets }); const max = slot === "x" ? 3 * tickets : tickets; const n = count === 0 ? 0 : count === "max" ? max : max + 1;
+    const list = Array.from({ length: n }, (_, i) => ({ ...MOMENT("speech", i), ...(slot === "x" ? { after: 10 * (i + 1) + 5, seconds: 30 } : slot === "opening" ? { seconds: Math.floor(120 / Math.max(1, n) / 3) * 3 || 15 } : {}) }));
     if (slot === "opening" && n > 0 && n * 15 > 120) return t.check("skipped: too many to fit 120 seconds anyway", true);
-    const key = slot === "mid" ? "breaks" : slot; const r = await org.settings(g.id, { tickets, [key]: list });
+    const key = slot === "x" ? "breaks" : slot; const r = await org.settings(g.id, { tickets, [key]: list });
     if (n <= max) { t.expect("accepted", r, "ok"); t.eq("saved count", ((await org.summary(g.id)).body[key] ?? []).length, n); } else { t.expect("refused", r, "bad"); t.check("message names the allowance", new RegExp(String(max)).test(r.body.error ?? ""), r.body.error); }
   } });
   out.push({ name: "moments|going from 2 tickets to 1 with 6 moments set is refused with the allowance named", run: async (t) => {
     const { org, g } = await draft(t, { tickets: 2 }); const mids = [10, 20, 30, 40, 50, 60].map((a, i) => ({ ...MOMENT("speech", i), after: a, seconds: 30 }));
     t.expect("six moments with two tickets", await org.settings(g.id, { tickets: 2, breaks: mids }), "ok"); const r = await org.settings(g.id, { tickets: 1 }); t.expect("back to one ticket", r, "bad"); t.eq("still two tickets", (await org.summary(g.id)).body.tickets, 2);
   } });
-  for (const kind of ["speech", "youtube", "file", "slides", "lucky"]) for (const slot of ["opening", "mid", "closing"]) out.push({ name: `moments|a ${kind} moment as ${slot}`, run: async (t) => {
-    const { org, g } = await draft(t); const m = { ...MOMENT(kind), ...(slot === "mid" ? { after: 30, seconds: 60 } : slot === "opening" ? { seconds: 60 } : {}) }; const r = await org.settings(g.id, { [slot === "mid" ? "breaks" : slot]: [m] });
-    if (kind === "lucky" && slot !== "mid") { t.expect("a lucky draw only goes during the game", r, "bad"); t.check("message says so", /during the game/i.test(r.body.error ?? ""), r.body.error); } else t.expect("accepted", r, "ok");
+  for (const kind of ["speech", "youtube", "file", "slides", "lucky"]) for (const slot of ["opening", "x", "closing"]) out.push({ name: `moments|a ${kind} moment as ${slot}`, run: async (t) => {
+    const { org, g } = await draft(t); const m = { ...MOMENT(kind), ...(slot === "x" ? { after: 30, seconds: 60 } : slot === "opening" ? { seconds: 60 } : {}) }; const r = await org.settings(g.id, { [slot === "x" ? "breaks" : slot]: [m] });
+    if (kind === "lucky" && slot !== "x") { t.expect("a lucky draw only goes during the game", r, "bad"); t.check("message says so", /during the game/i.test(r.body.error ?? ""), r.body.error); } else t.expect("accepted", r, "ok");
   } });
   for (const [label, m, ok] of [
     ["YouTube link: youtu.be", { kind: "youtube", title: "Greeting", mediaUrl: "https://youtu.be/dQw4w9WgXcQ" }, true], ["YouTube link: not YouTube", { kind: "youtube", title: "Greeting", mediaUrl: "https://vimeo.com/12345" }, false], ["YouTube link: look-alike host", { kind: "youtube", title: "Greeting", mediaUrl: "https://youtube.com.evil.example/watch?v=1" }, false], ["YouTube without a link", { kind: "youtube", title: "Greeting" }, false],

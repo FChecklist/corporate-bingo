@@ -1,6 +1,6 @@
 # tools/sim2: the simulation environment
 
-Owner order and safety rules: `docs/SIMULATION_PLAN.md`. This folder is plan items 1 to 6 plus the harness library scenarios are written with. **Nothing here touches the live site** except `parity.mjs` (plain GETs of public files). Never run `tests/e2e/run-live.mjs`, never `wrangler deploy/secret/write`. Ports: sim server **8801**, WhatsApp simulator **8890** (never 8799). Laptop rule: at most 6 Chrome contexts at once (`opener` refuses more), crowds go through `crowd.ts` (no browser).
+Owner order and safety rules: `the rules at the top of this file`. This folder is plan items 1 to 6 plus the harness library scenarios are written with. **Nothing here touches the live site** except `parity.mjs` (plain GETs of public files). Never run `tests/e2e/run-live.mjs`, never `wrangler deploy/secret/write`. Ports: sim server **8801**, WhatsApp simulator **8890** (never 8799). Laptop rule: at most 6 Chrome contexts at once (`opener` refuses more), crowds go through `crowd.ts` (no browser).
 
 ## Commands (from `C:\ct\bingo`)
 
@@ -84,4 +84,4 @@ N real `PhoneRuntime` instances over HTTP to the sim server in virtual time (ser
 - Cloudflare-side behaviour (HTTP caching, Pages edge, Web Analytics injection) is not simulated; static serving re-implements the documented rules.
 - Sealed personal data in the live copy cannot be opened (live `DATA_KEY` is not here).
 - The sim runs the working tree, so it fails to start while another agent leaves a module half-edited.
-- `crowd.ts` does not model failing mirrors or liars (see `tools/sim/crowd.ts` for those); it models offline phones and late joiners.
+- `crowd.ts` does not model failing mirrors or liars ; it models offline phones and late joiners.

@@ -136,6 +136,6 @@ describe("pages it must stay out of", () => {
     const { readFileSync } = await import("node:fs"); const rd = (f: string) => readFileSync(new URL("../public/" + f, import.meta.url), "utf8");
     for (const f of ["z.html", "zc.html", "big.html", "report.html", "ai-link.html", "owner-visits.html", "404.html"]) expect([f, rd(f).includes("/v.js")]).toEqual([f, false]);
     for (const f of ["index.html", "legal.html", "terms.html", "dpa.html", "subprocessors.html", "partner-terms.html", "organizer-guide.html", "partner.html", "signin.html", "pay.html"]) expect([f, rd(f).includes('<script src="/v.js" defer></script>')]).toEqual([f, true]);
-    for (const f of ["z.js", "zc.js", "zgame.js", "big.js", "play.js", "screen.js", "control.js"]) { const t = rd(f); expect([f, /cbv_id|TBV|\/api\/v\/b/.test(t)]).toEqual([f, false]); }
+    for (const f of ["z.js", "zc.js", "zgame.js", "big.js", "control.js"]) { const t = rd(f); expect([f, /cbv_id|TBV|\/api\/v\/b/.test(t)]).toEqual([f, false]); }
   });
 });

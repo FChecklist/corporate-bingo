@@ -17,13 +17,12 @@ describe("house names and how-to-win lines on the pages", () => {
     expect(z).toContain("const HOW = ");
     expect((z.match(/howLine\(/g) ?? []).length).toBeGreaterThanOrEqual(3);
     expect(z).toContain("HOW[list[0].pattern]"); // hurray card
-    expect(z).toContain("decided at the first Full House"); // Unlucky in 'Still to win'
-    expect(z).toContain("not possible on your ticket");
+    expect(z).toContain("not possible on your card");
   });
-  test("preview.js (the organizer's preview of the ticket page) lists the same names and lines as the table", () => {
+  test("preview.js (the organizer's preview of the card page) lists the same names and lines as the table", () => {
     const p = pub("preview.js");
     const how = JSON.parse(/const HOW = (\{.*?\});/s.exec(p)![1]!) as Record<string, string>;
-    const names = JSON.parse(/Object\.assign\(\{[^}]*\}, (\{.*?\}), \{/s.exec(p)![1]!) as Record<string, string>;
+    const names = JSON.parse(/const NAMES = (\{.*?\});/s.exec(p)![1]!) as Record<string, string>;
     for (const h of PRIZE_HOUSES) { expect(how[h.id]).toBe(h.how); expect(names[h.id]).toBe(h.label); }
   });
   test("the service worker cache name was bumped for this change", () => {

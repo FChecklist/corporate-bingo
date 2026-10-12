@@ -41,7 +41,7 @@
   const tzName = () => TZ.replace(/_/g, " ");
   const istNow = () => new Date(Date.now() + tzOffsetMs(Date.now())); // a date whose UTC fields read as the organizer's wall clock
   const istDateStr = (d) => `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
-  const dmy = (ms) => new Date(ms).toLocaleString(undefined, { timeZone: TZ, day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+  const dmy = (ms) => new Date(ms).toLocaleString("en-GB", { timeZone: TZ, day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
   const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"], DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const money = (n) => "Rs " + Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const inIndia = () => /^Asia\/(Kolkata|Calcutta)$/.test(TZ);
@@ -190,7 +190,7 @@
   const lockedNote = () => small("The game has started, so this can no longer be changed.");
   const when = (ms) => dmy(ms).replace(/,/g, "");
   const ist = (ms) => dmy(ms); // a friendly date and time, for example 11 Jan 2027, 3:16 pm
-  const dayIst = (ms) => new Date(ms).toLocaleDateString(undefined, { timeZone: TZ, day: "numeric", month: "short", year: "numeric" });
+  const dayIst = (ms) => new Date(ms).toLocaleDateString("en-GB", { timeZone: TZ, day: "numeric", month: "short", year: "numeric" });
   const pl = (n, one, many) => n + " " + (n === 1 ? one : many);
 
   /** Prize choice: chips for the ten popular prizes, "I will decide later" and "No prize", with the input beside the chosen one. */

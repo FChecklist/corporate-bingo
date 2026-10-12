@@ -1,3 +1,4 @@
+process.env.TZ = "Asia/Kolkata"; // the tests read dates as India time
 // A tiny page harness: loads the real page scripts from apps/web/public into a DOM (happy-dom), with fetch wired straight to the real Worker code and
 // an in-memory database, so the console, payment page, big screen and phone page are tested as the browser runs them.
 import { Window } from "happy-dom";
@@ -28,7 +29,7 @@ export async function openPage(world: { env: Env; now: number }, o: { url: strin
   const win: any = new Window({ url: o.url, settings: { disableJavaScriptFileLoading: true, disableCSSFileLoading: true } });
   const errors: string[] = [];
   // the page scripts run as `with (window)`: the typed arrays a real browser has must be visible to them too
-  for (const n of ["Uint8Array", "Uint16Array", "Uint32Array", "Int16Array", "Int32Array", "Float64Array"]) if (!win[n]) win[n] = (globalThis as any)[n];
+  for (const n of ["Uint8Array", "Int8Array", "Uint16Array", "Uint32Array", "Int16Array", "Int32Array", "Float64Array"]) if (!win[n]) win[n] = (globalThis as any)[n];
   win.document.write(readFileSync(join(PUB, o.html), "utf8").replace(/<script[\s\S]*?<\/script>/g, "").replace(/<link[^>]*>/g, ""));
   for (const [k, v] of Object.entries(o.session ?? {})) win.sessionStorage.setItem(k, v);
   win.fetch = async (input: any, init?: any) => { // the page talks to the real Worker; nothing else is reachable

@@ -74,9 +74,9 @@ describe("enrolling as a sales partner", () => {
     expect((await call("POST", "/api/partner/enroll", { phone: "9811122239", email: "u11@partner.example", consent: true }, { "cf-connecting-ip": "8.8.8.8" })).status).toBe(200);
   });
   test("the key is stored only as a hash, names are cleaned, and the source is kept", async () => {
-    const a = await enroll("9811122234", "<b>Rita</b>", "rita@partner.example", { source: "ticket" });
+    const a = await enroll("9811122234", "<b>Rita</b>", "rita@partner.example", { source: "card" });
     expect(JSON.stringify(raw.query("SELECT * FROM partner").all()).includes(a.partnerKey)).toBe(false);
-    expect(raw.query("SELECT name, source FROM partner").get()).toEqual({ name: "bRita/b", source: "ticket" });
+    expect(raw.query("SELECT name, source FROM partner").get()).toEqual({ name: "bRita/b", source: "card" });
   });
   test("a busy day says so and enrols nobody half-way", async () => {
     env.DAILY_WRITE_BUDGET = "1";

@@ -27,7 +27,7 @@ async function setHouse(page, id, { n, pt = "voucher", pd } = {}) {
   if (pd !== undefined && (await page.$(`#sec3 #f-hs-${id}-pd`))) await page.fill(`#sec3 #f-hs-${id}-pd`, pd);
   return nChips.length;
 }
-const ALL_HOUSES = ["early5", "early7", "early10", "top", "mid", "bot", "twolines", "corners", "star", "plus", "frame", "topbottom", "midcorners", "odd5", "even5", "low5", "high5", "full", "unlucky"];
+const ALL_HOUSES = ["corners", "early7", "early10", "line", "x", "frame", "twolines", "corners", "plus", "plus", "frame", "topbottom", "midcorners", "odd5", "even5", "low5", "high5", "blackout", "unlucky"];
 
 export default [
   {
@@ -127,7 +127,7 @@ export default [
       t.check("Rich has at least as many prizes as Simple", seen.Rich.length >= seen.Simple.length, `${seen.Rich.length} vs ${seen.Simple.length}`);
       await chip(x.page, "bundle", "Rich"); await saveStep(x.page, 3);
       const patterns = [...new Set((await rewardsOf(org, eid)).map((r) => r.pattern))];
-      t.check("saved prizes match what was ticked for Rich", seen.Rich.every((h) => patterns.includes(h === "full2" ? "full" : h)), `${patterns} vs ${seen.Rich}`);
+      t.check("saved prizes match what was ticked for Rich", seen.Rich.every((h) => patterns.includes(h === "full2" ? "blackout" : h)), `${patterns} vs ${seen.Rich}`);
       await t.shot(x.page, "step3-rich");
     },
   },
@@ -158,24 +158,24 @@ export default [
       await openStep(x.page, 3);
       const kinds = await x.page.$$eval('#sec3 [data-ck="hs.early5.pt"]', (els) => els.map((e) => e.dataset.v));
       t.check("13 prize options offered", kinds.length === 13, kinds.join());
-      for (const other of ALL_HOUSES) if (other !== "top") await houseOn(x.page, other, false).catch(() => {});
+      for (const other of ALL_HOUSES) if (other !== "line") await houseOn(x.page, other, false).catch(() => {});
       const out = {};
       for (const k of kinds) {
-        await setHouse(x.page, "top", { n: 1, pt: k, pd: k === "other" ? "Gold coin" : undefined });
+        await setHouse(x.page, "line", { n: 1, pt: k, pd: k === "other" ? "Gold coin" : undefined });
         await saveStep(x.page, 3); await openStep(x.page, 3);
-        const r = (await rewardsOf(org, eid)).find((q) => q.pattern === "top"); out[k] = r?.text ?? r?.prize ?? JSON.stringify(r);
+        const r = (await rewardsOf(org, eid)).find((q) => q.pattern === "line"); out[k] = r?.text ?? r?.prize ?? JSON.stringify(r);
       }
       t.check("every kind saved a prize text", Object.values(out).every((v) => v !== undefined && v !== "undefined"), JSON.stringify(out));
       t.check("'Something else' keeps the typed text", /Gold coin/.test(out.other ?? ""), out.other);
       t.check("'No prize' differs from 'decide later'", out.none !== out.later, `${out.none} / ${out.later}`);
       // different prize for each winner
-      await setHouse(x.page, "top", { n: 2, pt: "voucher" });
+      await setHouse(x.page, "line", { n: 2, pt: "voucher" });
       const diff = await x.page.$('#sec3 [data-ck="hs.top.diff"],#sec3 [data-bool="hs.top.diff"]');
       if (diff) {
         await diff.click(); await x.page.waitForTimeout(300);
         await x.page.click('#sec3 [data-ck="hs.top.per.0.pt"][data-v="phone"]'); await x.page.click('#sec3 [data-ck="hs.top.per.1.pt"][data-v="watch"]');
         await saveStep(x.page, 3);
-        const tops = (await rewardsOf(org, eid)).filter((r) => r.pattern === "top");
+        const tops = (await rewardsOf(org, eid)).filter((r) => r.pattern === "line");
         t.check("two winners with different prizes saved", tops.length === 2 && tops[0].text !== tops[1].text, JSON.stringify(tops.map((r) => r.text)));
       } else t.check("'a different prize for each winner' control exists with 2 winners", false, "no control found");
     },

@@ -6,14 +6,15 @@ import { join } from "node:path";
 import { writeFileSync, mkdirSync } from "node:fs";
 
 const args = process.argv.slice(2);
-const arg = (k: string, d?: string) => { const i = args.indexOf("--" + k); return i >= 0 ? (args[i + 1] && !args[i + 1].startsWith("--") ? args[i + 1] : "1") : d; };
+const arg = (k: string, d?: string) => { const i = args.indexOf("--" + k); return i >= 0 ? (args[i + 1] && !args[i + 1]!.startsWith("--") ? args[i + 1] : "1") : d; };
 const seed = Number(arg("seed", "1")); const only = arg("only"); const listOnly = args.includes("--list");
 const PORT = Number(process.env.MATRIX_PORT ?? 8802);
 process.env.SIM_PORT = String(PORT); // the shared harness library reads this when it is imported
 const ROOT = join(import.meta.dir, "../../../..");
 
 const { startSim } = await import("../../server");
-const L: any = await import("./lib.mjs");
+// @ts-ignore: plain .mjs module without types
+const L: any = await import("./lib.mjs") as any;
 const { A, clock } = L;
 const families = ["config", "houses", "roles", "lifecycle", "people", "brand", "money", "time", "play"];
 let scenarios: any[] = [];
@@ -78,7 +79,7 @@ for (const sc of scenarios) {
   if (i % 50 === 0) console.log(`... ${i}/${scenarios.length} (${Math.round((Date.now() - t0) / 1000)} s)`);
 }
 const passed = results.filter((r) => r.ok).length; const by: Record<string, { total: number; failed: number }> = {};
-for (const r of results) { by[r.family] ??= { total: 0, failed: 0 }; by[r.family].total++; if (!r.ok) by[r.family].failed++; }
+for (const r of results) { by[r.family] ??= { total: 0, failed: 0 }; by[r.family]!.total++; if (!r.ok) by[r.family]!.failed++; }
 const usage = await A.sql("SELECT day, writes FROM usage WHERE day NOT LIKE '%~%' ORDER BY writes DESC LIMIT 1");
 const health = await (await inner(`http://localhost:${PORT}/__sim/health`)).json() as any;
 const summary = { seed, total: results.length, passed, failed: results.length - passed, checks: nChecks, byFamily: by, seconds: Math.round((Date.now() - t0) / 1000), peakWrites: usage[0] ?? null, blockedFetches: health.blockedFetches };

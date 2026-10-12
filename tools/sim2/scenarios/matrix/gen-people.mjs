@@ -184,7 +184,7 @@ export default async function gen({ R, L }) {
 
   // ---------- removal ----------
   out.push({ name: "remove|before the game: the place is freed, the number is blocked, and can be put back by the Organizer", run: async (t) => {
-    const { org, g } = await openGame(t, { who: "anyone", cap: 2 }); const a = t.guest(g.id), b = t.guest(g.id); await a.join(); await b.join(); const x = t.guest(g.id); t.expect("full", await x.join(), [409]);
+    const { org, g } = await openGame(t, { who: "anyone", cap: 2 }); const a = t.guest(g.id), b = t.guest(g.id); await a.join(); await b.join(); const x = t.guest(g.id); t.expect("blackout", await x.join(), [409]);
     const rows = (await org.people(g.id)).body.people; const row = rows.find((p) => p.status === "joined") ?? rows[0]; t.check("people list shows joined guests", !!row, JSON.stringify(rows));
     if (!row) return; const rm = await org.api("POST", `/api/z/${g.id}/people/${row.id}/remove`, {}); t.expect("remove", rm, "ok"); t.expect("a new person takes the place", await x.join(), "ok");
     const again = await joinRaw(g.id, { phone: a.phone, name: a.name }, a.ip); const again2 = await joinRaw(g.id, { phone: b.phone, name: b.name }, b.ip); t.check("the removed number cannot come back", [again, again2].some((r) => r.status === 403 && r.body.code === "removed"), JSON.stringify([again.body.code, again2.body.code]));

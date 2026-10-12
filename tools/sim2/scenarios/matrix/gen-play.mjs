@@ -16,12 +16,12 @@ export default async function gen({ R, L }) {
     p.on("close", () => { clearTimeout(to); try { resolve(JSON.parse(so.trim().split("\n").pop())); } catch { reject(new Error("crowd gave no JSON: " + (so + se).slice(-300))); } });
   });
   const line = (pattern, ordinal, text = "") => ({ pattern, scope: "ticket", ordinal, text });
-  const legacy = [line("early5", 1, "Gift voucher: Rs 500"), line("top", 1), line("mid", 1), line("bot", 1), line("corners", 1), line("star", 1), line("full", 1, "Smartphone")];
+  const legacy = [line("corners", 1, "Gift voucher: Rs 500"), line("line", 1), line("x", 1), line("frame", 1), line("corners", 1), line("plus", 1), line("blackout", 1, "Smartphone")];
   const allHouses = PRIZE_HOUSES.filter((h) => h.id !== "full2").flatMap((h) => Array.from({ length: h.max }, (_, i) => line(h.id, i + 1, i === 0 ? h.label + " prize" : "")));
   const CASES = [
     ["1 phone, the seven classic houses", 1, legacy, 9, []], ["2 phones, the seven classic houses", 2, legacy, 9, []], ["50 phones, the seven classic houses", 50, legacy, 9, []],
-    ["50 phones, every house at its maximum number of winners", 50, allHouses, 12, []], ["50 phones, Full House for 3 and Unlucky", 50, [line("early5", 1), line("full", 1), line("full", 2), line("full", 3), line("unlucky", 1)], 9, []],
-    ["2 phones, gap 6 and a lucky draw for 3 (only 2 can win)", 2, legacy, 6, [{ kind: "lucky", title: "Lucky draw", after: 40, seconds: 30, winners: 3 }]], ["50 phones, gap 15, two winners for each line, a lucky draw for 5 and a speech", 50, [line("early5", 1), line("top", 1), line("top", 2), line("mid", 1), line("mid", 2), line("bot", 1), line("bot", 2), line("full", 1), line("full", 2)], 15, [{ kind: "lucky", title: "Lucky draw", after: 30, seconds: 30, winners: 5 }, { kind: "speech", title: "A word from our MD", after: 60, seconds: 30 }]],
+    ["50 phones, every house at its maximum number of winners", 50, allHouses, 12, []], ["50 phones, Full House for 3 and Unlucky", 50, [line("corners", 1), line("blackout", 1), line("blackout", 2), line("blackout", 3), line("unlucky", 1)], 9, []],
+    ["2 phones, gap 6 and a lucky draw for 3 (only 2 can win)", 2, legacy, 6, [{ kind: "lucky", title: "Lucky draw", after: 40, seconds: 30, winners: 3 }]], ["50 phones, gap 15, two winners for each line, a lucky draw for 5 and a speech", 50, [line("corners", 1), line("line", 1), line("line", 2), line("x", 1), line("x", 2), line("frame", 1), line("frame", 2), line("blackout", 1), line("blackout", 2)], 15, [{ kind: "lucky", title: "Lucky draw", after: 30, seconds: 30, winners: 5 }, { kind: "speech", title: "A word from our MD", after: 60, seconds: 30 }]],
   ];
   for (const [label, phones, rewards, gap, breaks] of CASES) out.push({ name: `play|${label}`, time: true, timeoutMs: 170_000, allowUnfriendly: false, run: async (t) => {
     const org = await t.newOrg(); const g = await t.game(org, { cap: Math.max(phones, 2), gap, who: "anyone", rewards, breaks, days: 1 }); if (!t.expect("create", g.r, "ok")) return;

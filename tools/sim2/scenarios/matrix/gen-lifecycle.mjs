@@ -70,7 +70,7 @@ export default async function gen({ R, L }) {
 
   // ---------- edit ----------
   const EDITS = [
-    ["name", { name: "Dealer meet - Mehta and Sons" }, "ok"], ["prizes to three lines", { rewards: [{ pattern: "early5", scope: "ticket", ordinal: 1, text: "Gift voucher: Rs 500" }, { pattern: "full", scope: "ticket", ordinal: 1, text: "Smartphone" }, { pattern: "full", scope: "ticket", ordinal: 2, text: "Smart watch" }] }, "ok"],
+    ["name", { name: "Dealer meet - Mehta and Sons" }, "ok"], ["prizes to three lines", { rewards: [{ pattern: "corners", scope: "ticket", ordinal: 1, text: "Gift voucher: Rs 500" }, { pattern: "blackout", scope: "ticket", ordinal: 1, text: "Smartphone" }, { pattern: "blackout", scope: "ticket", ordinal: 2, text: "Smart watch" }] }, "ok"],
     ["rounds to 3", { rounds: 3 }, "ok"], ["tickets to 2", { tickets: 2 }, "ok"], ["gap to 12", { callSeconds: 12 }, "ok"], ["who can join to list", { whoCanJoin: "list" }, "ok"], ["size down to 20", { cap: 20 }, "ok"],
     ["size up to 100 (inside the pack of 100)", { cap: 100 }, "ok"], ["size up to 101", { cap: 101 }, "paid-only-402"],
   ];
@@ -173,7 +173,7 @@ export default async function gen({ R, L }) {
 
   // ---------- clone ----------
   out.push({ name: "clone|copies the settings, not the payment, people, Co-hosts or date", run: async (t) => {
-    const rewards = [{ pattern: "early5", scope: "ticket", ordinal: 1, text: "Gift hamper" }, { pattern: "full", scope: "ticket", ordinal: 1, text: "Smartphone" }, { pattern: "full", scope: "ticket", ordinal: 2, text: "" }];
+    const rewards = [{ pattern: "corners", scope: "ticket", ordinal: 1, text: "Gift hamper" }, { pattern: "blackout", scope: "ticket", ordinal: 1, text: "Smartphone" }, { pattern: "blackout", scope: "ticket", ordinal: 2, text: "" }];
     const { org, g } = await setup(t, "paid", { cap: 250, game: { tickets: 2, rounds: 3, gap: 12, who: "list", name: "Diwali party - Tulsi Jewellers", rewards, brand: { name: "Tulsi Jewellers", color: "#6A1B9A" } } });
     await org.settings(g.id, { guestInvites: { on: true, per: 6, cats: ["family", "friends"] } }); await guestsJoin(t, g.id, 0); await org.addPeople(g.id, [{ name: "Asha Menon", phone: "9876543210" }]); await t.cohost(org, g.id);
     const c = await org.api("POST", `/api/z/${g.id}/clone`, {}); t.expect("clone", c, "ok"); const n = c.body.id; t.check("new id differs", n && n !== g.id);

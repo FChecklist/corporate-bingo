@@ -14,9 +14,9 @@ export const SHOTS = join(ROOT, "sim/shots");
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let pw;
-/** playwright-core, from this repo's junction (tests/e2e/README.md) or from C:\ct\ct\node_modules */
+/** playwright-core, from this repo's junction (devDependency playwright-core) */
 export function playwright() {
   if (pw) return pw;
   for (const base of [join(ROOT, "package.json")]) { try { pw = createRequire(base)("playwright-core"); return pw; } catch { /* try next */ } }
-  throw new Error("playwright-core not found: see tests/e2e/README.md (junction node_modules/playwright-core from C:\\ct\\ct\\node_modules)");
+  throw new Error("playwright-core not found: run bun install (it is a devDependency)");
 }

@@ -4,6 +4,8 @@
 (function () {
   "use strict";
   const $app = document.getElementById("app");
+  const SAMPLE_CARD = [[7, 18, 34, 52, 66], [3, 25, 41, 47, 70], [12, 29, null, 59, 73], [14, 21, 38, 46, 62], [9, 27, 43, 55, 68]];
+  const cardGrid = (label) => `<div class="zticket" role="group" aria-label="${label}">${["B", "I", "N", "G", "O"].map((l, c) => `<div class="h l${c}" aria-hidden="true">${l}</div>`).join("")}${SAMPLE_CARD.flat().map((n) => n === null ? `<div class="m free"><span>FREE</span></div>` : `<div class="c">${n}</div>`).join("")}</div>`;
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const q = new URLSearchParams(location.hash.replace(/^#/, ""));
   if (q.get("w") === "card") { ticketPreview(); return; }
@@ -57,9 +59,7 @@
   addEventListener("resize", placeMedia);
 
   const kind = mediaKind(b);
-  const SAMPLE_CARD = [[7, 18, 34, 52, 66], [3, 25, 41, 47, 70], [12, 29, null, 59, 73], [14, 21, 38, 46, 62], [9, 27, 43, 55, 68]];
-  const cardGrid = (label) => `<div class="zticket" role="group" aria-label="${label}">${["B", "I", "N", "G", "O"].map((l, c) => `<div class="h l${c}" aria-hidden="true">${l}</div>`).join("")}${SAMPLE_CARD.flat().map((n) => n === null ? `<div class="m free"><span>FREE</span></div>` : `<div class="c">${n}</div>`).join("")}</div>`;
-  const card = `<div class="zcard"><h2>Your card (sample)</h2>${cardGrid("Sample card")}</div>`;
+  const sampleCard = `<div class="zcard"><h2>Your card (sample)</h2>${cardGrid("Sample card")}</div>`;
   const what = b.kind === "speech" ? "Please listen to the host." : b.kind === "slides" ? "Please look at the screen." : "";
   const heading = when === "break" ? "A short break" : when === "opening" ? "A message from your organizer" : "Thank you from your organizer";
   const verdict = !b.mediaUrl ? "No link: guests see your message only." : kind ? "This link plays inside the game." : "<b>This link will NOT play inside the game.</b> It opens in a new tab and takes the guest out of the game. Use a YouTube link, or a direct link to a video (.mp4) or audio (.mp3) file.";
@@ -73,7 +73,7 @@
       : `<div class="zcard zbreak" role="status"><h2>${heading}</h2><div style="font:700 20px var(--sans,inherit);margin:2px 0 4px">${esc(b.title)}</div><div class="zsmall" style="margin:0">${what}${tail}</div>${act}</div>`;
     $app.innerHTML = `<div class="zhead"><b>Corporate Bingo</b></div>
       <div class="zbanner info" role="note"><b>Test only.</b> No game is running. It shows what a guest's phone shows during your ${when === "break" ? "break" : when}.</div>
-      <div class="zcard"><div class="zsmall" id="pvnote" style="margin:0">${verdict}</div></div>${card}${card}`;
+      <div class="zcard"><div class="zsmall" id="pvnote" style="margin:0">${verdict}</div></div>${card}${sampleCard}`;
     if (!over && kind && mediaHost.dataset.k !== "on") { mediaHost.dataset.k = "on"; startMedia(kind); }
     if (over) { mediaHost.textContent = ""; mediaHost.style.display = "none"; delete mediaHost.dataset.k; }
     else placeMedia();
