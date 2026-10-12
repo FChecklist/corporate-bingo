@@ -1,0 +1,32 @@
+{
+  "name": "corporate-bingo",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "tools/*"
+  ],
+  "scripts": {
+    "test": "bun test packages apps tools/control-worker",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "dev": "bun run apps/server/src/index.ts",
+    "seed": "bun run tools/seed/seed.ts",
+    "seed:surprise": "bun run tools/seed/seed-surprise.ts",
+    "sim": "bun run tools/sim/run.ts",
+    "sim:pause": "bun run tools/sim/pause.ts",
+    "build:control": "bun build packages/beacon/src/control-browser.ts --target browser --format iife --minify --outfile apps/web/public/control.js",
+    "ai-persona": "bun run tools/sim/ai-persona.ts",
+    "payments-test": "bun run tools/sim/payments.ts",
+    "build:report": "bun build apps/edge/src/report-browser.ts --target browser --format iife --minify --outfile apps/web/public/reportgen.js",
+    "build:zgame": "bun build packages/beacon/src/zgame-browser.ts --target browser --format iife --minify --outfile apps/web/public/zgame.js",
+    "zlocal": "bun run apps/edge/src/local.ts",
+    "pages:build": "bun run pages/build.mjs",
+    "pages:deploy": "bun run pages/build.mjs && cd pages && bunx wrangler@3 pages deploy public --project-name corporate-bingo --branch main --commit-dirty=true"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "happy-dom": "^20.14.5",
+    "typescript": "^5.6.0",
+    "playwright-core": "^1.48.0"
+  }
+}

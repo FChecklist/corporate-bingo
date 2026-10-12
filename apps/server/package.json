@@ -1,0 +1,13 @@
+{
+  "name": "@bingo/server",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/index.ts"
+  },
+  "dependencies": {
+    "@bingo/engine": "workspace:*",
+    "@bingo/shared": "workspace:*",
+    "@bingo/billing": "workspace:*"
+  }
+}
