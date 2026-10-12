@@ -3,42 +3,30 @@
 // Pure and shared: the Worker validates with it, the organizer page edits it, every phone and the organizer's settlement read it identically.
 import type { PatternId, Scope } from "../../shared/src/ticket";
 
-/** The houses added after the first seven. `unlucky` is not about a pattern on a ticket: it goes to the ticket with the fewest numbers marked (see `unluckyPick` in game.ts). */
-export type NewHouseId = "early7" | "early10" | "twolines" | "plus" | "frame" | "topbottom" | "midcorners" | "odd5" | "even5" | "low5" | "high5" | "unlucky";
-/** Every house an organizer can reward (the seven original ones, the newer ones, and Unlucky). */
-export type HouseId = PatternId | NewHouseId;
-export type PatternKey = HouseId | "full2"; // "full2" = Full Two-Ticket House (all 30 numbers across both tickets)
+/** Every house an organizer can reward. A house is one of the Bingo patterns (see PATTERN_RULES in packages/shared/src/bingo-card.ts). */
+export type HouseId = PatternId;
+export type PatternKey = HouseId;
 export interface RewardLine { pattern: HouseId; scope: Scope; ordinal: number; text: string }
 /**
  * THE one table of houses: id, label, a short plain "how to win", and the most winners (reward lines: 1st, 2nd, ...) the organizer may give it. The server validates with it, the phone page and the
- * console read it (window.ZG.PRIZE_HOUSES), the AI manual lists it. `kind`: set = every number of a fixed shape, any = any N numbers of a kind, lines = any two of the three lines, global = decided
- * over the whole game, not on one ticket (Unlucky). `legacy` houses are the seven every game had before; they are the default for a new game.
+ * console read it (window.ZG.PRIZE_HOUSES), the AI manual lists it. `kind`: set = a fixed shape of squares (or one of several shapes), lines = any two of the twelve lines.
+ * `dflt` houses make up the default prize set of a new game: Line, Four Corners, X and Blackout.
  */
-export interface PrizeHouse { id: PatternKey; label: string; how: string; max: number; kind: "set" | "any" | "lines" | "global"; legacy?: true; scope?: Scope }
+export interface PrizeHouse { id: PatternKey; label: string; how: string; max: number; kind: "set" | "lines"; dflt?: true; squares: string }
 export const PRIZE_HOUSES: readonly PrizeHouse[] = [
-  { id: "early5", label: "Early Five", how: "Be the first to mark any 5 of your numbers.", max: 1, kind: "any", legacy: true },
-  { id: "early7", label: "Early Seven", how: "Be the first to mark any 7 of your numbers.", max: 1, kind: "any" },
-  { id: "early10", label: "Early Ten", how: "Be the first to mark any 10 of your numbers.", max: 1, kind: "any" },
-  { id: "top", label: "Top Line", how: "Mark all 5 numbers of the top line.", max: 2, kind: "set", legacy: true },
-  { id: "mid", label: "Middle Line", how: "Mark all 5 numbers of the middle line.", max: 2, kind: "set", legacy: true },
-  { id: "bot", label: "Bottom Line", how: "Mark all 5 numbers of the bottom line.", max: 2, kind: "set", legacy: true },
-  { id: "twolines", label: "Two Lines", how: "Be the first to complete any two of your three lines.", max: 1, kind: "lines" },
-  { id: "corners", label: "Four Corners", how: "Mark the first and last number of the top and bottom lines.", max: 1, kind: "set", legacy: true },
-  { id: "star", label: "Star", how: "Mark the four corners and the centre number of the middle line.", max: 1, kind: "set", legacy: true },
-  { id: "plus", label: "Plus", how: "Mark the whole middle line and the middle number of the top and bottom lines.", max: 1, kind: "set" },
-  { id: "frame", label: "Frame", how: "Mark the top line, the bottom line and the first and last number of the middle line.", max: 1, kind: "set" },
-  { id: "topbottom", label: "Top and Bottom", how: "Mark both the top line and the bottom line.", max: 1, kind: "set" },
-  { id: "midcorners", label: "Middle and Corners", how: "Mark the whole middle line and the four corners.", max: 1, kind: "set" },
-  { id: "odd5", label: "Odd Five", how: "Be the first to mark any 5 odd numbers.", max: 1, kind: "any" },
-  { id: "even5", label: "Even Five", how: "Be the first to mark any 5 even numbers.", max: 1, kind: "any" },
-  { id: "low5", label: "Low Five", how: "Be the first to mark 5 numbers from 1 to 30.", max: 1, kind: "any" },
-  { id: "high5", label: "High Five", how: "Be the first to mark 5 numbers from 61 to 90.", max: 1, kind: "any" },
-  { id: "full", label: "Full House", how: "Mark all 15 numbers of your ticket.", max: 10, kind: "set", legacy: true },
-  { id: "full2", label: "Full Two-Ticket House", how: "Mark all 30 numbers across your two tickets.", max: 10, kind: "set", scope: "two_ticket" },
-  { id: "unlucky", label: "Unlucky", how: "Goes to the ticket with the fewest numbers marked when the first Full House is completed (or when the game ends). A tie is settled fairly by the game's public random number.", max: 1, kind: "global" },
+  { id: "line", label: "Line", how: "Mark any one row, column or diagonal. FREE counts.", max: 3, kind: "set", dflt: true, squares: "5" },
+  { id: "twolines", label: "Two Lines", how: "Mark any two different lines.", max: 2, kind: "lines", squares: "9-10" },
+  { id: "corners", label: "Four Corners", how: "Mark the four corner squares.", max: 3, kind: "set", dflt: true, squares: "4" },
+  { id: "plus", label: "Plus", how: "Mark the whole middle row and the whole middle column.", max: 2, kind: "set", squares: "9" },
+  { id: "x", label: "X", how: "Mark both diagonals.", max: 2, kind: "set", dflt: true, squares: "9" },
+  { id: "frame", label: "Frame", how: "Mark the whole outer border.", max: 2, kind: "set", squares: "16" },
+  { id: "stamp", label: "Postage Stamp", how: "Mark a 2 x 2 block in any corner.", max: 3, kind: "set", squares: "4" },
+  { id: "letterL", label: "Letter L", how: "Mark the whole B column and the bottom row.", max: 2, kind: "set", squares: "9" },
+  { id: "letterT", label: "Letter T", how: "Mark the whole top row and the whole N column.", max: 2, kind: "set", squares: "9" },
+  { id: "blackout", label: "Blackout", how: "Mark every square on your card. FREE counts.", max: 2, kind: "set", dflt: true, squares: "24 + FREE" },
 ];
-/** One plain line naming every house and its maximum winners, for the AI manual and the choices list. The two-ticket house is the Full House with scope two_ticket. */
-export const HOUSES_LINE: string = PRIZE_HOUSES.filter((h) => h.id !== "full2").map((h) => `${h.id} = ${h.label} (${h.max === 1 ? "1 winner" : `up to ${h.max} winners`})`).join(", ");
+/** One plain line naming every house and its maximum winners, for the AI manual and the choices list. */
+export const HOUSES_LINE: string = PRIZE_HOUSES.map((h) => `${h.id} = ${h.label} (${h.max === 1 ? "1 winner" : `up to ${h.max} winners`})`).join(", ");
 /** The same houses with how to win each, one per line (AI manual, organizer guide). */
 export const HOUSES_HELP_LIST: string[] = PRIZE_HOUSES.map((h) => `${h.id}: ${h.label}. ${h.how} ${h.max === 1 ? "1 winner." : `Up to ${h.max} winners.`}`);
 export const HOUSES_HELP: string = HOUSES_HELP_LIST.join(String.fromCharCode(10));
@@ -46,9 +34,9 @@ export const HOUSES_HELP: string = HOUSES_HELP_LIST.join(String.fromCharCode(10)
 export const HOUSE_ORDER: readonly PatternKey[] = PRIZE_HOUSES.map((h) => h.id);
 const HOUSE_BY_ID = new Map<string, PrizeHouse>(PRIZE_HOUSES.map((h) => [h.id, h]));
 export const houseLabel = (id: string): string => HOUSE_BY_ID.get(id)?.label ?? id;
-/** The most winners (reward lines) a house may have. Games saved before this limit existed may hold up to LEGACY_MAX_ORDINAL; they stay valid (see `validateCfg`'s `stored`). */
+/** The most winners (reward lines) a house may have. */
 export const maxWinnersFor = (id: string): number => HOUSE_BY_ID.get(id)?.max ?? 1;
-export const LEGACY_MAX_ORDINAL = 5;
+export const LEGACY_MAX_ORDINAL = 3;
 export interface BreakCfg { after: number; seconds: number; kind: "file" | "youtube" | "slides" | "speech" | "lucky"; title: string; mediaUrl?: string; winners?: 1 | 3 | 5 | 10; /** How a lucky draw is shown on phones. The winners are drawn the same way either way; a scratch card only changes the reveal. */ style?: "draw" | "scratch";
   /** True when the software placed this break (evenly spread among the automatic ones) instead of the organizer typing a number. Saving again re-spreads every automatic break. */ auto?: true }
 /** A brand moment that is not a pause in the numbers: an OPENING plays while guests wait for the first number, a CLOSING plays on the final screen. */
@@ -64,7 +52,7 @@ export interface BrandCfg { name: string; color: string; logo?: string }
 export const BRAND_COLORS: readonly string[] = ["#0B3D91", "#1B7F5C", "#B3261E", "#6A1B9A", "#C26A00", "#00798C", "#37474F", "#AD1457"];
 export const BRAND_NAME_MAX = 40;
 /** A logo is a PNG, JPEG or WebP of at most 30 KB (decoded). It is checked by its first bytes, not by what the sender called it. */
-export const BRAND_LOGO_MAX_BYTES = 30 * 1024;
+export const BRAND_LOGO_MAX_BYTES = 30 * 1024;
 /** The logo rules, shown to the Organizer and enforced by the page and by the server alike.
  *  Upload: PNG, JPEG or WebP, at most 5 MB, at least 64 x 64 pixels, no wider than 4 times its height (or the other way round).
  *  Kept with the game: a PNG, JPEG or WebP of at most 30 KB whose longest side is 48 to 192 pixels (the page shrinks the upload to fit).
@@ -110,7 +98,7 @@ export function checkBrandLogo(v: unknown): { ok: true; bytes: number } | { ok: 
 }
 export const MAX_INVITES_PER_PERSON = 10;
 export const defaultInvites = (): InviteCfg => ({ on: false, per: 4, cats: ["family", "colleagues"] });
-export interface EngagementCfg { /** A friendly name the organizer gives the game (optional, up to 60 characters). */ name?: string; tickets: 1 | 2; rewards: RewardLine[]; breaks: BreakCfg[]; rounds: number; invites?: InviteCfg; /** Before the first number (at most one per ticket). Always present after validateCfg. */ opening?: BrandSlot[]; /** On the final screen (at most one per ticket). Always present after validateCfg. */ closing?: BrandSlot[]; /** The company's mark on the ticket (name, colour, optional logo). Absent = the plain ticket. */ brand?: BrandCfg }
+export interface EngagementCfg { /** A friendly name the organizer gives the game (optional, up to 60 characters). */ name?: string; tickets: 1 | 2; rewards: RewardLine[]; breaks: BreakCfg[]; rounds: number; invites?: InviteCfg; /** Before the first number (at most one per ticket). Always present after validateCfg. */ opening?: BrandSlot[]; /** On the final screen (at most one per ticket). Always present after validateCfg. */ closing?: BrandSlot[]; /** The company's mark on the ticket (name, colour, optional logo). Absent = the plain ticket. */ brand?: BrandCfg; /** How the card shows called numbers: "auto" (squares light up by themselves, the default) or "tap" (the guest taps a square to daub it). Cosmetic only: the software always decides the winners. */ mark?: "auto" | "tap" }
 /**
  * Who decides the winners: the software, never a person. Every phone works out the winners from the public numbers and reports them; our store accepts a result
  * only when this many DIFFERENT phones (one ticket per phone) reported exactly the same winners. Tiny games need half their people; larger ones 5% (3 to 25).
@@ -119,6 +107,8 @@ export const quorumFor = (people: number): number => (people <= 6 ? Math.max(1, 
 /** How many phones report each result (the rest stay quiet, to keep the free request allowance): everyone in a small game, four times the quorum in a big one. Silent phones step in if no result appears. */
 export const votersFor = (people: number): number => (people <= 12 ? people : 4 * quorumFor(people));
 export const MAX_ROUNDS = 5;
+/** A Bingo game calls at most 75 numbers. */
+export const MAX_CALLS = 75;
 /** The game starts this many 3 s beacon rounds (2 minutes) after the time the organizer gave: the last 2 minutes are "setting up, waiting for everyone to join". */
 export const GRACE_ROUNDS = 40;
 /** Someone who joins after the game began only sees numbers called from this many rounds (90 s) after joining, so every phone has heard about them before their first number counts. */
@@ -128,8 +118,8 @@ export const INTERMISSION_ROUNDS = 30;
 /** Round 1 keeps the engagement's own id; later rounds use a derived id, so each round has its own numbers and its own tickets. */
 export const roundEid = (eid: string, round: number): string => (round <= 1 ? eid : `${eid}~r${round}`);
 
-/** The seven original houses, in order: what a new game rewards until the organizer says otherwise. (All houses, in order: HOUSE_ORDER.) */
-export const PATTERN_ORDER: readonly PatternId[] = ["early5", "top", "mid", "bot", "corners", "star", "full"];
+/** The default prize set, in order: what a new game rewards until the organizer says otherwise (Line, Four Corners, X, Blackout). All houses, in order: HOUSE_ORDER. */
+export const PATTERN_ORDER: readonly PatternId[] = PRIZE_HOUSES.filter((h) => h.dflt).map((h) => h.id as PatternId);
 /** Brand moments are allowed PER TICKET each participant holds: 1 opening, 3 during the game and 1 closing for every ticket (5 with one ticket, 10 with two). */
 export const MAX_MID_PER_TICKET = 3;
 export const MAX_BREAKS = MAX_MID_PER_TICKET; // the allowance with one ticket; use maxMidFor(tickets) for the real limit
@@ -138,8 +128,8 @@ export const maxEdgeFor = (tickets: number): number => tickets; // openings, and
 export const brandMomentsFor = (tickets: number): number => 5 * tickets;
 /** Every opening has to fit inside the 2 minutes the game waits for everyone before its first number. */
 export const OPENING_WINDOW_SECONDS = GRACE_ROUNDS * 3;
-/** Even spread: with `n` during-the-game moments, the k-th (1-based) goes after number round(90 x k / (n + 1)), so the gaps from the start, between moments and to the end are equal. */
-export const autoAfter = (n: number, k: number): number => Math.min(89, Math.max(1, Math.round((90 * k) / (n + 1))));
+/** Even spread: with `n` during-the-game moments, the k-th (1-based) goes after number round(75 x k / (n + 1)), so the gaps from the start, between moments and to the end are equal. */
+export const autoAfter = (n: number, k: number): number => Math.min(MAX_CALLS - 1, Math.max(1, Math.round((MAX_CALLS * k) / (n + 1))));
 /** Room for every house at its own maximum (stays at least 30, the old limit). */
 export const MAX_REWARD_LINES = Math.max(30, PRIZE_HOUSES.reduce((n, h) => n + h.max, 0));
 export const MAX_ORDINAL = Math.max(LEGACY_MAX_ORDINAL, ...PRIZE_HOUSES.map((h) => h.max));
@@ -150,7 +140,7 @@ export const LUCKY_WINNERS = [1, 3, 5, 10] as const;
 export const defaultRewards = (): RewardLine[] => PATTERN_ORDER.map((pattern) => ({ pattern, scope: "ticket", ordinal: 1, text: "" }));
 export const defaultCfg = (): EngagementCfg => ({ tickets: 1, rewards: defaultRewards(), breaks: [], rounds: 1, invites: defaultInvites(), opening: [], closing: [] });
 
-export const keyOfLine = (l: Pick<RewardLine, "pattern" | "scope">): PatternKey => (l.scope === "two_ticket" ? "full2" : l.pattern);
+export const keyOfLine = (l: Pick<RewardLine, "pattern" | "scope">): PatternKey => l.pattern;
 export const lineKey = (l: RewardLine) => `${keyOfLine(l)}#${l.ordinal}`;
 /** The distinct houses in play, in a stable order. */
 export const keysInPlay = (rewards: readonly RewardLine[]): PatternKey[] => {
@@ -170,46 +160,43 @@ const YT = /^https:\/\/(www\.)?(youtube\.com|youtu\.be)\//i;
 export const SITE_MEDIA = /^\/[A-Za-z0-9._-]{1,80}\.(mp4|webm|m4a|mp3)$/i;
 
 /** Validates what the organizer sent. `opts.stored`: this is a game read back from storage, not new input, so a house may keep up to LEGACY_MAX_ORDINAL winners even where today's limit is lower (old games stay valid). Returns the cleaned config, or a plain-English reason. Missing parts keep their defaults. */
-export function validateCfg(input: { tickets?: unknown; rewards?: unknown; breaks?: unknown; rounds?: unknown; invites?: unknown; opening?: unknown; closing?: unknown; name?: unknown; brand?: unknown }, base: EngagementCfg = defaultCfg(), opts: { stored?: boolean } = {}): { ok: true; cfg: EngagementCfg } | { ok: false; error: string } {
-  const cfg: EngagementCfg & { opening: BrandSlot[]; closing: BrandSlot[] } = { tickets: base.tickets, rewards: base.rewards, breaks: base.breaks, rounds: base.rounds ?? 1, invites: base.invites ?? defaultInvites(), opening: base.opening ?? [], closing: base.closing ?? [], ...(base.name ? { name: base.name } : {}), ...(base.brand ? { brand: base.brand } : {}) };
+export function validateCfg(input: { mark?: unknown; tickets?: unknown; rewards?: unknown; breaks?: unknown; rounds?: unknown; invites?: unknown; opening?: unknown; closing?: unknown; name?: unknown; brand?: unknown }, base: EngagementCfg = defaultCfg(), opts: { stored?: boolean } = {}): { ok: true; cfg: EngagementCfg } | { ok: false; error: string } {
+  const cfg: EngagementCfg & { opening: BrandSlot[]; closing: BrandSlot[] } = { tickets: base.tickets, rewards: base.rewards, breaks: base.breaks, rounds: base.rounds ?? 1, invites: base.invites ?? defaultInvites(), opening: base.opening ?? [], closing: base.closing ?? [], ...(base.name ? { name: base.name } : {}), ...(base.brand ? { brand: base.brand } : {}), ...(base.mark ? { mark: base.mark } : {}) };
   if (input.rounds !== undefined) {
     if (!Number.isInteger(input.rounds) || (input.rounds as number) < 1 || (input.rounds as number) > MAX_ROUNDS) return { ok: false, error: `An engagement has 1 to ${MAX_ROUNDS} rounds.` };
     cfg.rounds = input.rounds as number;
   }
   if (input.tickets !== undefined) {
-    if (input.tickets !== 1 && input.tickets !== 2) return { ok: false, error: "Each participant gets 1 or 2 tickets." };
+    if (input.tickets !== 1 && input.tickets !== 2) return { ok: false, error: "Each participant gets 1 or 2 cards." };
     cfg.tickets = input.tickets;
   }
   if (input.rewards !== undefined) {
     if (!Array.isArray(input.rewards) || input.rewards.length < 1 || input.rewards.length > MAX_REWARD_LINES) return { ok: false, error: `Add between 1 and ${MAX_REWARD_LINES} rewards.` };
     const out: RewardLine[] = []; const seen = new Set<string>();
     for (const r of input.rewards as any[]) {
-      const pattern = r?.pattern as HouseId; const scope: Scope = r?.scope === "two_ticket" ? "two_ticket" : "ticket"; const ordinal = r?.ordinal === undefined ? 1 : r.ordinal;
-      if (!HOUSE_ORDER.includes(pattern) || (pattern as string) === "full2") return { ok: false, error: "Unknown house in the rewards." };
-      if (scope === "two_ticket" && pattern !== "full") return { ok: false, error: "Only the Full House can be won across two tickets." };
+      const pattern = r?.pattern as HouseId; const scope: Scope = "ticket"; const ordinal = r?.ordinal === undefined ? 1 : r.ordinal;
+      if (!HOUSE_ORDER.includes(pattern)) return { ok: false, error: "Unknown house in the rewards." };
       if (!Number.isInteger(ordinal) || ordinal < 1) return { ok: false, error: "A winner number must be 1 or more." };
-      const most = Math.max(maxWinnersFor(scope === "two_ticket" ? "full2" : pattern), opts.stored ? LEGACY_MAX_ORDINAL : 0);
+      const most = Math.max(maxWinnersFor(pattern), opts.stored ? LEGACY_MAX_ORDINAL : 0);
       const kept = base.rewards.some((x) => x.pattern === pattern && x.scope === scope && x.ordinal === ordinal); // already saved in this game: it stays
-      if (ordinal > most && !kept) return { ok: false, error: `${houseLabel(scope === "two_ticket" ? "full2" : pattern)} can have ${most === 1 ? "only 1 winner" : `at most ${most} winners`}. Please remove the extra ones.` };
+      if (ordinal > most && !kept) return { ok: false, error: `${houseLabel(pattern)} can have ${most === 1 ? "only 1 winner" : `at most ${most} winners`}. Please remove the extra ones.` };
       const id = `${scope}:${pattern}#${ordinal}`;
       if (seen.has(id)) return { ok: false, error: "The same reward is listed twice." };
       seen.add(id);
       out.push({ pattern, scope, ordinal, text: cleanText(r?.text, 80) });
     }
     for (const l of out) if (l.ordinal > 1 && !out.some((x) => x.pattern === l.pattern && x.scope === l.scope && x.ordinal === l.ordinal - 1)) return { ok: false, error: "A 2nd, 3rd... reward needs the one before it. Note that sending rewards REPLACES the whole list, so send every reward line each time, with ordinals starting at 1 for each house." };
-    if (out.some((l) => l.scope === "two_ticket") && (input.tickets ?? cfg.tickets) !== 2) return { ok: false, error: "A Full Two-Ticket House needs two tickets per participant." };
     cfg.rewards = out;
   }
-  if (cfg.tickets === 1 && cfg.rewards.some((l) => l.scope === "two_ticket")) cfg.rewards = cfg.rewards.filter((l) => l.scope !== "two_ticket");
   if (cfg.rewards.length === 0) cfg.rewards = defaultRewards();
   if (input.breaks !== undefined) {
-    if (!Array.isArray(input.breaks) || input.breaks.length > maxMidFor(cfg.tickets)) return { ok: false, error: `At most ${maxMidFor(cfg.tickets)} brand moments during the game with ${cfg.tickets} ticket${cfg.tickets === 1 ? "" : "s"} per person.` };
+    if (!Array.isArray(input.breaks) || input.breaks.length > maxMidFor(cfg.tickets)) return { ok: false, error: `At most ${maxMidFor(cfg.tickets)} brand moments during the game with ${cfg.tickets} card${cfg.tickets === 1 ? "" : "s"} per person.` };
     const out: BreakCfg[] = [];
     for (const b of input.breaks as any[]) {
       // No number typed (or `auto: true` from an earlier save): the software places it, evenly spread among the automatic ones, and it lasts 60 s unless told otherwise.
       const auto = b?.auto === true || b?.after === undefined || b?.after === null || b?.after === "";
       const after = auto ? 0 : b?.after, seconds = auto && (b?.seconds === undefined || b?.seconds === null || b?.seconds === "") ? 60 : b?.seconds, kind = b?.kind;
-      if (!auto && (!Number.isInteger(after) || after < 1 || after > 89)) return { ok: false, error: "A break starts after 1 to 89 numbers have been called." };
+      if (!auto && (!Number.isInteger(after) || after < 1 || after > MAX_CALLS - 1)) return { ok: false, error: `A break starts after 1 to ${MAX_CALLS - 1} numbers have been called.` };
       if (!Number.isInteger(seconds) || seconds < 15 || seconds > 600 || seconds % 3) return { ok: false, error: "A break lasts 15 to 600 seconds, in steps of 3." };
       if (!KINDS.has(kind)) return { ok: false, error: "A break is a file, a YouTube link, slides, a speech or a lucky draw." };
       const winners = kind === "lucky" ? (b?.winners === undefined ? 3 : b.winners) : undefined;
@@ -234,6 +221,7 @@ export function validateCfg(input: { tickets?: unknown; rewards?: unknown; break
     for (let i = 1; i < out.length; i++) if (out[i]!.after === out[i - 1]!.after) return { ok: false, error: "Two breaks cannot start at the same number." };
     cfg.breaks = out;
   }
+  if (input.mark !== undefined) { if (input.mark !== "auto" && input.mark !== "tap") return { ok: false, error: "Marking is \"auto\" (squares light up by themselves) or \"tap\" (guests tap to daub)." }; if (input.mark === "tap") cfg.mark = "tap"; else delete cfg.mark; }
   if (input.name !== undefined) { const nm = cleanText(input.name, 60); if (nm) cfg.name = nm; else delete cfg.name; }
   if (input.brand !== undefined) { // null (or an empty object) removes the brand; otherwise the whole brand is replaced
     const bd = input.brand as any;
@@ -253,7 +241,7 @@ export function validateCfg(input: { tickets?: unknown; rewards?: unknown; break
   for (const [field, label, max, isOpening] of [["opening", "before the game starts", maxEdgeFor(cfg.tickets), true], ["closing", "at the end of the game", maxEdgeFor(cfg.tickets), false]] as const) {
     const raw = (input as any)[field];
     if (raw === undefined) continue;
-    if (!Array.isArray(raw) || raw.length > max) return { ok: false, error: `At most ${max} brand moment${max === 1 ? "" : "s"} ${label} with ${cfg.tickets} ticket${cfg.tickets === 1 ? "" : "s"} per person.` };
+    if (!Array.isArray(raw) || raw.length > max) return { ok: false, error: `At most ${max} brand moment${max === 1 ? "" : "s"} ${label} with ${cfg.tickets} card${cfg.tickets === 1 ? "" : "s"} per person.` };
     const slots: BrandSlot[] = [];
     for (const b of raw as any[]) {
       const kind = b?.kind;
@@ -281,7 +269,7 @@ export function validateCfg(input: { tickets?: unknown; rewards?: unknown; break
   { // the allowance follows the tickets: changing from 2 tickets to 1 must not leave more than one ticket's worth switched on
     const t = cfg.tickets;
     if (cfg.breaks.length > maxMidFor(t) || cfg.opening.length > maxEdgeFor(t) || cfg.closing.length > maxEdgeFor(t))
-      return { ok: false, error: `With ${t} ticket${t === 1 ? "" : "s"} per person you can use ${brandMomentsFor(t)} brand moments: ${maxEdgeFor(t)} before the game, ${maxMidFor(t)} during it and ${maxEdgeFor(t)} at the end. Please switch some off.` };
+      return { ok: false, error: `With ${t} card${t === 1 ? "" : "s"} per person you can use ${brandMomentsFor(t)} brand moments: ${maxEdgeFor(t)} before the game, ${maxMidFor(t)} during it and ${maxEdgeFor(t)} at the end. Please switch some off.` };
   }
   if (input.invites !== undefined) {
     const v = input.invites as any;

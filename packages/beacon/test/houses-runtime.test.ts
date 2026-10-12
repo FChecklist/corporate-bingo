@@ -35,11 +35,11 @@ const mkPhone = (n: number) => {
   return { rt, phone: "9" + String(100000000 + n) };
 };
 const step = async (ps: ReturnType<typeof mkPhone>[], ms = 3000) => { t += ms; for (const p of ps) await p.rt.tick(); };
-const reference = () => deriveCalls(EID, Array.from({ length: 90 }, (_, k) => rnd(START + k * 2)));
+const reference = () => deriveCalls(EID, Array.from({ length: 75 }, (_, k) => rnd(START + k * 2)));
 
 const REWARDS = [
-  ...["early5", "early7", "early10", "twolines", "corners", "star", "plus", "frame", "topbottom", "midcorners", "odd5", "even5", "low5", "high5", "mid", "full", "unlucky"].map((pattern) => ({ pattern, ordinal: 1, text: "" })),
-  { pattern: "top", ordinal: 1, text: "" }, { pattern: "top", ordinal: 2, text: "" },
+  ...["line", "twolines", "corners", "plus", "x", "frame", "stamp", "letterL", "letterT", "blackout"].map((pattern) => ({ pattern, ordinal: 1, text: "" })),
+  { pattern: "line", ordinal: 2, text: "" }, { pattern: "line", ordinal: 3, text: "" },
 ];
 beforeEach(async () => {
   const d = makeD1();
@@ -56,64 +56,45 @@ const expected = (cfg: EngagementCfg, pids: string[], out = new Set<string>()) =
 };
 const line = (x: { pattern: string; ordinal: number; idx: number }, n: number) => `${x.pattern}:${x.ordinal}:${x.idx}:${n}`;
 
-describe("phones playing the new houses", () => {
-  test("every phone works out the same winners as the whole-log settlement, Unlucky included, and the store accepts them", async () => {
+describe("phones playing every house", () => {
+  test("every phone works out the same winners as the whole-log settlement, and the store accepts them", async () => {
     const ps = [mkPhone(21), mkPhone(22), mkPhone(23), mkPhone(24)];
     await play(ps);
     const pids = ps.map((p) => p.rt.pid!), cfg = ps[0]!.rt.cfg;
-    expect(cfg.rewards.some((l) => l.pattern === "unlucky")).toBe(true); // the game really carries the new houses
-    expect(PRIZE_HOUSES.length).toBeGreaterThan(18);
+    expect(cfg.rewards.some((l) => l.pattern === "twolines")).toBe(true); // the game really carries the extra houses
+    expect(PRIZE_HOUSES.length).toBe(10);
     const want = expected(cfg, pids);
-    expect(want.some((x) => x.pattern === "unlucky")).toBe(true);
+    expect(want.some((x) => x.pattern === "blackout")).toBe(true);
     for (const p of ps) {
       const v = p.rt.view();
-      expect(v.localWinners).toBe(true); expect(v.log.length).toBe(90);
+      expect(v.localWinners).toBe(true); expect(v.log.length).toBe(75);
       expect(v.results.map((x) => line(x, x.count)).sort()).toEqual(want.map((x) => line(x, x.pids.length)).sort());
     }
     const stored = ((await (await call("GET", `/api/z/${EID}/results`)).json()) as any).results as { pattern: string; ordinal: number; idx: number; count: number; winners?: string[] }[];
     expect(stored.map((x) => line(x, x.count)).sort()).toEqual(want.map((x) => line(x, x.pids.length)).sort());
-    const un = want.find((x) => x.pattern === "unlucky")!;
-    expect(stored.find((x) => x.pattern === "unlucky")!.winners).toEqual(un.pids); // the unlucky seat is named so its own phone can tell
-    // exactly the phone that holds the unlucky seat knows it won; the others do not
-    for (const p of ps) expect(p.rt.view().won.some((w) => w.pattern === "unlucky")).toBe(p.rt.pid === un.pids[0]);
-    // every other win a phone reports is a house it really completed at the call named
-    for (const p of ps) for (const w of p.rt.view().won.filter((x) => x.pattern !== "unlucky")) expect(want.some((x) => x.pattern === w.pattern && x.ordinal === w.ordinal && x.idx === w.idx && x.pids.includes(p.rt.pid!))).toBe(true);
-  }, 120_000);
-
-  test("a removed seat listed in the public seat list can never win Unlucky: phones skip it and agree on the next ticket", async () => {
-    const ps = [mkPhone(31), mkPhone(32), mkPhone(33), mkPhone(34)];
-    for (const p of ps) { await p.rt.boot(); expect(await p.rt.join(p.phone)).toBe(true); }
-    const pids = ps.map((p) => p.rt.pid!), cfg = ps[0]!.rt.cfg;
-    const first = expected(cfg, pids).find((x) => x.pattern === "unlucky")!.pids[0]!;
-    await env.DB.prepare("INSERT OR REPLACE INTO kv(k,v) VALUES(?,?)").bind(`seats-blk/${EID}`, JSON.stringify([first])).run(); // what the Worker keeps when a person is removed during the game
-    const next = expected(cfg, pids, new Set([first])).find((x) => x.pattern === "unlucky")!;
-    expect(next.pids[0]).not.toBe(first);
-    for (let i = 0; i < 215; i++) await step(ps); for (let i = 0; i < 6; i++) await step(ps, 5000);
-    for (const p of ps) { const u = p.rt.view().results.find((x) => x.pattern === "unlucky")!; expect(u.idx).toBe(next.idx); expect(u.winners).toEqual(next.pids); }
-    const seats = (await (await call("GET", `/api/z/${EID}/seats?after=0`)).json()) as any;
-    expect(seats.blk).toEqual([first]); // the seat itself stays listed (every other house is unchanged)
-    expect(seats.seats.some((s: any[]) => s[1] === first)).toBe(true);
+    // every win a phone reports is a house it really completed at the call named, and the squares to light are the called ones
+    for (const p of ps) for (const w of p.rt.view().won) { expect(want.some((x) => x.pattern === w.pattern && x.ordinal === w.ordinal && x.idx === w.idx && x.pids.includes(p.rt.pid!))).toBe(true); expect(w.cells.length).toBeGreaterThan(2); }
   }, 120_000);
 });
 
 describe("the store enforces the maximum winners per house", () => {
-  test("settings refuse a second Early Seven winner with a calm message and keep what was saved", async () => {
+  test("settings refuse a third Plus winner with a calm message and keep what was saved", async () => {
     expect((await call("POST", "/api/z", { id: "FUT-1", startRound: START + 10_000, callSeconds: CALL_SECONDS, cap: 50, rewards: REWARDS }, { "x-organizer": SECRET })).status).toBe(200);
-    const bad = await call("PATCH", `/api/z/FUT-1/settings`, { rewards: [{ pattern: "early7", ordinal: 1, text: "" }, { pattern: "early7", ordinal: 2, text: "" }] }, { "x-organizer": SECRET });
+    const bad = await call("PATCH", `/api/z/FUT-1/settings`, { rewards: [{ pattern: "plus", ordinal: 1, text: "" }, { pattern: "plus", ordinal: 2, text: "" }, { pattern: "plus", ordinal: 3, text: "" }] }, { "x-organizer": SECRET });
     expect(bad.status).toBe(400);
-    const j = (await bad.json()) as any; expect(j.error).toContain("Early Seven"); expect(j.error).toMatch(/only 1 winner/);
+    const j = (await bad.json()) as any; expect(j.error).toContain("Plus"); expect(j.error).toMatch(/at most 2 winners/);
     const info = (await (await call("GET", `/api/z/FUT-1/info`)).json()) as any;
     expect(info.rewards.length).toBe(REWARDS.length); // unchanged
-    const ok = await call("PATCH", `/api/z/FUT-1/settings`, { rewards: [{ pattern: "full", ordinal: 1, text: "" }, { pattern: "full", ordinal: 2, text: "" }, { pattern: "full", ordinal: 3, text: "" }, { pattern: "unlucky", ordinal: 1, text: "Torch" }] }, { "x-organizer": SECRET });
+    const ok = await call("PATCH", `/api/z/FUT-1/settings`, { rewards: [{ pattern: "blackout", ordinal: 1, text: "" }, { pattern: "blackout", ordinal: 2, text: "" }, { pattern: "line", ordinal: 1, text: "" }, { pattern: "line", ordinal: 2, text: "" }, { pattern: "line", ordinal: 3, text: "Torch" }] }, { "x-organizer": SECRET });
     expect(ok.status).toBe(200);
-    expect(((await (await call("GET", `/api/z/FUT-1/info`)).json()) as any).rewards.length).toBe(4);
+    expect(((await (await call("GET", `/api/z/FUT-1/info`)).json()) as any).rewards.length).toBe(5);
   });
-  test("an old saved game with 4 Top Line winners still loads, plays and can be read back", async () => {
+  test("a saved game with 3 Line winners loads, plays and can be read back", async () => {
     const d = makeD1(); env = { DB: d.db, ORGANIZER_SECRET: SECRET, DAILY_WRITE_BUDGET: "1000000" };
     const create = await call("POST", "/api/z", { id: "OLD-1", startRound: START - GRACE_ROUNDS, callSeconds: CALL_SECONDS, cap: 50 }, { "x-organizer": SECRET });
     expect(create.status).toBe(200);
-    await env.DB.prepare("UPDATE engagement SET config=? WHERE id=?").bind(JSON.stringify({ rewards: [1, 2, 3, 4].map((ordinal) => ({ pattern: "top", scope: "ticket", ordinal, text: "" })) }), "OLD-1").run();
+    await env.DB.prepare("UPDATE engagement SET config=? WHERE id=?").bind(JSON.stringify({ rewards: [1, 2, 3].map((ordinal) => ({ pattern: "line", scope: "ticket", ordinal, text: "" })) }), "OLD-1").run();
     const info = (await (await call("GET", `/api/z/OLD-1/info`)).json()) as any;
-    expect(info.rewards.map((l: any) => l.ordinal)).toEqual([1, 2, 3, 4]);
+    expect(info.rewards.map((l: any) => l.ordinal)).toEqual([1, 2, 3]);
   });
 });

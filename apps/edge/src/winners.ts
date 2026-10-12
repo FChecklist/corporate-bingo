@@ -40,7 +40,7 @@ export async function acceptVotes(env: Env & PiiEnv, e: any, eid: string, b: any
   for (const x of b.results) {
     const lucky = x?.pattern === "lucky";
     if ((!lucky && !valid.has(x?.pattern)) || (lucky && (!Number.isInteger(x?.ordinal) || x.ordinal < 1 || x.ordinal > luckyCount)) || !Number.isInteger(x?.ordinal) || x.ordinal < 1 || (!lucky && !linesFor(cfg.rewards, x.pattern).some((l) => l.ordinal === x.ordinal))
-      || !Number.isInteger(x?.round) || x.round < 1 || x.round > cfg.rounds || (lucky && x.round !== 1) || !Number.isInteger(x?.idx) || x.idx < 0 || x.idx > 89
+      || !Number.isInteger(x?.round) || x.round < 1 || x.round > cfg.rounds || (lucky && x.round !== 1) || !Number.isInteger(x?.idx) || x.idx < 0 || x.idx > 74
       || !Array.isArray(x?.pids) || x.pids.length < 1 || x.pids.length > (lucky ? 10 : 500) || x.pids.some((p: unknown) => typeof p !== "string" || !PID.test(p))) continue;
     if (await env.DB.prepare("SELECT 1 AS x FROM settled WHERE eid=? AND round=? AND pattern=? AND ordinal=?").bind(eid, x.round, x.pattern, x.ordinal).first()) { done.push(`${x.round}:${x.pattern}:${x.ordinal}`); continue; }
     const pids: string[] = [...new Set<string>(x.pids)].sort();

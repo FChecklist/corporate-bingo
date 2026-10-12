@@ -65,7 +65,7 @@ async function callTimeMs(env: Env, e: any, round: number, idx: number, sch?: Aw
 /** When the game will have ended if nobody ends it sooner: the last call of the last round, or the organizer's stop. */
 export async function endBoundMs(env: Env, e: any): Promise<number> {
   const s = await schedule(env, e);
-  const last = callRoundR(s.st, s.start, s.stride, s.cfg.breaks, s.cfg.rounds, 89);
+  const last = callRoundR(s.st, s.start, s.stride, s.cfg.breaks, s.cfg.rounds, 74);
   if (last !== null) return roundMs(last) + 60_000;
   return roundMs(s.st?.stopRound ?? s.start) + 60_000;
 }
@@ -175,7 +175,7 @@ async function reportStep(env: LifeEnv, e: any, life: { end_ms: number }, now: n
 
   if (st.stage === "prep") {
     if (!st.tl.length) { // the call numbers at which we count people present
-      const nums = [0, 10, 20, 30, 40, 50, 60, 70, 80, 89];
+      const nums = [0, 8, 16, 24, 32, 40, 48, 56, 64, 74];
       for (const callNo of nums) st.tl.push({ callNo, atMs: (await callTimeMs(env, e, 1, callNo, sch)) ?? 0, present: 0, late: 0 });
     }
     if (st.next < st.total) {
@@ -292,7 +292,7 @@ async function baseData(env: LifeEnv, e: any, cfg: EngagementCfg, sch: Awaited<R
   return {
     engagementId: eid, organizerEmail: email, sentAtMs: sentAt, scheduledMs: roundMs(e.start_round), firstNumberMs: first, endMs, wasHeld: held,
     endReason: held ? "The game did not start." : early ? "Every prize was awarded, so the game ended early." : "All numbers were called (or the organizer ended the game).",
-    rounds: cfg.rounds, callSeconds: e.call_seconds, ticketsPerPerson: cfg.tickets, cap: e.cap, inviteOnly: !!e.closed, numbersCalled: early ? Math.max(1, ...wrows.map((w: any) => (w.idx ?? 0) + 1)) : 90,
+    rounds: cfg.rounds, callSeconds: e.call_seconds, ticketsPerPerson: cfg.tickets, cap: e.cap, inviteOnly: !!e.closed, numbersCalled: early ? Math.max(1, ...wrows.map((w: any) => (w.idx ?? 0) + 1)) : 75,
     agg: st.agg, people: [], prizes, lucky, timeline: st.tl, breaks: cfg.breaks.map((b) => ({ after: b.after, kind: b.kind, title: b.title })),
     personalDeleteAtMs: personalDeleteAt(endMs), fullDeleteAtMs: fullDeleteAt(endMs), backupDays: BACKUP_DAYS,
     ...(cfg.brand ? { brand: { name: cfg.brand.name, ...(cfg.brand.logo ? { logo: cfg.brand.logo } : {}) } } : {}),

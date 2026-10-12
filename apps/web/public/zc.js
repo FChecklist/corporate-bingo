@@ -10,8 +10,8 @@
   const ss = { get: (k) => { try { return sessionStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { sessionStorage.setItem(k, v); } catch {} } };
   const ls = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
   let secret = ss.get("cbz-org") || "";
-  { const m = location.hash.match(/^#(?:host|cohost)=(ct[hc]_[0-9a-f]{48})$/); if (m) { secret = m[1]; ss.set("cbz-org", secret); history.replaceState(null, "", location.pathname + location.search); } } // a Host or Co-host link: the key leaves the address bar at once
-  { const k = q.get("k"); if (k && /^ct[hc]_[0-9a-f]{48}$/.test(k)) { secret = k; ss.set("cbz-org", secret); q.delete("k"); const rest = q.toString(); history.replaceState(null, "", location.pathname + (rest ? "?" + rest : "")); } }
+  { const m = location.hash.match(/^#(?:host|cohost)=(cb[hc]_[0-9a-f]{48})$/); if (m) { secret = m[1]; ss.set("cbz-org", secret); history.replaceState(null, "", location.pathname + location.search); } } // a Host or Co-host link: the key leaves the address bar at once
+  { const k = q.get("k"); if (k && /^cb[hc]_[0-9a-f]{48}$/.test(k)) { secret = k; ss.set("cbz-org", secret); q.delete("k"); const rest = q.toString(); history.replaceState(null, "", location.pathname + (rest ? "?" + rest : "")); } }
   let eid = q.get("e") || "";
   const ACT = (q.get("do") || "").toLowerCase(); // a hand-over link from the AI assistant: opens the exact card; the organizer presses the button
   const QUICK = q.get("quick") === "1";
@@ -1074,7 +1074,7 @@
   let lastHtml = "";
   function view() {
     if (!secret) return loginView(S.loginMsg || "");
-    if (S.deadLink && /^ct[hc]_/.test(secret)) return deadLinkView(); // a Host or Co-host key (cbh_ / cbc_) that the server no longer accepts
+    if (S.deadLink && /^cb[hc]_/.test(secret)) return deadLinkView(); // a Host or Co-host key (cbh_ / cbc_) that the server no longer accepts
     if (role() === "host" && S.setup && S.setup.ready === false) return setupView();
     const r = role();
     if (r === "partner") return partnerView();

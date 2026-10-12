@@ -1,7 +1,7 @@
 // The phone-side game: everything a phone (or the organizer's console) needs to play and to check an engagement
 // from the public beacon alone. Pure and deterministic: no server, no phone clock.
-import { generateTicket, ticketNumbers, type PatternId, type Ticket } from "../../shared/src/ticket";
-import { INTERMISSION_ROUNDS, PATTERN_ORDER, breakShift, keyOfLine, defaultCfg, keysInPlay, linesFor, roundEid, type BreakCfg, type EngagementCfg, type PatternKey } from "./config";
+import { generateTicket, type PatternId, type Ticket } from "../../shared/src/ticket";
+import { INTERMISSION_ROUNDS, PATTERN_ORDER, breakShift, defaultCfg, keysInPlay, linesFor, roundEid, type BreakCfg, type EngagementCfg, type PatternKey } from "./config";
 import type { ControlState } from "./control";
 import { ticketCompletion, ticketStillNeeds } from "./house-rules";
 import { sha256 } from "@noble/hashes/sha256";
@@ -11,34 +11,28 @@ import { NUMBERS, fetchRound, pickNumber, seededRand, verifyRound, type BeaconOp
 
 export const ALL_PATTERNS: readonly PatternId[] = PATTERN_ORDER;
 
-/** The same ticket on every device for (engagement, participant). The first ticket keeps its original seed so existing links never change. */
+/** The same card on every device for (engagement, participant). The first card keeps its original seed so existing links never change. */
 export const ticketFor = (engagementId: string, pid: string): Ticket => {
-  const seat = seatOfPid(pid); // an id issued with a seat number gets a ticket from the collision-free list: no other ticket of the round can match it
+  const seat = seatOfPid(pid); // an id issued with a seat number gets a card from the collision-free list: no other card of the round can match it
   return seat ? ticketAt(engagementId, positionOf(seat, 0)) : generateTicket(seededRand(`${engagementId}|${pid}`));
 };
-/** One or two tickets per participant; the second is always different from the first. */
+/** One or two cards per participant; the second is always different from the first. */
 export function ticketsFor(engagementId: string, pid: string, n: 1 | 2 = 1): Ticket[] {
   const a = ticketFor(engagementId, pid);
   if (n === 1) return [a];
   const seat = seatOfPid(pid);
-  if (seat) return [a, ticketAt(engagementId, positionOf(seat, 1))]; // the second ticket is the next position: different from every other ticket too
+  if (seat) return [a, ticketAt(engagementId, positionOf(seat, 1))]; // the second card is the next position: different from every other card too
   for (let i = 2; i < 40; i++) { const b = generateTicket(seededRand(`${engagementId}|${pid}|${i}`)); if (JSON.stringify(b) !== JSON.stringify(a)) return [a, b]; }
-  throw new Error("Could not make a second ticket.");
+  throw new Error("Could not make a second card.");
 }
 
-/** Index (0-based call number) at which the ticket first completes the house, or -1 if it never does within `log`. (Unlucky is not decided on one ticket: always -1.) */
+/** Index (0-based call number) at which the card first completes the house, or -1 if it never does within `log`. */
 export function completionIndex(t: Ticket, pat: PatternKey, log: readonly number[]): number {
   return ticketCompletion(t, pat, log);
 }
 
-/** Earliest completion of a house by a participant's tickets: the best of their tickets, or all 30 numbers across two tickets for the two-ticket house. */
+/** Earliest completion of a house by a participant's cards: the best of their cards. */
 export function completionIndexKey(tickets: readonly Ticket[], key: PatternKey, log: readonly number[]): number {
-  if (key === "full2") {
-    if (tickets.length < 2) return -1;
-    const left = new Set(tickets.flatMap(ticketNumbers));
-    for (let i = 0; i < log.length; i++) if (left.delete(log[i]!) && left.size === 0) return i;
-    return -1;
-  }
   let best = -1;
   for (const t of tickets) { const i = completionIndex(t, key, log); if (i >= 0 && (best < 0 || i < best)) best = i; }
   return best;
@@ -52,21 +46,16 @@ export interface Settled { pattern: PatternKey; ordinal: number; idx: number; pi
  * Ties share the reward. The 1st reward of a house goes to whoever completes it at the earliest call; the 2nd to whoever completes it at the next
  * distinct call; and so on.
  */
-export function settleAll(engagementId: string, pids: readonly string[], log: readonly number[], cfg: EngagementCfg = defaultCfg(), round = 1, late?: { countFrom: ReadonlyMap<string, number>; callRounds: readonly number[] }, un?: UnluckyOpts): Settled[] {
+export function settleAll(engagementId: string, pids: readonly string[], log: readonly number[], cfg: EngagementCfg = defaultCfg(), round = 1, late?: { countFrom: ReadonlyMap<string, number>; callRounds: readonly number[] }): Settled[] {
   const eid = roundEid(engagementId, round);
-  const inPlay = keysInPlay(cfg.rewards);
-  const wantUnlucky = inPlay.includes("unlucky");
-  const keys = inPlay.filter((k) => k !== "unlucky");
-  const loop: PatternKey[] = wantUnlucky && !keys.includes("full") ? [...keys, "full"] : keys; // Unlucky needs the first Full House even when Full House is not a prize
-  const best = new Map<PatternKey, Map<number, string[]>>(loop.map((k) => [k, new Map()]));
-  const marked = new Map<string, Ticket[]>(), cfOf = new Map<string, number>(), minePid = new Map<string, readonly number[]>();
+  const keys = keysInPlay(cfg.rewards);
+  const best = new Map<PatternKey, Map<number, string[]>>(keys.map((k) => [k, new Map()]));
   for (const pid of pids) {
     const tk = ticketsFor(eid, pid, cfg.tickets);
-    // someone who joined late counts only the numbers called from their `countFrom` beacon round on; earlier calls become 0 (a number no ticket has), so call indexes stay global
+    // someone who joined late counts only the numbers called from their `countFrom` beacon round on; earlier calls become 0 (a number no card has), so call indexes stay global
     const cf = late?.countFrom.get(pid) ?? 0;
     const mine = cf > 0 && late ? log.map((n, k) => ((late.callRounds[k] ?? Infinity) >= cf ? n : 0)) : log;
-    if (wantUnlucky) { marked.set(pid, tk); cfOf.set(pid, cf); minePid.set(pid, mine); }
-    for (const k of loop) {
+    for (const k of keys) {
       const i = completionIndexKey(tk, k, mine);
       if (i < 0) continue;
       const g = best.get(k)!; const arr = g.get(i); if (arr) arr.push(pid); else g.set(i, [pid]);
@@ -77,45 +66,7 @@ export function settleAll(engagementId: string, pids: readonly string[], log: re
     const groups = [...best.get(k)!.entries()].sort((a, b) => a[0] - b[0]);
     for (const line of linesFor(cfg.rewards, k)) { const g = groups[line.ordinal - 1]; if (g) out.push({ pattern: k, ordinal: line.ordinal, idx: g[0], pids: g[1], round }); }
   }
-  if (wantUnlucky && log.length) {
-    const fk = [...best.get("full")!.keys()];
-    const lines = cfg.rewards.filter((l) => l.pattern !== "unlucky");
-    const allDone = lines.length > 0 && lines.every((l) => out.some((x) => x.pattern === keyOfLine(l) && x.ordinal === l.ordinal));
-    const at = unluckyAt(fk.length ? Math.min(...fk) : -1, allDone ? Math.max(...out.map((x) => x.idx)) : -1, log.length, !!un?.over || log.length >= NUMBERS);
-    if (at >= 0) {
-      const br = late?.callRounds[at] ?? Infinity, cand: UnluckyCand[] = [];
-      for (const pid of pids) {
-        if (un?.out?.has(pid)) continue;
-        const cf = cfOf.get(pid) ?? 0;
-        if (cf > br) continue; // joined after that moment: had no numbers yet
-        const upto = new Set(minePid.get(pid)!.slice(0, at + 1));
-        cand.push({ pid, marked: Math.min(...marked.get(pid)!.map((t) => ticketNumbers(t).filter((n) => upto.has(n)).length)) });
-      }
-      const w = unluckyPick(eid, un?.randomness?.[at] ?? "", cand);
-      if (w !== null) out.push({ pattern: "unlucky", ordinal: 1, idx: at, pids: [w], round });
-    }
-  }
   return out;
-}
-
-/** What settleAll needs for Unlucky beyond the numbers: seats that can never win it (flagged Organizer/Host/Co-host seats, removed/blocked seats), the public randomness of each call's beacon round (for ties), and whether the game is over for good. */
-export interface UnluckyOpts { out?: ReadonlySet<string>; randomness?: readonly string[]; over?: boolean }
-export interface UnluckyCand { pid: string; marked: number }
-/**
- * When Unlucky is decided, as a call index: the first call at which anyone completed a Full House (`firstFull`), or the call at which every other prize had been awarded (`othersDone`, the game ends there),
- * or the last call when the game is over. The earliest of those that exist; -1 while it is still open.
- */
-export function unluckyAt(firstFull: number, othersDone: number, calls: number, over: boolean): number {
-  const c = [firstFull, othersDone].filter((x) => x >= 0);
-  if (over && calls > 0) c.push(calls - 1);
-  return c.length ? Math.min(...c) : -1;
-}
-/** The Unlucky winner: fewest numbers marked; a tie goes to the lowest hash of the round's public randomness and the seat (nobody can steer it, every phone computes the same). Null when nobody is eligible. */
-export function unluckyPick(engagementId: string, randomnessHex: string, cands: readonly UnluckyCand[]): string | null {
-  const rank = (pid: string) => bytesToHex(sha256(utf8ToBytes(`CT1-UNLUCKY|${engagementId}|${randomnessHex}|${pid}`)));
-  const sorted = [...new Map(cands.map((c) => [c.pid, c])).values()].map((c) => [c.marked, rank(c.pid), c.pid] as const)
-    .sort((a, b) => a[0] - b[0] || (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : 0));
-  return sorted.length ? sorted[0]![2] : null;
 }
 
 export interface Claim { pid: string; pattern: PatternKey; idx: number; round?: number }
@@ -139,7 +90,6 @@ export const checkClaims = (engagementId: string, claims: readonly Claim[], log:
 export const stillToWin = (t: Ticket | readonly Ticket[], pat: PatternKey, log: readonly number[]): number => {
   const tickets: readonly Ticket[] = Array.isArray((t as any)[0]?.[0]) ? (t as unknown as readonly Ticket[]) : [t as unknown as Ticket];
   const called = new Set(log);
-  if (pat === "full2") return tickets.length < 2 ? 30 : tickets.flatMap(ticketNumbers).filter((n) => !called.has(n)).length;
   let min = Infinity;
   for (const tk of tickets) { const left = ticketStillNeeds(tk, pat, called); if (left < min) min = left; }
   return min;
@@ -150,7 +100,7 @@ export const stillToWin = (t: Ticket | readonly Ticket[], pat: PatternKey, log: 
  * randomness beforehand, and anyone holding the participant list can recompute the winners. Every participant is equally likely; nobody wins twice.
  */
 export function luckyWinners(engagementId: string, breakAfter: number, randomnessHex: string, pids: readonly string[], n: number): string[] {
-  const rank = (pid: string) => bytesToHex(sha256(utf8ToBytes(`CT1-LUCKY|${engagementId}|${breakAfter}|${randomnessHex}|${pid}`)));
+  const rank = (pid: string) => bytesToHex(sha256(utf8ToBytes(`CB1-LUCKY|${engagementId}|${breakAfter}|${randomnessHex}|${pid}`)));
   return [...new Set(pids)].map((pid) => [rank(pid), pid] as const).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0)).slice(0, Math.max(0, n)).map((x) => x[1]);
 }
 /** The beacon round whose randomness decides a lucky draw: the round in which the break ends. */

@@ -18,7 +18,7 @@ export interface PhoneDeps {
   store: { get(k: string): string | null; set(k: string, v: string): void };
   /** Optional: reads a public (CDN-cached) JSON file by absolute URL; used for the pause file when the engagement publishes one, so the Worker is not hit every few seconds. */
   getPublic?(url: string): Promise<any>;
-  /** Test hook only: never end the engagement early because every prize was awarded (lets a test watch all 90 numbers). */
+  /** Test hook only: never end the engagement early because every prize was awarded (lets a test watch all 75 numbers). */
   noEarlyEnd?: boolean;
   /** Test hook only. */
   verify?: (x: { round: number; signature: string; randomness: string }) => boolean;
@@ -50,7 +50,7 @@ export interface RuntimeView {
   won: { round: number; pattern: PatternKey; ordinal: number; text: string; cells: number[]; idx: number }[];
   /** True when every reward line of the round being played has been awarded. */
   allAwarded: boolean;
-  /** The engagement ended because every prize was awarded (not because all 90 numbers were called). */
+  /** The engagement ended because every prize was awarded (not because all 75 numbers were called). */
   endedByPrizes: boolean;
   /** Joined after the first number: numbers called before `countFromRound` are gone for this phone. `secondsUntil` > 0 means the phone's own numbers have not started yet; `hidden` is how many numbers were called before it joined. */
   late: { countFromRound: number; secondsUntil: number; hidden: number } | null;
@@ -268,7 +268,7 @@ export class PhoneRuntime {
   }
   private builtDiscards = 0;
   private builtMsgs = 0;
-  /** Extends a round's call log with newly available rounds instead of recomputing all 90 calls every second. Rebuilds from scratch only if a provisional round was thrown away or an organizer message arrived. */
+  /** Extends a round's call log with newly available rounds instead of recomputing all 75 calls every second. Rebuilds from scratch only if a provisional round was thrown away or an organizer message arrived. */
   private buildLog(now: number, round: number): number[] {
     const msgs = this.tracker?.log.length ?? 0;
     if (this.store.discarded !== this.builtDiscards || msgs !== this.builtMsgs) { this.logs = this.logs.map(() => []); this.logResets++; this.builtDiscards = this.store.discarded; this.builtMsgs = msgs; } // a new organizer message can move later calls: re-derive
@@ -339,8 +339,7 @@ export class PhoneRuntime {
   private allResults: NonNullable<RuntimeView["results"]> = [];
   /** Every reward line of `round` has a published result. A house that fewer people complete than it has lines never gets here, and the engagement then runs to its last number as before. */
   private prizesAwarded(round: number): boolean {
-    const all = keysInPlay(this.cfg.rewards), others = all.filter((k) => k !== "unlucky");
-    const keys = others.length ? others : all; // Unlucky never keeps a game running: it is decided when the others are done (or at the first Full House)
+    const keys = keysInPlay(this.cfg.rewards);
     if (!keys.length) return false;
     return keys.every((k) => linesFor(this.cfg.rewards, k).every((l) => this.allResults.some((x) => x.pattern === k && x.ordinal === l.ordinal && (x.round ?? 1) === round)));
   }
@@ -365,7 +364,7 @@ export class PhoneRuntime {
       const r = await this.deps.api("GET", `/api/z/${this.eid}/seats?after=${this.seatUpto}`);
       if (!r || !r.ready || !Array.isArray(r.seats)) return;
       const known = new Set(this.seatList.map((x) => x.pid));
-      const blk = new Set<string>(Array.isArray(r.blk) ? r.blk.filter((x: unknown): x is string => typeof x === "string") : []); // removed seats: still listed, never a winner of Unlucky
+      const blk = new Set<string>(Array.isArray(r.blk) ? r.blk.filter((x: unknown): x is string => typeof x === "string") : []); // removed seats: still listed
       for (const [, pid, jr, ex] of r.seats as [number, string, number, number?][]) if (!known.has(pid)) { known.add(pid); this.seatList.push({ pid, countFrom: countFromOf(jr), ex: ex === 1, blk: blk.has(pid) }); }
       if (Array.isArray(r.blk)) { let changed = false; for (const s of this.seatList) { const b = blk.has(s.pid); if (!!s.blk !== b) { s.blk = b; changed = true; } } if (changed) this.blkVer++; }
       this.seatUpto = Math.max(this.seatUpto, Number(r.upto) || 0);
@@ -381,11 +380,9 @@ export class PhoneRuntime {
       if (this.engineReset.get(r) !== this.logResets) { e.resetCalls(); this.engineReset.set(r, this.logResets); }
       const cur = this.engineCursor.get(r)!;
       if (cur < this.seatList.length) { e.addSeats(this.seatList.slice(cur)); this.engineCursor.set(r, this.seatList.length); }
-      if (this.engineBlk.get(r) !== this.blkVer) { for (const s of this.seatList) e.setOut(s.pid, !!s.ex || !!s.blk); this.engineBlk.set(r, this.blkVer); }
       e.work(25);
       const log = this.logs[r - 1] ?? [];
-      for (let k = e.calls; k < log.length; k++) { const br = this.roundFor(k, r); if (br === null) break; e.feed(log[k]!, br, this.store.rounds.get(br)?.randomness ?? ""); }
-      e.setOver(e.calls >= NUMBERS || (e.calls >= log.length && this.roundFor(log.length, r) === null && started >= r && log.length > 0)); // the last number was called, or the game was stopped before the next one: Unlucky may be decided at the end
+      for (let k = e.calls; k < log.length; k++) { const br = this.roundFor(k, r); if (br === null) break; e.feed(log[k]!, br); }
     }
   }
   private get localOk(): boolean { return this.seatsFetched && this.engines.size > 0 && [...this.engines.values()].every((e) => e.pending === 0); }
@@ -396,7 +393,7 @@ export class PhoneRuntime {
     const local = this.localOk;
     if (local) {
       const mine: NonNullable<RuntimeView["results"]> = [];
-      for (const [r, e] of this.engines) for (const x of e.results()) mine.push({ pattern: x.pattern, ordinal: x.ordinal, idx: x.idx, count: x.pids.length, round: r, ...(x.pattern === "unlucky" ? { winners: x.pids } : {}) });
+      for (const [r, e] of this.engines) for (const x of e.results()) mine.push({ pattern: x.pattern, ordinal: x.ordinal, idx: x.idx, count: x.pids.length, round: r });
       this.allResults = [...mine, ...this.luckyResults(), ...this.serverResults.filter((x) => x.pattern === "lucky" && !this.luckyLocal.some((l) => l.ordinal === x.ordinal))];
     }
     // the organizer's published results: the fallback while the seat list is not here yet, and the only source for lucky draws
@@ -489,7 +486,7 @@ export class PhoneRuntime {
       const got: { pattern: PatternKey; ordinal: number }[] = [];
       for (const x of this.allResults) {
         if ((x.round ?? 1) !== r || x.pattern === "lucky") continue;
-        if (x.pattern === "unlucky" ? !!this.pid && (x.winners ?? []).includes(this.pid) : completionIndexKey(tk, x.pattern as PatternKey, log) === x.idx) got.push({ pattern: x.pattern as PatternKey, ordinal: x.ordinal });
+        if (completionIndexKey(tk, x.pattern as PatternKey, log) === x.idx) got.push({ pattern: x.pattern as PatternKey, ordinal: x.ordinal });
       }
       out.push({ round: r, got });
     }
@@ -503,10 +500,9 @@ export class PhoneRuntime {
       if (x.pattern === "lucky") continue;
       const r = x.round ?? 1, key = x.pattern as PatternKey, tk = this.ticketsOf(r), log = this.maskedLog(r);
       if (!tk.length) continue;
-      const un = key === "unlucky"; // Unlucky is not completed on a ticket: this phone won it when its seat is the named winner
-      if (un ? !(x.winners ?? []).includes(this.pid) : completionIndexKey(tk, key, log) !== x.idx) continue;
+      if (completionIndexKey(tk, key, log) !== x.idx) continue;
       const line = linesFor(this.cfg.rewards, key).find((l) => l.ordinal === x.ordinal);
-      out.push({ round: r, pattern: key, ordinal: x.ordinal, text: line?.text ?? "", cells: un ? [] : winCells(tk, key, log, x.idx), idx: x.idx });
+      out.push({ round: r, pattern: key, ordinal: x.ordinal, text: line?.text ?? "", cells: winCells(tk, key, log, x.idx), idx: x.idx });
     }
     return out;
   }
@@ -544,9 +540,8 @@ export class PhoneRuntime {
   }
 }
 
-/** The numbers on the ticket(s) that made the winning pattern, to light them up (see `winningNumbers`). Two-ticket house and Unlucky: no highlight. Empty when it cannot be told. */
+/** The numbers on the ticket(s) that made the winning pattern, to light them up (see `winningNumbers`). Empty when it cannot be told. */
 function winCells(tickets: readonly Ticket[], key: PatternKey, log: readonly number[], idx: number): number[] {
-  if (key === "full2" || key === "unlucky") return [];
   for (const t of tickets) if (completionIndexKey([t], key, log) === idx) return winningNumbers(t, key, log, idx);
   return [];
 }

@@ -21,9 +21,9 @@ export function price(pack: number, currency: Currency): { total: number; base: 
   return { total: p[2], base: p[2], tax: 0 };
 }
 
-/** Where brand breaks go by default: near-equal intervals over the 90 calls (owner decision CR-02). */
+/** Where brand breaks go by default: near-equal intervals over the 75 calls. */
 export function proposeBreakPositions(count: number): number[] {
   if (count <= 0) return [];
   if (count > 3) throw new RangeError("at most 3 brand breaks");
-  return ({ 1: [45], 2: [30, 60], 3: [22, 45, 67] } as Record<number, number[]>)[count]!;
+  return ({ 1: [38], 2: [25, 50], 3: [19, 38, 56] } as Record<number, number[]>)[count]!;
 }

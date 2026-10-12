@@ -23,9 +23,9 @@ export const OCCASIONS: Record<string, { label: string; code: string }> = {
 const SLOTS = ["1000", "1200", "1600", "1800", "1900", "2000"];
 export const PRESET_MESSAGES = ["Welcome! The game starts soon. Please keep this page open.", "The game starts in about 10 minutes. Please keep this page open.", "Thank you for joining. Good luck, everyone!", "A short break is coming. Please stay on this page."];
 const BUNDLES: Record<string, { label: string; houses: string[] }> = {
-  c: { label: "Classic: Early 5, Top line, Middle line, Bottom line, Full house", houses: ["early5", "top", "mid", "bot", "full"] },
-  s: { label: "Simple: Early 5 and Full house", houses: ["early5", "full"] },
-  r: { label: "Rich: every house, with 3 winners for the Full house", houses: ["early5", "top", "mid", "bot", "corners", "star", "full", "full", "full"] },
+  c: { label: "Classic: Line, Four Corners, X and Blackout", houses: ["line", "corners", "x", "blackout"] },
+  s: { label: "Simple: Line and Blackout", houses: ["line", "blackout"] },
+  r: { label: "Rich: Line (3 winners), Four Corners, X, Frame, Postage Stamp and Blackout", houses: ["line", "line", "line", "corners", "x", "frame", "stamp", "blackout"] },
 };
 
 const pad = (n: number) => String(n).padStart(2, "0");

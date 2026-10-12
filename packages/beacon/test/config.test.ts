@@ -7,47 +7,48 @@ import { ticketNumbers } from "../../shared/src/ticket";
 
 const rnd = (k: number) => createHash("sha256").update("cfg" + k).digest("hex");
 const E = "ENG-CFG";
-const LOG = deriveCalls(E, Array.from({ length: 90 }, (_, k) => rnd(k)));
+const LOG = deriveCalls(E, Array.from({ length: 75 }, (_, k) => rnd(k)));
 const pids = Array.from({ length: 400 }, (_, i) => "q" + i);
 const ok = (i: any, base?: EngagementCfg) => { const v = validateCfg(i, base); if (!v.ok) throw new Error(v.error); return v.cfg; };
 const bad = (i: any, base?: EngagementCfg) => { const v = validateCfg(i, base); expect(v.ok).toBe(false); return (v as any).error as string; };
 
 describe("engagement settings", () => {
-  test("nothing set gives one ticket, the seven houses with no text, and no breaks", () => {
+  test("nothing set gives one card, the four default houses with no text, auto marking and no breaks", () => {
     const c = ok({});
     expect(c.tickets).toBe(1);
-    expect(c.rewards.map((r) => r.pattern)).toEqual(["early5", "top", "mid", "bot", "corners", "star", "full"]);
+    expect(c.rewards.map((r) => r.pattern)).toEqual(["line", "corners", "x", "blackout"]);
     expect(c.rewards.every((r) => r.ordinal === 1 && r.scope === "ticket" && r.text === "")).toBe(true);
+    expect(c.mark).toBeUndefined();
     expect(c.breaks).toEqual([]);
   });
-  test("rewards: only houses that exist, up to five per house, in sequence, text cleaned and cut", () => {
-    const c = ok({ rewards: [{ pattern: "full", ordinal: 1, text: "Gift <b>hamper</b>" }, { pattern: "full", ordinal: 2, text: "x".repeat(200) }, { pattern: "top", text: "Coffee voucher" }] });
+  test("rewards: only houses that exist, up to the house maximum, in sequence, text cleaned and cut", () => {
+    const c = ok({ rewards: [{ pattern: "blackout", ordinal: 1, text: "Gift <b>hamper</b>" }, { pattern: "blackout", ordinal: 2, text: "x".repeat(200) }, { pattern: "line", text: "Coffee voucher" }] });
     expect(c.rewards[0]!.text).toBe("Gift bhamper/b");
     expect(c.rewards[1]!.text.length).toBe(80);
-    expect(keysInPlay(c.rewards)).toEqual(["top", "full"]);
+    expect(keysInPlay(c.rewards)).toEqual(["line", "blackout"]);
     bad({ rewards: [{ pattern: "bingo" }] });
+    bad({ rewards: [{ pattern: "full" }] });
     bad({ rewards: [] });
-    bad({ rewards: [{ pattern: "full", ordinal: 2 }] }); // a 2nd needs a 1st
-    bad({ rewards: [{ pattern: "full", ordinal: 1 }, { pattern: "full", ordinal: 1 }] });
-    bad({ rewards: [{ pattern: "full", ordinal: 6 }] });
-    bad({ rewards: Array.from({ length: 31 }, (_, i) => ({ pattern: "full", ordinal: 1 + (i % 5), scope: i % 2 ? "ticket" : "two_ticket" })) });
+    bad({ rewards: [{ pattern: "blackout", ordinal: 2 }] }); // a 2nd needs a 1st
+    bad({ rewards: [{ pattern: "blackout", ordinal: 1 }, { pattern: "blackout", ordinal: 1 }] });
+    bad({ rewards: [{ pattern: "blackout", ordinal: 3 }] }); // Blackout has 2 winners at most
+    bad({ rewards: Array.from({ length: 31 }, (_, i) => ({ pattern: "line", ordinal: 1 + (i % 3) })) });
     bad({ rewards: "nope" });
   });
-  test("the two-ticket house needs two tickets and can only be the Full House; dropping to one ticket removes it", () => {
-    bad({ tickets: 1, rewards: [{ pattern: "full", scope: "two_ticket" }] });
-    bad({ tickets: 2, rewards: [{ pattern: "top", scope: "two_ticket" }] });
-    const two = ok({ tickets: 2, rewards: [{ pattern: "full", scope: "two_ticket", text: "Grand prize hamper" }, { pattern: "full", text: "Hamper" }] });
-    expect(keysInPlay(two.rewards)).toEqual(["full", "full2"]);
-    const back = ok({ tickets: 1 }, two);
-    expect(keysInPlay(back.rewards)).toEqual(["full"]);
-    bad({ tickets: 3 });
+  test("one or two cards per guest; anything else is refused; marking is auto or tap", () => {
+    expect(ok({ tickets: 2 }).tickets).toBe(2);
+    bad({ tickets: 3 }); bad({ tickets: 0 });
+    expect(ok({ mark: "tap" }).mark).toBe("tap");
+    expect(ok({ mark: "auto" }, ok({ mark: "tap" })).mark).toBeUndefined();
+    bad({ mark: "never" });
   });
   test("brand breaks: at most 3, 15 to 600 seconds in steps of 3, a kind, a title, a safe https link", () => {
     const b = (o: any = {}) => ({ after: 30, seconds: 30, kind: "speech", title: "CEO message", ...o });
     expect(ok({ breaks: [b(), b({ after: 60, kind: "youtube", mediaUrl: "https://youtu.be/abc" }), b({ after: 10, kind: "file", mediaUrl: "https://cdn.acme.com/v.mp4" })] }).breaks.map((x) => x.after)).toEqual([10, 30, 60]);
     bad({ breaks: [b(), b({ after: 31 }), b({ after: 32 }), b({ after: 33 })] });
-    for (const o of [{ after: 0 }, { after: 90 }, { after: 1.5 }, { seconds: 12 }, { seconds: 31 }, { seconds: 601 }, { kind: "hologram" }, { title: "x" }, { title: "" }])
+    for (const o of [{ after: 0 }, { after: 75 }, { after: 1.5 }, { seconds: 12 }, { seconds: 31 }, { seconds: 601 }, { kind: "hologram" }, { title: "x" }, { title: "" }])
       bad({ breaks: [b(o)] });
+    expect(ok({ breaks: [b({ after: 74 })] }).breaks[0]!.after).toBe(74);
     bad({ breaks: [b({ kind: "file" })] }); // needs a link
     bad({ breaks: [b({ kind: "youtube", mediaUrl: "https://evil.example/watch" })] });
     for (const u of ["http://acme.com/v.mp4", "javascript:alert(1)", "https://a b.com", "https://x.com/<script>", "ftp://x.com/a"]) bad({ breaks: [b({ kind: "file", mediaUrl: u })] });
@@ -55,15 +56,15 @@ describe("engagement settings", () => {
     expect(ok({ breaks: [] }).breaks).toEqual([]);
   });
   test("partial updates keep everything else", () => {
-    const base = ok({ tickets: 2, rewards: [{ pattern: "full", text: "Hamper" }], breaks: [{ after: 20, seconds: 30, kind: "speech", title: "Welcome" }] });
+    const base = ok({ tickets: 2, mark: "tap", rewards: [{ pattern: "blackout", text: "Hamper" }], breaks: [{ after: 20, seconds: 30, kind: "speech", title: "Welcome" }] });
     const next = ok({ breaks: [] }, base);
-    expect(next.tickets).toBe(2);
+    expect(next.tickets).toBe(2); expect(next.mark).toBe("tap");
     expect(next.rewards).toEqual(base.rewards);
   });
 });
 
-describe("two tickets", () => {
-  test("a second ticket is always different from the first and stable; the first never changes", () => {
+describe("two cards", () => {
+  test("a second card is always different from the first and stable; the first never changes", () => {
     for (const p of pids.slice(0, 60)) {
       const [a, b] = ticketsFor(E, p, 2);
       expect(a).toEqual(ticketFor(E, p));
@@ -72,54 +73,48 @@ describe("two tickets", () => {
     }
     expect(ticketsFor(E, "q1", 1)).toHaveLength(1);
   });
-  test("a house is completed by the better of the two tickets; the two-ticket house needs all 30 numbers", () => {
+  test("a house is completed by the better of the two cards", () => {
     const tk = ticketsFor(E, "q5", 2);
-    const single = tk.map((t) => completionIndexKey([t], "full", LOG));
-    expect(completionIndexKey(tk, "full", LOG)).toBe(Math.min(...single));
-    const last = Math.max(...tk.flatMap(ticketNumbers).map((n) => LOG.indexOf(n)));
-    expect(completionIndexKey(tk, "full2", LOG)).toBe(last);
-    expect(completionIndexKey([tk[0]!], "full2", LOG)).toBe(-1);
+    const single = tk.map((t) => completionIndexKey([t], "blackout", LOG));
+    expect(completionIndexKey(tk, "blackout", LOG)).toBe(Math.min(...single));
   });
-  test("still to win counts the nearer ticket, and the two-ticket house counts both", () => {
+  test("still to win counts the nearer card", () => {
     const tk = ticketsFor(E, "q6", 2); const part = LOG.slice(0, 25);
     const left = (t: any) => ticketNumbers(t).filter((n) => !part.includes(n)).length;
-    expect(stillToWin(tk, "full", part)).toBe(Math.min(left(tk[0]), left(tk[1])));
-    expect(stillToWin(tk, "full2", part)).toBe(left(tk[0]) + left(tk[1]));
-    expect(stillToWin(tk, "full2", LOG)).toBe(0);
+    expect(stillToWin(tk, "blackout", part)).toBe(Math.min(left(tk[0]), left(tk[1])));
+    expect(stillToWin(tk, "blackout", LOG)).toBe(0);
   });
 });
 
 describe("reward lines settle by order", () => {
   const cfg: EngagementCfg = ok({ tickets: 2, rewards: [
-    { pattern: "full", ordinal: 1, text: "1st" }, { pattern: "full", ordinal: 2, text: "2nd" }, { pattern: "full", ordinal: 3, text: "3rd" },
-    { pattern: "full", scope: "two_ticket", text: "Grand" }, { pattern: "top", text: "Voucher" },
+    { pattern: "blackout", ordinal: 1, text: "1st" }, { pattern: "blackout", ordinal: 2, text: "2nd" },
+    { pattern: "line", ordinal: 1, text: "Voucher" }, { pattern: "line", ordinal: 2, text: "Voucher" }, { pattern: "line", ordinal: 3, text: "Voucher" },
   ] });
   const res = settleAll(E, pids, LOG, cfg);
   test("each reward line gets the next distinct completion call, earliest first, and only houses in play are settled", () => {
-    const full = res.filter((r) => r.pattern === "full").sort((a, b) => a.ordinal - b.ordinal);
-    expect(full.map((r) => r.ordinal)).toEqual([1, 2, 3]);
+    const full = res.filter((r) => r.pattern === "blackout").sort((a, b) => a.ordinal - b.ordinal);
+    expect(full.map((r) => r.ordinal)).toEqual([1, 2]);
     expect(full[0]!.idx).toBeLessThan(full[1]!.idx);
-    expect(full[1]!.idx).toBeLessThan(full[2]!.idx);
-    expect(res.some((r) => r.pattern === "mid")).toBe(false);
-    expect(res.filter((r) => r.pattern === "full2")).toHaveLength(1);
-    expect(res.filter((r) => r.pattern === "top")).toHaveLength(1);
+    expect(res.some((r) => r.pattern === "corners")).toBe(false);
+    expect(res.filter((r) => r.pattern === "line")).toHaveLength(3);
   });
   test("a 1st-reward winner really is the earliest completer and nobody earlier was missed; the 2nd group completes later", () => {
-    const first = res.find((r) => r.pattern === "full" && r.ordinal === 1)!;
-    const all = pids.map((p) => completionIndexKey(ticketsFor(E, p, 2), "full", LOG)).filter((i) => i >= 0);
+    const first = res.find((r) => r.pattern === "blackout" && r.ordinal === 1)!;
+    const all = pids.map((p) => completionIndexKey(ticketsFor(E, p, 2), "blackout", LOG)).filter((i) => i >= 0);
     expect(first.idx).toBe(Math.min(...all));
     expect(first.pids.length).toBe(all.filter((i) => i === first.idx).length);
-    const second = res.find((r) => r.pattern === "full" && r.ordinal === 2)!;
+    const second = res.find((r) => r.pattern === "blackout" && r.ordinal === 2)!;
     expect(second.pids.every((p) => !first.pids.includes(p))).toBe(true);
   });
   test("a house with fewer distinct completions than reward lines leaves the later lines unawarded (no invented winners)", () => {
     const few = settleAll(E, ["q1"], LOG, cfg);
-    expect(few.filter((r) => r.pattern === "full")).toHaveLength(1);
+    expect(few.filter((r) => r.pattern === "blackout")).toHaveLength(1);
   });
-  test("claims for the two-ticket house are checked against both tickets", () => {
-    const p = "q7"; const idx = completionIndexKey(ticketsFor(E, p, 2), "full2", LOG);
-    expect(checkClaims(E, [{ pid: p, pattern: "full2", idx }], LOG, cfg).good).toHaveLength(1);
-    expect(checkClaims(E, [{ pid: p, pattern: "full2", idx: idx - 1 }], LOG, cfg).bad).toHaveLength(1);
+  test("claims are checked against both cards", () => {
+    const p = "q7"; const idx = completionIndexKey(ticketsFor(E, p, 2), "blackout", LOG);
+    expect(checkClaims(E, [{ pid: p, pattern: "blackout", idx }], LOG, cfg).good).toHaveLength(1);
+    expect(checkClaims(E, [{ pid: p, pattern: "blackout", idx: idx - 1 }], LOG, cfg).bad).toHaveLength(1);
   });
 });
 
@@ -147,7 +142,7 @@ describe("brand breaks move the schedule for everyone alike", () => {
     expect(callRoundFull(null, 1000, 2, breaks, 3)! > prev + 10).toBe(true);
   });
   test("breaks are part of the public settings, so they decide which rounds feed the numbers, identically for everyone", () => {
-    const withB = scheduleFull(null, 1000, 2, breaks, 90) as number[]; const plain = scheduleFull(null, 1000, 2, [], 90) as number[];
+    const withB = scheduleFull(null, 1000, 2, breaks, 75) as number[]; const plain = scheduleFull(null, 1000, 2, [], 75) as number[];
     const rr = (r: number) => createHash("sha256").update("r" + r).digest("hex");
     expect(withB.map(rr)).not.toEqual(plain.map(rr)); // different rounds feed the numbers (as designed: the schedule is part of the engagement)
     expect(deriveCalls("X", withB.map(rr))).toEqual(deriveCalls("X", withB.map(rr)));
@@ -188,8 +183,8 @@ describe("five brand moments for each ticket: openings, during the game, closing
   const good = (i: any, base?: any) => { const v = validateCfg(i, base); if (!v.ok) throw new Error(v.error); return v.cfg; };
   const refused = (i: any, base?: any) => { const v = validateCfg(i, base); expect(v.ok).toBe(false); return v.ok ? "" : v.error; };
 
-  test("even spread: the k-th of n moments goes after round(90 x k / (n + 1)), for n = 1 to 6", () => {
-    const table: Record<number, number[]> = { 1: [45], 2: [30, 60], 3: [23, 45, 68], 4: [18, 36, 54, 72], 5: [15, 30, 45, 60, 75], 6: [13, 26, 39, 51, 64, 77] };
+  test("even spread: the k-th of n moments goes after round(75 x k / (n + 1)), for n = 1 to 6", () => {
+    const table: Record<number, number[]> = { 1: [38], 2: [25, 50], 3: [19, 38, 56], 4: [15, 30, 45, 60], 5: [13, 25, 38, 50, 63], 6: [11, 21, 32, 43, 54, 64] };
     for (const n of [1, 2, 3, 4, 5, 6]) expect(Array.from({ length: n }, (_, i) => autoAfter(n, i + 1))).toEqual(table[n]!);
   });
 
@@ -208,7 +203,7 @@ describe("five brand moments for each ticket: openings, during the game, closing
 
   test("breaks with no number typed are placed evenly, last for 60 s unless told, and are marked automatic", () => {
     const c = good({ tickets: 2, breaks: [mid(), mid({ seconds: 120 }), mid()] });
-    expect(c.breaks.map((b) => b.after)).toEqual([23, 45, 68]);
+    expect(c.breaks.map((b) => b.after)).toEqual([19, 38, 56]);
     expect(c.breaks.map((b) => b.seconds)).toEqual([60, 120, 60]);
     expect(c.breaks.every((b) => b.auto === true)).toBe(true);
   });
@@ -216,17 +211,17 @@ describe("five brand moments for each ticket: openings, during the game, closing
   test("saving again re-spreads: adding a fourth automatic break moves the others; explicit numbers never move", () => {
     const three = good({ tickets: 2, breaks: [mid(), mid(), mid()] });
     const four = good({ tickets: 2, breaks: [...three.breaks, mid()] }, three);
-    expect(four.breaks.map((b) => b.after)).toEqual([18, 36, 54, 72]);
+    expect(four.breaks.map((b) => b.after)).toEqual([15, 30, 45, 60]);
     const old = good({ breaks: [{ after: 20, seconds: 30, kind: "speech", title: "Old game" }] });
     expect(old.breaks[0]!.after).toBe(20); expect(old.breaks[0]!.auto).toBeUndefined();
     const mixed = good({ breaks: [{ after: 10, seconds: 30, kind: "speech", title: "Fixed" }, mid(), mid()] });
-    expect(mixed.breaks.map((b) => b.after)).toEqual([10, 30, 60]);
+    expect(mixed.breaks.map((b) => b.after)).toEqual([10, 25, 50]);
   });
 
   test("going from 2 tickets to 1 is refused while more than one ticket's worth is switched on, and says what to do", () => {
     const two = good({ tickets: 2, opening: [msg({ seconds: 30 }), msg({ seconds: 30 })], breaks: [mid(), mid(), mid(), mid()] });
     const why = refused({ tickets: 1 }, two);
-    expect(why).toContain("1 ticket per person"); expect(why).toContain("5 brand moments"); expect(why).toContain("switch some off");
+    expect(why).toContain("1 card per person"); expect(why).toContain("5 brand moments"); expect(why).toContain("switch some off");
     expect(good({ tickets: 1, opening: [msg()], breaks: [mid(), mid(), mid()] }, two).tickets).toBe(1);
   });
 
@@ -250,7 +245,7 @@ describe("five brand moments for each ticket: openings, during the game, closing
 
   test("lucky draws are placed together with the other during-the-game moments, in the order added", () => {
     const c = good({ tickets: 2, breaks: [mid(), { kind: "lucky", title: "Lucky draw: watch", winners: 1 }, mid()] });
-    expect(c.breaks.map((b) => [b.kind, b.after])).toEqual([["speech", 23], ["lucky", 45], ["speech", 68]]);
+    expect(c.breaks.map((b) => [b.kind, b.after])).toEqual([["speech", 19], ["lucky", 38], ["speech", 56]]);
   });
 
   test("nothing set gives no openings and no closings, and old saved settings still load", () => {

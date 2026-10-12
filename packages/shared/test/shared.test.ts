@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
-  normalize, generateTicket, isValidTicket, ticketNumbers, patternNumbers, spokenPhrase, numberWords,
+  normalize, generateTicket, isValidTicket, ticketNumbers, patternSets, columnRange, letterOf, callLabel, spokenPhrase, numberWords,
   price, PACKS, proposeBreakPositions, rewardName, maskNumber,
 } from "../src";
 
@@ -38,33 +38,45 @@ describe("phone numbers (handout section 12, default country IN)", () => {
   });
 });
 
-describe("tickets", () => {
-  test("10,000 generated tickets are all structurally valid", () => {
+describe("cards", () => {
+  test("10,000 generated cards are all structurally valid", () => {
     for (let i = 0; i < 10000; i++) expect(isValidTicket(generateTicket())).toBe(true);
   });
-  test("pattern number sets have the right sizes", () => {
+  test("a card has 24 numbers, a FREE centre and the right column ranges", () => {
     const t = generateTicket();
-    expect(patternNumbers(t, "top")!.length).toBe(5);
-    expect(patternNumbers(t, "corners")!.length).toBe(4);
-    expect(patternNumbers(t, "star")!.length).toBe(5);
-    expect(patternNumbers(t, "full")!.length).toBe(15);
-    expect(patternNumbers(t, "early5")).toBeNull();
-    expect(ticketNumbers(t).length).toBe(15);
+    expect(ticketNumbers(t).length).toBe(24);
+    expect(t[2]![2]).toBeNull();
+    for (let c = 0; c < 5; c++) for (let r = 0; r < 5; r++) if (!(r === 2 && c === 2)) { const [lo, hi] = columnRange(c); expect(t[r]![c]!).toBeGreaterThanOrEqual(lo); expect(t[r]![c]!).toBeLessThanOrEqual(hi); }
+  });
+  test("pattern sets have the right sizes (FREE is left out of every set)", () => {
+    const t = generateTicket();
+    expect(patternSets(t, "line").length).toBe(12);
+    expect(patternSets(t, "corners")[0]!.length).toBe(4);
+    expect(patternSets(t, "plus")[0]!.length).toBe(8);
+    expect(patternSets(t, "x")[0]!.length).toBe(8);
+    expect(patternSets(t, "frame")[0]!.length).toBe(16);
+    expect(patternSets(t, "stamp").length).toBe(4);
+    expect(patternSets(t, "blackout")[0]!.length).toBe(24);
+  });
+  test("letters: 1-15 B, 16-30 I, 31-45 N, 46-60 G, 61-75 O", () => {
+    expect([1, 15, 16, 30, 31, 45, 46, 60, 61, 75].map(letterOf).join("")).toBe("BBIINNGGOO");
+    expect(callLabel(7)).toBe("B 7"); expect(callLabel(52)).toBe("G 52"); expect(callLabel(75)).toBe("O 75");
+    expect(letterOf(0)).toBe(""); expect(letterOf(76)).toBe("");
   });
 });
 
-describe("spoken phrase (owner decision: digits then words, single digits not repeated)", () => {
+describe("spoken phrase (letter and number, said twice)", () => {
   test("examples", () => {
-    expect(spokenPhrase(24)).toBe("Next number is two four, twenty-four. Number twenty-four.");
-    expect(spokenPhrase(7)).toBe("Next number is seven. Number seven.");
-    expect(spokenPhrase(10)).toBe("Next number is one zero, ten. Number ten.");
-    expect(spokenPhrase(90)).toBe("Next number is nine zero, ninety. Number ninety.");
-    expect(spokenPhrase(13)).toBe("Next number is one three, thirteen. Number thirteen.");
+    expect(spokenPhrase(7)).toBe("Bee, seven. Bee, seven.");
+    expect(spokenPhrase(52)).toBe("Gee, fifty-two. Gee, five two.");
+    expect(spokenPhrase(10)).toBe("Bee, ten. Bee, one zero.");
+    expect(spokenPhrase(75)).toBe("Oh, seventy-five. Oh, seven five.");
+    expect(spokenPhrase(31)).toBe("En, thirty-one. En, three one.");
   });
-  test("all 90 have words and bounds are enforced", () => {
-    for (let n = 1; n <= 90; n++) expect(numberWords(n).length).toBeGreaterThan(2);
+  test("all 75 have words and bounds are enforced", () => {
+    for (let n = 1; n <= 75; n++) expect(numberWords(n).length).toBeGreaterThan(2);
     expect(() => numberWords(0)).toThrow();
-    expect(() => numberWords(91)).toThrow();
+    expect(() => numberWords(76)).toThrow();
   });
 });
 
@@ -84,12 +96,12 @@ describe("pricing and breaks", () => {
     expect(PACKS.map((p) => p[1])).toEqual([2399, 3499, 4699, 5899, 7099, 11799, 17699, 29499]);
   });
   test("break positions are near-equal and capped at 3", () => {
-    expect(proposeBreakPositions(3)).toEqual([22, 45, 67]);
+    expect(proposeBreakPositions(3)).toEqual([19, 38, 56]);
     expect(() => proposeBreakPositions(4)).toThrow();
   });
   test("reward names", () => {
-    expect(rewardName("full", "ticket", 2, 3)).toBe("2nd Full House");
-    expect(rewardName("full", "two_ticket", 1, 1)).toBe("Full Two-Ticket House");
-    expect(rewardName("top", "ticket", 1, 1)).toBe("Top Line");
+    expect(rewardName("line", "ticket", 2, 3)).toBe("2nd Line");
+    expect(rewardName("blackout", "ticket", 1, 1)).toBe("Blackout");
+    expect(rewardName("corners", "ticket", 1, 1)).toBe("Four Corners");
   });
 });

@@ -97,7 +97,7 @@ export async function utcNow(opts: BeaconOpts = {}, salt = 0): Promise<{ utcMs: 
 
 /* ---------------- Deterministic calls ---------------- */
 
-export const NUMBERS = 90;
+export const NUMBERS = 75;
 
 /** Rounds used by each call: call k uses round startRound + k * stride. Call speeds must be multiples of the 3 s round. */
 export function scheduleFor(startRound: number, callSeconds: number, count = NUMBERS, net = QUICKNET): number[] {
@@ -117,8 +117,8 @@ export function pickNumber(engagementId: string, k: number, randomnessHex: strin
   const taken = new Set(called);
   const remaining: number[] = [];
   for (let n = 1; n <= NUMBERS; n++) if (!taken.has(n)) remaining.push(n);
-  if (remaining.length === 0) throw new Error("All 90 numbers have been called.");
-  const h = sha256(utf8ToBytes(`CT1|${engagementId}|${u8(k)}|${randomnessHex}`));
+  if (remaining.length === 0) throw new Error("All 75 numbers have been called.");
+  const h = sha256(utf8ToBytes(`CB1|${engagementId}|${u8(k)}|${randomnessHex}`));
   let v = 0n;
   for (const b of h) v = (v << 8n) | BigInt(b);
   return remaining[Number(v % BigInt(remaining.length))]!;

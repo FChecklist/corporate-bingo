@@ -1,111 +1,86 @@
-// Collision-free tickets. Every ticket of an engagement round comes from a different position in one huge, shuffled list of valid tickets,
-// so two tickets of the same game can never be the same. No server, no lookup: the position is the seat number the player received on joining,
-// and the shuffle is keyed by the engagement, so every phone (and the organizer console) makes the same ticket for the same seat.
+// Collision-free Bingo cards. Every card of an engagement round comes from a different position in one huge, shuffled list of valid cards,
+// so two cards of the same game can never be the same. No server, no lookup: the position is the seat number the player received on joining,
+// and the shuffle is keyed by the engagement, so every phone (and the organizer console) makes the same card for the same seat.
 //
-// The list: every valid 3x9 ticket (5 numbers per row, every column used, each column's numbers from its own range, sorted down the column).
-//   position p  ->  row shape  = shapes[p mod V]          (V is about 880,000 valid row shapes)
-//                   number set = digits of floor(p / V)    (a mixed-radix code over each column's combinations)
-// Every row shape has far more than 2^29 number sets, so floor(p / V) < 2^29 always fits: different p give different tickets.
+// The list: every valid 5 x 5 card. Each column holds an ORDERED choice of numbers from its own range of 15 (5 numbers for B, I, G and O,
+// 4 for N because the centre is FREE): 15P5 x 15P5 x 15P4 x 15P5 x 15P5 = 360360^4 x 32760, about 5.5e26 cards.
+//   position p  ->  q = a keyed permutation of [0, TOTAL)   (a Feistel network with cycle walking: a true permutation, no repeats)
+//                   q  = mixed-radix code, one digit per column, each digit unranks one ordered choice.
+// Different positions give different q, and different q give different cards, so different positions give different cards.
 import { sha256 } from "@noble/hashes/sha256";
 import { utf8ToBytes } from "@noble/hashes/utils";
-import { columnRange, type Ticket } from "../../shared/src/ticket";
+import { FREE_CELL, PER_COLUMN, SIZE, columnRange, type Ticket } from "../../shared/src/ticket";
 
-/** 2^61 - 1, a prime (see ticketAt). */
-const MIX_PRIME = 2305843009213693951n;
-/** Number sets used per row shape. The smallest real count over all shapes is about 1.4e12, so this is safely inside every shape. */
-export const SETS_PER_SHAPE = 2 ** 29;
+/** Ordered choices of k numbers from 15: 15P5 = 360360 and 15P4 = 32760. */
+const arrangements = (k: number): bigint => { let p = 1n; for (let i = 0; i < k; i++) p *= BigInt(PER_COLUMN - i); return p; };
+const A5 = arrangements(5), A4 = arrangements(4);
+/** Size of the whole list of cards. */
+export const TOTAL: bigint = A5 ** 4n * A4;
+export const spaceSize = (): bigint => TOTAL;
+/** A column's digit base: 360360 for B, I, G, O and 32760 for N. */
+const BASE = [A5, A5, A4, A5, A5] as const;
+const COUNT = [5, 5, 4, 5, 5] as const;
 
-const ROW5: number[] = [];
-for (let m = 0; m < 512; m++) { let c = 0; for (let b = 0; b < 9; b++) c += (m >> b) & 1; if (c === 5) ROW5.push(m); }
-
-let SHAPES: Uint32Array | null = null;
-/** All valid row shapes (three 5-of-9 rows that together use all nine columns), each packed as three 7-bit indexes. */
-function shapes(): Uint32Array {
-  if (SHAPES) return SHAPES;
-  const out: number[] = [];
-  for (let a = 0; a < ROW5.length; a++) for (let b = 0; b < ROW5.length; b++) { const ab = ROW5[a]! | ROW5[b]!; for (let c = 0; c < ROW5.length; c++) if ((ab | ROW5[c]!) === 511) out.push((a << 14) | (b << 7) | c); }
-  return (SHAPES = Uint32Array.from(out));
-}
-export const shapeCount = () => shapes().length;
-/** Size of the whole list of tickets. */
-export const spaceSize = () => shapeCount() * SETS_PER_SHAPE;
-
-const BINOM: number[][] = [];
-for (let n = 0; n <= 12; n++) { BINOM[n] = []; for (let k = 0; k <= 3; k++) BINOM[n]![k] = k === 0 ? 1 : n === 0 ? 0 : BINOM[n - 1]![k - 1]! + (k <= n - 1 ? BINOM[n - 1]![k]! : 0); }
-const SIZE = Array.from({ length: 9 }, (_, c) => { const [lo, hi] = columnRange(c); return hi - lo + 1; });
-
-/** The `rank`-th k-element subset of {0..n-1} in lexicographic order. */
-function unrankCombination(rank: number, n: number, k: number): number[] {
-  const out: number[] = []; let x = 0;
+/** The `rank`-th ordered choice of k numbers from lo..lo+14 (rank in [0, 15P k)). */
+export function unrankArrangement(rank: bigint, k: number, lo: number): number[] {
+  const pool = Array.from({ length: PER_COLUMN }, (_, i) => lo + i), out: number[] = [];
+  let r = rank;
   for (let i = 0; i < k; i++) {
-    for (let e = x; ; e++) {
-      const cnt = BINOM[n - e - 1]![k - i - 1]!;
-      if (rank < cnt) { out.push(e); x = e + 1; break; }
-      rank -= cnt;
-    }
+    const base = BigInt(PER_COLUMN - i), pick = Number(r % base);
+    r /= base;
+    out.push(pool.splice(pick, 1)[0]!);
   }
   return out;
 }
 
-/** Number of number sets a row shape allows (used by tests to prove SETS_PER_SHAPE fits inside every shape). */
-export function setsOfShape(packed: number): number {
-  const rows = [ROW5[(packed >> 14) & 127]!, ROW5[(packed >> 7) & 127]!, ROW5[packed & 127]!];
-  let prod = 1;
-  for (let c = 0; c < 9; c++) { let k = 0; for (const r of rows) k += (r >> c) & 1; prod *= BINOM[SIZE[c]!]![k]!; }
-  return prod;
-}
-export const shapeAt = (i: number) => shapes()[i]!;
-
-// ---- a keyed shuffle of positions (Feistel network + cycle walking: a true permutation of [0, n), no repeats) ----
+// ---- a keyed shuffle of positions (Feistel network + cycle walking over the smallest even-bit domain that holds the list: for the card space, 2^90 > TOTAL) ----
 const keyCache = new Map<string, Uint8Array>();
-const keyOf = (eid: string) => { let k = keyCache.get(eid); if (!k) { if (keyCache.size > 64) keyCache.clear(); k = sha256(utf8ToBytes("ticket-space|" + eid)); keyCache.set(eid, k); } return k; };
-function feistel(x: number, half: number, key: Uint8Array): number {
-  const M = 2 ** half, mask = M - 1;
-  let left = Math.floor(x / M), right = x % M;
-  const buf = new Uint8Array(key.length + 5); buf.set(key);
+const keyOf = (eid: string) => { let k = keyCache.get(eid); if (!k) { if (keyCache.size > 64) keyCache.clear(); k = sha256(utf8ToBytes("card-space|" + eid)); keyCache.set(eid, k); } return k; };
+function roundFn(right: bigint, r: number, key: Uint8Array, buf: Uint8Array, half: number): bigint {
+  let v = Number(right); // below 2^45: exact in a double
+  buf[key.length] = r;
+  for (let i = 0; i < 6; i++) { buf[key.length + 1 + i] = v % 256; v = Math.floor(v / 256); }
+  const h = sha256(buf);
+  let f = 0;
+  for (let i = 0; i < 6; i++) f = f * 256 + h[i]!;
+  return BigInt(f % 2 ** half);
+}
+function feistel(x: bigint, half: number, key: Uint8Array): bigint {
+  const hb = BigInt(half), mask = (1n << hb) - 1n;
+  let left = x >> hb, right = x & mask;
+  const buf = new Uint8Array(key.length + 7); buf.set(key);
   for (let r = 0; r < 6; r++) {
-    buf[key.length] = r; buf[key.length + 1] = (right >>> 24) & 255; buf[key.length + 2] = (right >>> 16) & 255; buf[key.length + 3] = (right >>> 8) & 255; buf[key.length + 4] = right & 255;
-    const h = sha256(buf), f = (((h[0]! << 24) | (h[1]! << 16) | (h[2]! << 8) | h[3]!) >>> 0) & mask;
-    const next = (left ^ f) >>> 0;
+    const next = left ^ roundFn(right, r, key, buf, half);
     left = right; right = next;
   }
-  return left * M + right;
+  return (left << hb) | right;
 }
-/** A keyed permutation of 0..n-1: every input gives a different output, and the same key always gives the same shuffle. */
-export function permute(i: number, n: number, key: Uint8Array): number {
-  if (!Number.isInteger(i) || i < 0 || i >= n) throw new Error("position outside the list");
-  let bits = 2; while (2 ** bits < n) bits++; if (bits & 1) bits++;
+/** A keyed permutation of 0..n-1 (n at most 2^90): every input gives a different output, and the same key always gives the same shuffle. */
+export function permute(i: number | bigint, n: bigint, key: Uint8Array): bigint {
+  const x0 = BigInt(i);
+  if (x0 < 0n || x0 >= n) throw new Error("position outside the list");
+  let bits = 2; while ((1n << BigInt(bits)) < n) bits++; if (bits & 1) bits++;
   const half = bits / 2;
-  let x = i;
+  if (half > 45) throw new Error("list too long");
+  let x = x0;
   do x = feistel(x, half, key); while (x >= n);
   return x;
 }
 
-/** The ticket at `position` of the (shuffled) list of this engagement round. Positions 0..n-1 always give n different valid tickets. */
+/** The card at `position` of the (shuffled) list of this engagement round. Positions 0..n-1 always give n different valid cards. */
 export function ticketAt(engagementId: string, position: number): Ticket {
-  const sh = shapes(), V = sh.length;
-  const p = permute(position, V * SETS_PER_SHAPE, keyOf(engagementId));
-  const shape = sh[p % V]!;
-  const rows = [ROW5[(shape >> 14) & 127]!, ROW5[(shape >> 7) & 127]!, ROW5[shape & 127]!];
-  // The number-set code is below 2^29, but a shape has 1.3e12 to 9e12 number sets. Read as plain mixed-radix digits that code only reaches the FIRST columns' digits: the high columns (the 60s, 70s, 80s)
-  // almost always got their lowest numbers, so 70 and 80 were on EVERY ticket and 75-79 and 83-90 on none; when 70 or 80 was called late, hundreds of tickets completed the Full House at the same call
-  // (found by the 20-game rehearsal, G04). Multiplying by a large prime modulo the shape's number-set count spreads the code over the whole space. The count has only prime factors up to 11, so the
-  // prime is coprime to it and the map is one-to-one: different positions still give different tickets.
-  let rest = Number((BigInt((p - (p % V)) / V) * MIX_PRIME) % BigInt(setsOfShape(shape)));
-  const t: Ticket = [[], [], []];
-  for (let c = 0; c < 9; c++) {
-    const present = [0, 1, 2].filter((r) => (rows[r]! >> c) & 1);
-    const k = present.length, total = BINOM[SIZE[c]!]![k]!;
-    const rc = rest % total; rest = (rest - rc) / total;
-    const [lo] = columnRange(c);
-    const picks = unrankCombination(rc, SIZE[c]!, k);
-    for (let r = 0; r < 3; r++) t[r]![c] = null;
-    present.forEach((r, i) => (t[r]![c] = lo + picks[i]!));
+  let q = permute(position, TOTAL, keyOf(engagementId));
+  const t: Ticket = Array.from({ length: SIZE }, () => Array<number | null>(SIZE).fill(null));
+  for (let c = 0; c < SIZE; c++) {
+    const digit = q % BASE[c]!; q /= BASE[c]!;
+    const nums = unrankArrangement(digit, COUNT[c]!, columnRange(c)[0]);
+    let i = 0;
+    for (let r = 0; r < SIZE; r++) t[r]![c] = r * SIZE + c === FREE_CELL ? null : nums[i++]!;
   }
   return t;
 }
 
 /** A participant id made by the store carries its seat number: "<seat>x<hash>". Older ids (plain hash) have none. */
 export const seatOfPid = (pid: string): number | null => { const m = /^(\d{1,7})x[0-9a-f]{8,}$/.exec(pid); const s = m ? Number(m[1]) : 0; return s >= 1 ? s : null; };
-/** Seat s (1, 2, 3, ...) owns positions 2(s-1) (first ticket) and 2(s-1)+1 (second ticket). */
+/** Seat s (1, 2, 3, ...) owns positions 2(s-1) (first card) and 2(s-1)+1 (second card). */
 export const positionOf = (seat: number, which: 0 | 1) => 2 * (seat - 1) + which;

@@ -168,7 +168,7 @@ tc({ id: "SEC-17", role: "organizer", title: "the AI's calls are in the organize
   await aiA.get(`/api/z/${EA}/summary`);
   const r = await mA.get("/api/org/ai/audit");
   expect(r.status).toBe(200);
-  expect(r.text).not.toMatch(/ct[kah]_[0-9a-f]{20}/);
+  expect(r.text).not.toMatch(/cb[kah]_[0-9a-f]{20}/);
   const n = (r.body.trail ?? []).length;
   expect(n).toBeGreaterThan(0);
   return `${n} audited AI calls, no key text`;

@@ -25,28 +25,29 @@ describe("tickets and patterns", () => {
     expect(ticketFor(E, "p1")).not.toEqual(ticketFor(E, "p2"));
     expect(ticketFor("OTHER", "p1")).not.toEqual(ticketFor(E, "p1"));
   });
-  test("every ticket completes every pattern by call 90 (all numbers are called)", () => {
+  test("every card completes every pattern by call 75 (all numbers are called)", () => {
     for (const p of pids.slice(0, 20)) for (const pat of ALL_PATTERNS) expect(completionIndex(ticketFor(E, p), pat, LOG)).toBeGreaterThanOrEqual(0);
   });
-  test("full house completes exactly when the last of the ticket's 15 numbers is called", () => {
+  test("blackout completes exactly when the last of the card's 24 numbers is called", () => {
     const t = ticketFor(E, "p3");
     const last = Math.max(...ticketNumbers(t).map((n) => LOG.indexOf(n)));
-    expect(completionIndex(t, "full", LOG)).toBe(last);
+    expect(ticketNumbers(t)).toHaveLength(24);
+    expect(completionIndex(t, "blackout", LOG)).toBe(last);
   });
-  test("early five completes at the fifth ticket number called", () => {
+  test("four corners completes at the last of the four corner numbers called", () => {
     const t = ticketFor(E, "p4");
-    const mine = new Set(ticketNumbers(t));
-    const idx = LOG.map((n, i) => (mine.has(n) ? i : -1)).filter((i) => i >= 0)[4]!;
-    expect(completionIndex(t, "early5", LOG)).toBe(idx);
+    const corners = [t[0]![0]!, t[0]![4]!, t[4]![0]!, t[4]![4]!];
+    expect(completionIndex(t, "corners", LOG)).toBe(Math.max(...corners.map((n) => LOG.indexOf(n))));
   });
-  test("a pattern is not complete on a short log", () => expect(completionIndex(ticketFor(E, "p4"), "full", LOG.slice(0, 10))).toBe(-1));
-  test("still-to-win counts down to zero as numbers are called", () => {
+  test("a pattern is not complete on a short log", () => expect(completionIndex(ticketFor(E, "p4"), "blackout", LOG.slice(0, 10))).toBe(-1));
+  test("still-to-win counts down to zero as numbers are called (FREE is already marked)", () => {
     const t = ticketFor(E, "p5");
-    expect(stillToWin(t, "full", [])).toBe(15);
-    expect(stillToWin(t, "early5", [])).toBe(5);
-    expect(stillToWin(t, "full", LOG)).toBe(0);
+    expect(stillToWin(t, "blackout", [])).toBe(24);
+    expect(stillToWin(t, "corners", [])).toBe(4);
+    expect(stillToWin(t, "line", [])).toBe(4); // the cheapest line goes through the FREE centre
+    expect(stillToWin(t, "blackout", LOG)).toBe(0);
     const part = LOG.slice(0, 30);
-    expect(stillToWin(t, "full", part)).toBe(15 - ticketNumbers(t).filter((n) => part.includes(n)).length);
+    expect(stillToWin(t, "blackout", part)).toBe(24 - ticketNumbers(t).filter((n) => part.includes(n)).length);
   });
 });
 
@@ -67,9 +68,9 @@ describe("settlement from the public log", () => {
     expect(rev.map((s) => [s.pattern, s.idx, [...s.pids].sort()])).toEqual(settled.map((s) => [s.pattern, s.idx, [...s.pids].sort()]));
   });
   test("a participant who never got a network still wins: settlement needs no claim from them", () => {
-    const quiet = settled.find((s) => s.pattern === "full")!.pids[0]!;
+    const quiet = settled.find((s) => s.pattern === "blackout")!.pids[0]!;
     expect(checkClaims(E, [], LOG).good).toEqual([]);
-    expect(settleAll(E, pids, LOG).find((s) => s.pattern === "full")!.pids).toContain(quiet);
+    expect(settleAll(E, pids, LOG).find((s) => s.pattern === "blackout")!.pids).toContain(quiet);
   });
   test("an empty list or a short log settles nothing wrongly", () => {
     expect(settleAll(E, [], LOG)).toEqual([]);
@@ -80,13 +81,13 @@ describe("settlement from the public log", () => {
 describe("claims are checked, not trusted", () => {
   test("a true claim is accepted, an early, late, wrong-pattern or someone-else's claim is rejected", () => {
     const t = ticketFor(E, "p9");
-    const idx = completionIndex(t, "top", LOG);
+    const idx = completionIndex(t, "corners", LOG);
     const r = checkClaims(E, [
-      { pid: "p9", pattern: "top", idx },
-      { pid: "p9", pattern: "top", idx: idx - 1 },
-      { pid: "p9", pattern: "top", idx: idx + 1 },
-      { pid: "p9", pattern: "bot", idx },
-      { pid: "p10", pattern: "top", idx },
+      { pid: "p9", pattern: "corners", idx },
+      { pid: "p9", pattern: "corners", idx: idx - 1 },
+      { pid: "p9", pattern: "corners", idx: idx + 1 },
+      { pid: "p9", pattern: "x", idx },
+      { pid: "p10", pattern: "corners", idx },
     ], LOG);
     expect(r.good).toHaveLength(1);
     expect(r.bad).toHaveLength(4);
@@ -116,11 +117,11 @@ describe("round store: backfill by agreement, then background signature check", 
     expect(s.verified.has(SCHED[0]!)).toBe(true);
     expect(s.pending()).toBe(0);
   });
-  test("a late joiner has the whole 90-call log before any signature is checked, and verification leaves it unchanged", async () => {
+  test("a late joiner has the whole 75-call log before any signature is checked, and verification leaves it unchanged", async () => {
     const s = store(net({}));
     await Promise.all(SCHED.map((r, i) => s.fetchBackfill(r, i)));
     expect(logFrom(E, SCHED, s)).toEqual(LOG);
-    expect(s.pending()).toBe(90);
+    expect(s.pending()).toBe(75);
     await s.verifyAll();
     expect(logFrom(E, SCHED, s)).toEqual(LOG);
     expect(s.discarded).toBe(0);
@@ -210,13 +211,13 @@ describe("rounds", () => {
   const C2 = { ...defaultCfg(), rounds: 2 };
   const E2 = "ENG-ROUNDS";
   const pids2 = Array.from({ length: 200 }, (_, i) => "rp" + i);
-  const R1 = deriveCalls(E2, Array.from({ length: 90 }, (_, k) => createHash("sha256").update("a" + k).digest("hex")));
-  const R2 = deriveCalls(roundEid(E2, 2), Array.from({ length: 90 }, (_, k) => createHash("sha256").update("b" + k).digest("hex")));
+  const R1 = deriveCalls(E2, Array.from({ length: 75 }, (_, k) => createHash("sha256").update("a" + k).digest("hex")));
+  const R2 = deriveCalls(roundEid(E2, 2), Array.from({ length: 75 }, (_, k) => createHash("sha256").update("b" + k).digest("hex")));
   test("a later round starts a fixed intermission after the last call of the one before, with the same gap between calls", () => {
-    const last1 = unshiftedRound(1000, 2, [], 1, 89);
+    const last1 = unshiftedRound(1000, 2, [], 1, 74);
     expect(unshiftedRound(1000, 2, [], 2, 0)).toBe(last1 + 2 + INTERMISSION_ROUNDS);
     expect(unshiftedRound(1000, 2, [], 2, 1) - unshiftedRound(1000, 2, [], 2, 0)).toBe(2);
-    expect(unshiftedRound(1000, 2, [], 3, 0)).toBe(unshiftedRound(1000, 2, [], 2, 89) + 2 + INTERMISSION_ROUNDS);
+    expect(unshiftedRound(1000, 2, [], 3, 0)).toBe(unshiftedRound(1000, 2, [], 2, 74) + 2 + INTERMISSION_ROUNDS);
   });
   test("brand breaks belong to round 1 only; they push round 2 later by their length and nothing else", () => {
     const b: BreakCfg[] = [{ after: 10, seconds: 60, kind: "speech", title: "Hello" }];
@@ -239,7 +240,7 @@ describe("rounds", () => {
     expect(callRoundR(st, 1000, 2, [], 2, 0)).toBeNull();
   });
   test("the intermission shows exactly between the last call of a round and the first of the next", () => {
-    const last = callRoundR(null, 1000, 2, [], 1, 89)!, first = callRoundR(null, 1000, 2, [], 2, 0)!;
+    const last = callRoundR(null, 1000, 2, [], 1, 74)!, first = callRoundR(null, 1000, 2, [], 2, 0)!;
     expect(activeIntermission(null, 1000, 2, [], 2, last)).toBeNull();
     expect(activeIntermission(null, 1000, 2, [], 2, last + 1)?.endsAtRound).toBe(first);
     expect(activeIntermission(null, 1000, 2, [], 2, first - 1)).not.toBeNull();
@@ -249,7 +250,7 @@ describe("rounds", () => {
   test("every round gives every participant different tickets, and the numbers differ", () => {
     for (const p of pids2.slice(0, 20)) expect(JSON.stringify(ticketsFor(E2, p, 1))).not.toBe(JSON.stringify(ticketsFor(roundEid(E2, 2), p, 1)));
     expect(R1).not.toEqual(R2);
-    expect(new Set(R2).size).toBe(90);
+    expect(new Set(R2).size).toBe(75);
   });
   test("each round is settled on its own numbers and tickets; round 1 results never leak into round 2", () => {
     const s1 = settleAll(E2, pids2, R1, C2, 1), s2 = settleAll(E2, pids2, R2, C2, 2);
@@ -259,11 +260,11 @@ describe("rounds", () => {
     expect(s1.map((x) => x.idx).join()).not.toBe(s2.map((x) => x.idx).join());
   });
   test("claims are checked against their own round's log; a round 1 claim does not pass as round 2", () => {
-    const p = "rp3"; const i1 = completionIndexKey(ticketsFor(E2, p, 1), "top", R1), i2 = completionIndexKey(ticketsFor(roundEid(E2, 2), p, 1), "top", R2);
+    const p = "rp3"; const i1 = completionIndexKey(ticketsFor(E2, p, 1), "corners", R1), i2 = completionIndexKey(ticketsFor(roundEid(E2, 2), p, 1), "corners", R2);
     const logs = { 1: R1, 2: R2 };
-    expect(checkClaims(E2, [{ pid: p, pattern: "top", idx: i1, round: 1 }, { pid: p, pattern: "top", idx: i2, round: 2 }], logs, C2).good).toHaveLength(2);
-    expect(checkClaims(E2, [{ pid: p, pattern: "top", idx: i1, round: 2 }], logs, C2).bad.length + checkClaims(E2, [{ pid: p, pattern: "top", idx: i2, round: 1 }], logs, C2).bad.length).toBeGreaterThanOrEqual(1);
-    expect(checkClaims(E2, [{ pid: p, pattern: "top", idx: i1, round: 3 }], logs, C2).bad).toHaveLength(1); // no such round
-    expect(checkClaims(E2, [{ pid: p, pattern: "top", idx: i1 }], R1, C2).good).toHaveLength(1); // old style: round 1
+    expect(checkClaims(E2, [{ pid: p, pattern: "corners", idx: i1, round: 1 }, { pid: p, pattern: "corners", idx: i2, round: 2 }], logs, C2).good).toHaveLength(2);
+    expect(checkClaims(E2, [{ pid: p, pattern: "corners", idx: i1, round: 2 }], logs, C2).bad.length + checkClaims(E2, [{ pid: p, pattern: "corners", idx: i2, round: 1 }], logs, C2).bad.length).toBeGreaterThanOrEqual(1);
+    expect(checkClaims(E2, [{ pid: p, pattern: "corners", idx: i1, round: 3 }], logs, C2).bad).toHaveLength(1); // no such round
+    expect(checkClaims(E2, [{ pid: p, pattern: "corners", idx: i1 }], R1, C2).good).toHaveLength(1); // old style: round 1
   });
 });

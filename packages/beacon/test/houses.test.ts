@@ -1,323 +1,251 @@
-// The houses added after the first seven (Early Seven/Ten, Two Lines, Plus, Frame, Top and Bottom, Middle and Corners, Odd/Even/Low/High Five) and Unlucky.
-// Every house is decided by the same deterministic code on every phone: these tests pin the rules, that the incremental engine and the whole-log settlement agree, Unlucky's tie-break and
-// exclusions, and the per-house maximum number of winners (and that games saved before the limits existed stay valid).
+// The Bingo houses (patterns): the table, what each asks of one card, and the proof that the incremental engine gives exactly what the whole-log settlement gives for EVERY pattern.
 import { describe, expect, test } from "bun:test";
-import { sha256 } from "@noble/hashes/sha256";
-import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils";
-import { ticketNumbers, type Ticket } from "../../shared/src/ticket";
-import { HOUSE_ORDER, HOUSES_LINE, LEGACY_MAX_ORDINAL, MAX_REWARD_LINES, PATTERN_ORDER, PRIZE_HOUSES, defaultCfg, houseLabel, keysInPlay, maxWinnersFor, validateCfg, type EngagementCfg, type RewardLine, type HouseId } from "../src/config";
-import { ruleOf, ticketCompletion, ticketStillNeeds, winningNumbers } from "../src/house-rules";
-import { completionIndexKey, settleAll, stillToWin, ticketsFor, unluckyAt, unluckyPick } from "../src/game";
+import { FREE_CELL, PATTERN_RULES, cellOfNumber, generateTicket, ticketNumbers, type PatternId, type Ticket } from "../../shared/src/ticket";
+import { HOUSE_ORDER, HOUSES_LINE, PATTERN_ORDER, PRIZE_HOUSES, defaultCfg, defaultRewards, keysInPlay, linesFor, maxWinnersFor, validateCfg, type EngagementCfg, type RewardLine } from "../src/config";
 import { PrizeEngine, countFromOf } from "../src/prize-engine";
+import { completionIndex, settleAll, stillToWin, ticketsFor } from "../src/game";
+import { ticketCompletion, ticketStillNeeds, winningNumbers } from "../src/house-rules";
 import { seededRand } from "../src";
+import { ticketAt } from "../src/unique-ticket";
 
-// ---- a hand-made ticket: rows of five (the column positions do not matter to any rule)
-const A = [4, 23, 45, 61, 82], B = [11, 28, 37, 66, 89], C = [9, 30, 55, 70, 90];
-const mk = (row: number[]): (number | null)[] => { const out: (number | null)[] = Array(9).fill(null); [0, 2, 4, 6, 8].forEach((c, i) => (out[c] = row[i]!)); return out; };
-const T: Ticket = [mk(A), mk(B), mk(C)];
-const idxAfter = (key: HouseId | "full2", calls: number[]) => ticketCompletion(T, key, calls);
-/** Calls in the given order, then everything else, so "the first call that completes it" is exactly the last listed number. */
-const callsOf = (...nums: number[]) => nums;
-
-const shuffle = (seed: string): number[] => { const r = seededRand(seed); const a = Array.from({ length: 90 }, (_, i) => i + 1); for (let i = 89; i > 0; i--) { const j = r(i + 1); [a[i], a[j]] = [a[j]!, a[i]!]; } return a; };
-const mkPids = (n: number) => Array.from({ length: n }, (_, i) => `${i + 1}x00000000${(i + 1).toString(16).padStart(4, "0")}`);
+const ALL: PatternId[] = ["line", "twolines", "corners", "plus", "x", "frame", "stamp", "letterL", "letterT", "blackout"];
+const shuffle75 = (seed: string): number[] => { const r = seededRand(seed); const a = Array.from({ length: 75 }, (_, i) => i + 1); for (let i = 74; i > 0; i--) { const j = r(i + 1); [a[i], a[j]] = [a[j]!, a[i]!]; } return a; };
 const norm = (xs: { pattern: string; ordinal: number; idx: number; pids: string[] }[]) => xs.map((x) => `${x.pattern}:${x.ordinal}:${x.idx}:${[...x.pids].sort().join(",")}`).sort();
-const lines = (...ids: (HouseId | "full2")[]): RewardLine[] => ids.map((id) => id === "full2" ? { pattern: "full", scope: "two_ticket", ordinal: 1, text: "" } : { pattern: id, scope: "ticket", ordinal: 1, text: "" });
-const NEW_IDS: HouseId[] = ["early7", "early10", "twolines", "plus", "frame", "topbottom", "midcorners", "odd5", "even5", "low5", "high5"];
-const ALL_IDS: HouseId[] = ["early5", ...NEW_IDS, "top", "mid", "bot", "corners", "star", "full", "unlucky"];
-const cfgWith = (tickets: 1 | 2, ids: (HouseId | "full2")[]): EngagementCfg => ({ ...defaultCfg(), tickets, rewards: lines(...ids) });
-const rands = (seed: string) => Array.from({ length: 90 }, (_, k) => bytesToHex(sha256(utf8ToBytes(`${seed}|${k}`))));
+const mkPids = (n: number) => Array.from({ length: n }, (_, i) => `${i + 1}x00000000${(i + 1).toString(16).padStart(4, "0")}`);
+const everyHouse = (): RewardLine[] => PRIZE_HOUSES.flatMap((h) => Array.from({ length: h.max }, (_, i) => ({ pattern: h.id, scope: "ticket" as const, ordinal: i + 1, text: "" })));
+const cfgAll = (tickets: 1 | 2): EngagementCfg => ({ ...defaultCfg(), tickets, rewards: everyHouse() });
+
+// ---- an independent description of every pattern, as pictures (X = must be marked). Nothing here reads PATTERN_RULES.
+const PICTURES: Record<PatternId, string[][]> = {
+  line: [], // any row, column or diagonal: handled in lines() below
+  twolines: [],
+  corners: [["X...X", ".....", ".....", ".....", "X...X"]],
+  plus: [["..X..", "..X..", "XXXXX", "..X..", "..X.."]],
+  x: [["X...X", ".X.X.", "..X..", ".X.X.", "X...X"]],
+  frame: [["XXXXX", "X...X", "X...X", "X...X", "XXXXX"]],
+  stamp: [["XX...", "XX...", ".....", ".....", "....."], ["...XX", "...XX", ".....", ".....", "....."], [".....", ".....", ".....", "XX...", "XX..."], [".....", ".....", ".....", "...XX", "...XX"]],
+  letterL: [["X....", "X....", "X....", "X....", "XXXXX"]],
+  letterT: [["XXXXX", "..X..", "..X..", "..X..", "..X.."]],
+  blackout: [["XXXXX", "XXXXX", "XXXXX", "XXXXX", "XXXXX"]],
+};
+const cellsOfPicture = (p: string[]): number[] => p.flatMap((row, r) => [...row].map((ch, c) => (ch === "X" ? r * 5 + c : -1))).filter((x) => x >= 0);
+const LINE_CELLS: number[][] = [
+  ...[0, 1, 2, 3, 4].map((r) => [0, 1, 2, 3, 4].map((c) => r * 5 + c)), ...[0, 1, 2, 3, 4].map((c) => [0, 1, 2, 3, 4].map((r) => r * 5 + c)),
+  [0, 6, 12, 18, 24], [4, 8, 12, 16, 20],
+];
+/** Reference: mark the card square by square and say after which call the pattern is complete (-1: never). Independent of house-rules.ts. */
+function refCompletion(card: Ticket, pat: PatternId, log: readonly number[]): number {
+  const marked = new Array(25).fill(false); marked[12] = true;
+  const shapes = pat === "line" || pat === "twolines" ? LINE_CELLS : PICTURES[pat].map(cellsOfPicture);
+  const need = pat === "twolines" ? 2 : 1;
+  for (let i = 0; i < log.length; i++) {
+    const c = cellOfNumber(card, log[i]!); if (c >= 0) marked[c] = true;
+    if (shapes.filter((s) => s.every((x) => marked[x])).length >= need) return i;
+  }
+  return -1;
+}
 
 describe("the house table", () => {
-  test("ids are unique, labels are the owner's, and the maximum winners per house are exactly the agreed ones", () => {
-    expect(new Set(PRIZE_HOUSES.map((h) => h.id)).size).toBe(PRIZE_HOUSES.length);
-    const max: Record<string, number> = { unlucky: 1, early5: 1, early7: 1, early10: 1, top: 2, mid: 2, bot: 2, corners: 1, star: 1, full: 10, full2: 10, twolines: 1, plus: 1, frame: 1, topbottom: 1, midcorners: 1, odd5: 1, even5: 1, low5: 1, high5: 1 };
-    expect(Object.fromEntries(PRIZE_HOUSES.map((h) => [h.id, h.max]))).toEqual(max);
-    expect(houseLabel("early7")).toBe("Early Seven"); expect(houseLabel("early10")).toBe("Early Ten"); expect(houseLabel("twolines")).toBe("Two Lines"); expect(houseLabel("plus")).toBe("Plus");
-    expect(houseLabel("frame")).toBe("Frame"); expect(houseLabel("topbottom")).toBe("Top and Bottom"); expect(houseLabel("midcorners")).toBe("Middle and Corners"); expect(houseLabel("odd5")).toBe("Odd Five");
-    expect(houseLabel("even5")).toBe("Even Five"); expect(houseLabel("low5")).toBe("Low Five"); expect(houseLabel("high5")).toBe("High Five"); expect(houseLabel("unlucky")).toBe("Unlucky");
-    for (const h of PRIZE_HOUSES) { expect(h.how.length).toBeGreaterThan(10); expect(maxWinnersFor(h.id)).toBe(h.max); }
-    expect(HOUSES_LINE).toContain("unlucky = Unlucky (1 winner)"); expect(HOUSES_LINE).toContain("full = Full House (up to 10 winners)");
+  test("the ten Bingo houses, their order, labels and the most winners each may have (spec section 4.4)", () => {
+    expect(PRIZE_HOUSES.map((h) => h.id)).toEqual(["line", "twolines", "corners", "plus", "x", "frame", "stamp", "letterL", "letterT", "blackout"]);
+    expect(Object.fromEntries(PRIZE_HOUSES.map((h) => [h.id, h.max]))).toEqual({ line: 3, twolines: 2, corners: 3, plus: 2, x: 2, frame: 2, stamp: 3, letterL: 2, letterT: 2, blackout: 2 });
+    expect(Object.fromEntries(PRIZE_HOUSES.map((h) => [h.id, h.label]))).toMatchObject({ line: "Line", corners: "Four Corners", x: "X", blackout: "Blackout" });
+    expect(new Set(HOUSE_ORDER).size).toBe(10); expect(HOUSES_LINE).toContain("blackout = Blackout (up to 2 winners)");
+    for (const h of PRIZE_HOUSES) expect(PATTERN_RULES[h.id]).toBeDefined();
   });
-  test("the game still starts with the original seven houses only, and the new ones follow the same display order", () => {
-    expect(PATTERN_ORDER).toEqual(["early5", "top", "mid", "bot", "corners", "star", "full"]);
-    expect(keysInPlay(defaultCfg().rewards)).toEqual([...PATTERN_ORDER]);
-    expect(HOUSE_ORDER.filter((k) => (PATTERN_ORDER as readonly string[]).includes(k))).toEqual([...PATTERN_ORDER]);
-    expect(MAX_REWARD_LINES).toBeGreaterThanOrEqual(PRIZE_HOUSES.reduce((n, h) => n + h.max, 0));
+  test("a new game rewards Line, Four Corners, X and Blackout (the default prize set)", () => {
+    expect([...PATTERN_ORDER]).toEqual(["line", "corners", "x", "blackout"]);
+    expect(defaultRewards().map((r) => `${r.pattern}#${r.ordinal}`)).toEqual(["line#1", "corners#1", "x#1", "blackout#1"]);
+    expect(keysInPlay(defaultCfg().rewards)).toEqual(["line", "corners", "x", "blackout"]);
   });
-  test("Five Corners would have been Star: four corners plus the centre of the middle line, so Plus replaces it", () => {
-    const star = ruleOf(T, "star") as { pool: number[] };
-    expect([...star.pool].sort((a, b) => a - b)).toEqual([4, 9, 37, 82, 90]);
-    expect(ruleOf(T, "plus")).not.toEqual(ruleOf(T, "star"));
+  test("how many squares each pattern needs (FREE is a square of the pattern but is never a number to call)", () => {
+    const squares = (p: PatternId) => Math.max(...PATTERN_RULES[p].sets.map((s) => s.length));
+    expect(squares("line")).toBe(5); expect(squares("corners")).toBe(4); expect(squares("plus")).toBe(9); expect(squares("x")).toBe(9);
+    expect(squares("frame")).toBe(16); expect(squares("stamp")).toBe(4); expect(squares("letterL")).toBe(9); expect(squares("letterT")).toBe(9); expect(squares("blackout")).toBe(25);
+    expect(PATTERN_RULES.line.sets.length).toBe(12); expect(PATTERN_RULES.stamp.sets.length).toBe(4);
+    expect(PATTERN_RULES.twolines.need).toBe(2);
   });
-});
-
-describe("what each new house asks of one ticket", () => {
-  test("Early Seven / Early Ten: the first 7 / 10 of the ticket's numbers called, whichever they are", () => {
-    const log = callsOf(4, 11, 9, 23, 28, 30, 45, 66, 55, 70, 82);
-    expect(idxAfter("early7", log)).toBe(6); // the 7th ticket number (45) is the 7th call
-    expect(idxAfter("early10", log)).toBe(9);
-    expect(idxAfter("early7", [1, 2, 3, 4, 11, 9, 23, 28, 30, 45])).toBe(9); // numbers not on the ticket never count
-    expect(idxAfter("early7", [4, 11, 9, 23, 28, 30])).toBe(-1);
-  });
-  test("Two Lines: the second of the three lines to complete, in any order", () => {
-    expect(idxAfter("twolines", [...A, ...C])).toBe(9);          // top, then bottom
-    expect(idxAfter("twolines", [...B, ...A])).toBe(9);
-    expect(idxAfter("twolines", [...A, 1, 2, ...B.slice(0, 4)])).toBe(-1);
-    expect(idxAfter("twolines", [4, 11, 9, 23, 28, 30, 45, 37, 55, 61, 66, 70, 82, 89, 90])).toBe(13); // top at 82 (12), middle at 89 (13), bottom at 90 (14): the second to finish is the middle line
-  });
-  test("Plus: the whole middle line and the middle number of the top and bottom lines", () => {
-    const need = (ruleOf(T, "plus") as { pool: number[] }).pool;
-    expect([...need].sort((a, b) => a - b)).toEqual([11, 28, 37, 45, 55, 66, 89]);
-    expect(idxAfter("plus", [...B, 45, 55])).toBe(6);
-    expect(idxAfter("plus", [...B, 45])).toBe(-1);
-  });
-  test("Frame: top line, bottom line and the first and last number of the middle line", () => {
-    expect([...(ruleOf(T, "frame") as { pool: number[] }).pool].sort((a, b) => a - b)).toEqual([4, 9, 11, 23, 30, 45, 55, 61, 70, 82, 89, 90]);
-    expect(idxAfter("frame", [...A, ...C, 11, 89])).toBe(11);
-    expect(idxAfter("frame", [...A, ...C, 11])).toBe(-1);
-  });
-  test("Top and Bottom: both lines. Middle and Corners: the middle line plus the four corners", () => {
-    expect(idxAfter("topbottom", [...A, ...C])).toBe(9); expect(idxAfter("topbottom", [...A, ...B])).toBe(-1);
-    expect([...(ruleOf(T, "midcorners") as { pool: number[] }).pool].sort((a, b) => a - b)).toEqual([4, 9, 11, 28, 37, 66, 82, 89, 90]);
-    expect(idxAfter("midcorners", [...B, 4, 82, 9, 90])).toBe(8); expect(idxAfter("midcorners", [...B, 4, 82, 9])).toBe(-1);
-  });
-  test("Odd Five, Even Five, Low Five, High Five: five numbers of that kind on the ticket", () => {
-    expect(idxAfter("odd5", [4, 23, 45, 61, 11, 37])).toBe(5); // 23, 45, 61, 11, 37 are odd: the fifth is the sixth call (4 is even and does not count)
-    expect(idxAfter("odd5", [23, 45, 61, 11])).toBe(-1);
-    expect(idxAfter("even5", [4, 82, 28, 66, 30])).toBe(4); expect(idxAfter("even5", [23, 45, 4, 82, 28, 66, 30])).toBe(6);
-    expect(idxAfter("low5", [4, 23, 11, 28, 9])).toBe(4); expect(idxAfter("low5", [4, 23, 11, 28, 61])).toBe(-1);
-    expect(idxAfter("high5", [61, 82, 66, 89, 70])).toBe(4); expect(idxAfter("high5", [61, 82, 66, 89, 30])).toBe(-1);
-  });
-  test("a ticket that has fewer than five numbers of a kind can never win that house, and says so", () => {
-    const poor: Ticket = [mk([2, 4, 6, 8, 10]), mk([12, 14, 16, 18, 20]), mk([22, 24, 26, 28, 31])]; // one odd number
-    expect(ticketCompletion(poor, "odd5", Array.from({ length: 90 }, (_, i) => i + 1))).toBe(-1);
-    expect(ticketStillNeeds(poor, "odd5", new Set())).toBe(99);
-    expect(stillToWin(poor, "odd5", [])).toBe(99);
-  });
-  test("still to win counts the numbers each house still needs (Two Lines: the two cheapest lines)", () => {
-    expect(stillToWin(T, "early7", [4, 11])).toBe(5);
-    expect(stillToWin(T, "twolines", [...A.slice(0, 4), ...B.slice(0, 2)])).toBe(1 + 3);
-    expect(stillToWin(T, "plus", [11, 45])).toBe(5);
-    expect(stillToWin(T, "unlucky", [])).toBe(99); // not decided on a ticket
-  });
-  test("winning numbers to light up: a fixed shape lights all of it, 'any N' the first N hits, Two Lines the two lines that finished", () => {
-    expect(winningNumbers(T, "plus", [], 0).sort((a, b) => a - b)).toEqual([11, 28, 37, 45, 55, 66, 89]);
-    const log = [1, 4, 2, 11, 9, 23, 28, 30, 45, 66, 55];
-    expect(winningNumbers(T, "early7", log, ticketCompletion(T, "early7", log))).toEqual([4, 11, 9, 23, 28, 30, 45]);
-    const l2 = [...A, 3, ...C];
-    expect(winningNumbers(T, "twolines", l2, ticketCompletion(T, "twolines", l2)).sort((a, b) => a - b)).toEqual([...A, ...C].sort((a, b) => a - b));
-    expect(winningNumbers(T, "unlucky", log, 3)).toEqual([]);
-  });
-  test("a tidy ticket never completes Unlucky or the two-ticket house on its own", () => {
-    expect(ticketCompletion(T, "unlucky", Array.from({ length: 90 }, (_, i) => i + 1))).toBe(-1);
-    expect(completionIndexKey([T], "unlucky", Array.from({ length: 90 }, (_, i) => i + 1))).toBe(-1);
+  test("the pattern table agrees with the independent pictures", () => {
+    for (const p of ALL.filter((x) => x !== "line" && x !== "twolines")) expect(PATTERN_RULES[p].sets.map((s) => [...s].sort((a, b) => a - b))).toEqual(PICTURES[p].map((pic) => cellsOfPicture(pic)));
+    expect(PATTERN_RULES.line.sets.map((s) => [...s].sort((a, b) => a - b)).sort()).toEqual(LINE_CELLS.map((s) => [...s].sort((a, b) => a - b)).sort());
   });
 });
 
-describe("the incremental engine gives exactly what settleAll gives, for every house", () => {
-  for (const tickets of [1, 2] as const) {
-    test(`${tickets} ticket(s), 90 participants, all houses: same winners at every few calls (Unlucky included, flagged and removed seats out)`, () => {
-      const ids: (HouseId | "full2")[] = tickets === 2 ? [...ALL_IDS, "full2"] : ALL_IDS;
-      const cfg = cfgWith(tickets, ids), eid = "HOUSES-" + tickets, pids = mkPids(90), log = shuffle("houses" + tickets), rnd = rands("par" + tickets);
-      const out = new Set([pids[0]!, pids[1]!, pids[2]!, pids[3]!]);
-      const start = 500, br = (k: number) => start + k * 3;
-      const e = new PrizeEngine(eid, cfg);
-      e.addSeats(pids.map((pid, i) => ({ pid, countFrom: 0, ...(i < 2 ? { ex: true } : i < 4 ? { blk: true } : {}) }))); expect(e.work(10_000)).toBe(true);
-      for (let k = 0; k < 90; k++) {
-        e.feed(log[k]!, br(k), rnd[k]!); e.setOver(k === 89);
-        if (k % 7 === 6 || k > 55 || k === 0) expect(norm(e.results())).toEqual(norm(settleAll(eid, pids, log.slice(0, k + 1), cfg, 1, undefined, { out, randomness: rnd.slice(0, k + 1), over: k === 89 })));
+describe("BG-03 each pattern completes on the exact call where its last square is marked, never earlier; FREE counts", () => {
+  for (const pat of ALL) {
+    test(`${pat}: 60 cards x 8 call orders agree with the pictures, call by call`, () => {
+      for (let i = 0; i < 60; i++) {
+        const card = ticketAt("BG03-" + pat, i * 13);
+        for (let k = 0; k < 8; k++) {
+          const log = shuffle75(`${pat}-${i}-${k}`);
+          const want = refCompletion(card, pat, log);
+          expect(ticketCompletion(card, pat, log)).toBe(want);
+          expect(completionIndex(card, pat, log)).toBe(want);
+          if (want >= 0) expect(ticketCompletion(card, pat, log.slice(0, want))).toBe(-1); // one call earlier it is not complete
+        }
       }
-      const final = e.results();
-      for (const id of ALL_IDS.filter((x) => x !== "unlucky")) expect(final.some((x) => x.pattern === id)).toBe(true); // with 90 people every house has a winner
-      expect(final.find((x) => x.pattern === "unlucky")?.pids.length).toBe(1);
     });
   }
-  test("late joiners: only numbers from their count-from round count, the engine and the whole-log settlement still agree", () => {
-    const cfg = cfgWith(1, ALL_IDS), eid = "HOUSES-LATE", pids = mkPids(80), log = shuffle("hlate"), rnd = rands("late"), start = 2000, callRounds = log.map((_, k) => start + k * 3);
-    const cf = new Map<string, number>(); pids.forEach((p, i) => { if (i >= 40) cf.set(p, countFromOf(start + 3 * (5 + (i % 40)))); });
+  test("a pattern completes at the call of its LAST number: log made of exactly the pattern's numbers first", () => {
+    for (const pat of ALL) {
+      const card = ticketAt("EXACT", 3);
+      for (const set of PATTERN_RULES[pat].sets.slice(0, 4)) {
+        const flat = card.flat(); const nums = set.filter((c) => c !== FREE_CELL).map((c) => flat[c]!);
+        const rest = ticketNumbers(card).filter((n) => !nums.includes(n)), others = Array.from({ length: 75 }, (_, i) => i + 1).filter((n) => !nums.includes(n) && !rest.includes(n));
+        if (PATTERN_RULES[pat].need === 1) { const log = [...nums, ...rest, ...others]; expect(ticketCompletion(card, pat, log)).toBeLessThanOrEqual(nums.length - 1); expect(ticketCompletion(card, pat, log.slice(0, nums.length - 1))).toBe(-1); }
+      }
+    }
+  });
+  test("FREE counts as marked from the first call: a line through the centre needs only 4 numbers, a corner-only card needs all 4 corners", () => {
+    const card = ticketAt("FREE", 1), flat = card.flat();
+    const mid = [10, 11, 13, 14].map((c) => flat[c]!); // the middle row, centre left out
+    expect(ticketStillNeeds(card, "line", new Set())).toBe(4);
+    expect(ticketCompletion(card, "line", [...mid, ...Array.from({ length: 75 }, (_, i) => i + 1).filter((n) => !mid.includes(n))])).toBe(3);
+    expect(ticketStillNeeds(card, "blackout", new Set())).toBe(24);
+    expect(ticketStillNeeds(card, "corners", new Set())).toBe(4);
+    expect(ticketStillNeeds(card, "plus", new Set())).toBe(8);
+    expect(card[2]![2]).toBeNull(); expect(ticketNumbers(card)).toHaveLength(24);
+  });
+  test("still to win counts down to zero; Two Lines counts the two cheapest lines with shared squares counted once", () => {
+    const card = ticketAt("STILL", 9), log = shuffle75("still");
+    for (const pat of ALL) { const done = completionIndex(card, pat, log); let prev = 99; for (let i = 0; i <= done; i++) { const left = stillToWin(card, pat, log.slice(0, i + 1)); expect(left).toBeLessThanOrEqual(prev); prev = left; } expect(stillToWin(card, pat, log.slice(0, done + 1))).toBe(0); expect(stillToWin(card, pat, [])).toBeGreaterThan(0); }
+    const flat = card.flat(); const row0 = [0, 1, 2, 3, 4].map((c) => flat[c]!), col0 = [5, 10, 15, 20].map((c) => flat[c]!);
+    expect(ticketStillNeeds(card, "twolines", new Set([...row0, ...col0.slice(0, 2)]))).toBe(2); // row 0 done, column 0 needs its last 2
+  });
+  test("winning numbers to light up are the squares of the set that made the win", () => {
+    const card = ticketAt("LIGHT", 4), log = shuffle75("light");
+    for (const pat of ALL) { const idx = completionIndex(card, pat, log); const lit = winningNumbers(card, pat, log, idx); expect(lit.length).toBeGreaterThanOrEqual(PATTERN_RULES[pat].need === 2 ? 8 : 3); for (const n of lit) expect(log.slice(0, idx + 1)).toContain(n); }
+    expect(winningNumbers(card, "corners", shuffle75("light"), completionIndex(card, "corners", shuffle75("light"))).length).toBe(4);
+  });
+});
+
+describe("BG-04 ties share the reward; the 2nd reward goes to the next distinct call", () => {
+  test("two or more guests completing the same house on the same call are all recorded as winners of it", () => {
+    const pids = mkPids(400), cfg: EngagementCfg = { ...defaultCfg(), rewards: [{ pattern: "corners", scope: "ticket", ordinal: 1, text: "" }, { pattern: "corners", scope: "ticket", ordinal: 2, text: "" }] };
+    let found = false;
+    for (let s = 0; s < 40 && !found; s++) {
+      const log = shuffle75("tie" + s), r = settleAll("TIE", pids, log, cfg);
+      const first = r.find((x) => x.ordinal === 1)!, second = r.find((x) => x.ordinal === 2);
+      if (first.pids.length >= 2) {
+        found = true;
+        expect(first.pids.length).toBeGreaterThanOrEqual(2);
+        for (const pid of first.pids) expect(completionIndex(ticketsFor("TIE", pid, 1)[0]!, "corners", log)).toBe(first.idx);
+        if (second) expect(second.idx).toBeGreaterThan(first.idx);
+        const e = new PrizeEngine("TIE", cfg); e.addSeats(pids.map((pid) => ({ pid, countFrom: 0 }))); e.work(10_000); log.forEach((n, k) => e.feed(n, 100 + k));
+        expect(norm(e.results())).toEqual(norm(r));
+      }
+    }
+    expect(found).toBe(true);
+  });
+});
+
+describe("the incremental engine gives exactly what settleAll gives, for every house (parity)", () => {
+  for (const tickets of [1, 2] as const) {
+    test(`${tickets} card(s): 160 participants, EVERY house with all its winners, same results at every few calls`, () => {
+      const cfg = cfgAll(tickets), eid = "PAR-" + tickets, pids = mkPids(160), log = shuffle75("par" + tickets);
+      const e = new PrizeEngine(eid, cfg); e.addSeats(pids.map((pid) => ({ pid, countFrom: 0 }))); expect(e.work(10_000)).toBe(true);
+      for (let k = 0; k < 75; k++) { e.feed(log[k]!, 1000 + k * 3); if (k % 5 === 4 || k > 60) expect(norm(e.results())).toEqual(norm(settleAll(eid, pids, log.slice(0, k + 1), cfg))); }
+      expect(e.results().length).toBeGreaterThan(8);
+    });
+  }
+  for (const pat of ALL) {
+    test(`${pat} alone, 2 cards, 3 call orders: engine equals the whole-log answer`, () => {
+      const rewards: RewardLine[] = Array.from({ length: maxWinnersFor(pat) }, (_, i) => ({ pattern: pat, scope: "ticket", ordinal: i + 1, text: "" }));
+      const cfg: EngagementCfg = { ...defaultCfg(), tickets: 2, rewards }, pids = mkPids(120);
+      for (let k = 0; k < 3; k++) {
+        const eid = `PAT-${pat}-${k}`, log = shuffle75(eid), e = new PrizeEngine(eid, cfg);
+        e.addSeats(pids.map((pid) => ({ pid, countFrom: 0 }))); e.work(10_000); log.forEach((n, j) => e.feed(n, 500 + j));
+        expect(norm(e.results())).toEqual(norm(settleAll(eid, pids, log, cfg)));
+        expect(e.results().length).toBeGreaterThan(0);
+      }
+    });
+  }
+  test("late joiners: only numbers from their count-from round count; the engine and the whole-log answer agree along the way (every house)", () => {
+    const cfg = cfgAll(1), eid = "PAR-LATE", start = 2000, pids = mkPids(80), log = shuffle75("late"), callRounds = log.map((_, k) => start + k * 3);
+    const cf = new Map<string, number>(); pids.forEach((p, i) => { if (i >= 40) cf.set(p, countFromOf(start + 3 * (5 + (i % 30)))); });
     const e = new PrizeEngine(eid, cfg); e.addSeats(pids.map((pid) => ({ pid, countFrom: cf.get(pid) ?? 0 }))); e.work(10_000);
-    for (let k = 0; k < 90; k++) {
-      e.feed(log[k]!, callRounds[k]!, rnd[k]!); e.setOver(k === 89);
-      if (k % 6 === 5 || k === 89) expect(norm(e.results())).toEqual(norm(settleAll(eid, pids, log.slice(0, k + 1), cfg, 1, { countFrom: cf, callRounds: callRounds.slice(0, k + 1) }, { randomness: rnd.slice(0, k + 1), over: k === 89 })));
-    }
+    for (let k = 0; k < 75; k++) { e.feed(log[k]!, callRounds[k]!); if (k % 6 === 5 || k === 74) expect(norm(e.results())).toEqual(norm(settleAll(eid, pids, log.slice(0, k + 1), cfg, 1, { countFrom: cf, callRounds: callRounds.slice(0, k + 1) }))); }
+    expect(cf.size).toBe(40); expect([...cf.values()].every((v) => v > start)).toBe(true);
   });
-  test("seats that arrive after numbers were called are caught up and give the same answer", () => {
-    const cfg = cfgWith(1, ALL_IDS), eid = "HOUSES-CATCH", pids = mkPids(60), log = shuffle("hcatch"), rnd = rands("catch"), br = (k: number) => 3000 + k * 3;
+  test("BG-06 a late joiner cannot win with numbers called before they joined, and prizes already awarded stay awarded", () => {
+    const cfg: EngagementCfg = { ...defaultCfg(), rewards: [{ pattern: "line", scope: "ticket", ordinal: 1, text: "" }] }, eid = "PAR-NOWIN", start = 100, pid = "1x00000000aaaa", other = "2x00000000bbbb";
+    const log = shuffle75("nowin"), callRounds = log.map((_, k) => start + k * 3);
+    const full = settleAll(eid, [pid], log, cfg), first = full.find((x) => x.pattern === "line")!;
+    const joinedAfter = new Map([[pid, callRounds[first.idx]! + 1]]);
+    const masked = settleAll(eid, [pid], log, cfg, 1, { countFrom: joinedAfter, callRounds });
+    expect(masked.find((x) => x.pattern === "line")?.idx ?? 999).toBeGreaterThan(first.idx);
+    const e = new PrizeEngine(eid, cfg); e.addSeats([{ pid, countFrom: joinedAfter.get(pid)! }]); e.work(1000); log.forEach((n, k) => e.feed(n, callRounds[k]!));
+    expect(norm(e.results())).toEqual(norm(masked));
+    // the guest who was there from the start keeps the prize however late the other joined
+    const both = new PrizeEngine(eid, cfg); both.addSeats([{ pid: other, countFrom: 0 }, { pid, countFrom: joinedAfter.get(pid)! }]); both.work(1000); log.forEach((n, k) => both.feed(n, callRounds[k]!));
+    const w = both.results().find((x) => x.ordinal === 1)!; expect(w.pids).toContain(other); expect(w.pids).not.toContain(pid);
+  });
+  test("seats that arrive after numbers were already called are caught up (every house)", () => {
+    const cfg = cfgAll(2), eid = "PAR-CATCH", start = 3000, pids = mkPids(60), log = shuffle75("catch"), callRounds = log.map((_, k) => start + k * 3);
+    const cf = new Map<string, number>(); for (const p of pids.slice(30)) cf.set(p, countFromOf(start + 3 * 20));
     const e = new PrizeEngine(eid, cfg); e.addSeats(pids.slice(0, 30).map((pid) => ({ pid, countFrom: 0 }))); e.work(10_000);
-    for (let k = 0; k < 50; k++) e.feed(log[k]!, br(k), rnd[k]!);
-    e.addSeats(pids.slice(30).map((pid) => ({ pid, countFrom: 0 }))); e.work(10_000);
-    for (let k = 50; k < 90; k++) e.feed(log[k]!, br(k), rnd[k]!);
-    e.setOver(true);
-    expect(norm(e.results())).toEqual(norm(settleAll(eid, pids, log, cfg, 1, undefined, { randomness: rnd, over: true })));
+    for (let k = 0; k < 50; k++) e.feed(log[k]!, callRounds[k]!);
+    e.addSeats(pids.slice(30).map((pid) => ({ pid, countFrom: cf.get(pid)! }))); e.work(10_000);
+    for (let k = 50; k < 75; k++) e.feed(log[k]!, callRounds[k]!);
+    expect(norm(e.results())).toEqual(norm(settleAll(eid, pids, log, cfg, 1, { countFrom: cf, callRounds })));
   });
-  test("resetCalls plus the same feed gives the same answer again", () => {
-    const cfg = cfgWith(2, [...ALL_IDS, "full2"]), eid = "HOUSES-RESET", pids = mkPids(50), log = shuffle("hreset"), rnd = rands("reset");
-    const e = new PrizeEngine(eid, cfg); e.addSeats(pids.map((pid) => ({ pid, countFrom: 0 }))); e.work(10_000);
-    for (let k = 0; k < 90; k++) e.feed(log[k]!, 100 + k, rnd[k]!); e.setOver(true);
-    const first = norm(e.results()); e.resetCalls();
-    for (let k = 0; k < 90; k++) e.feed(log[k]!, 100 + k, rnd[k]!); e.setOver(true);
-    expect(norm(e.results())).toEqual(first);
+  test("seats built AFTER numbers were called give the same winners as seats built before (two cards, every house)", () => {
+    const cfg = cfgAll(2), eid = "PAR-LATEBUILD", pids = mkPids(200), log = shuffle75("latebuild"), br = (k: number) => 5000 + k * 3;
+    const a = new PrizeEngine(eid, cfg); a.addSeats(pids.map((pid) => ({ pid, countFrom: 0 }))); a.work(10_000);
+    const b = new PrizeEngine(eid, cfg);
+    for (let k = 0; k < 75; k++) { a.feed(log[k]!, br(k)); b.feed(log[k]!, br(k)); if (k === 29) { b.addSeats(pids.map((pid) => ({ pid, countFrom: 0 }))); b.work(10_000); } }
+    expect(norm(b.results())).toEqual(norm(a.results()));
+    expect(norm(a.results())).toEqual(norm(settleAll(eid, pids, log, cfg)));
   });
-  test("ordinals: the 2nd Top Line goes to the next distinct call, exactly as for the original houses", () => {
-    const cfg: EngagementCfg = { ...defaultCfg(), rewards: [{ pattern: "top", scope: "ticket", ordinal: 1, text: "" }, { pattern: "top", scope: "ticket", ordinal: 2, text: "" }, { pattern: "plus", scope: "ticket", ordinal: 1, text: "" }] };
-    const eid = "HOUSES-ORD", pids = mkPids(40), log = shuffle("hord");
-    const e = new PrizeEngine(eid, cfg); e.addSeats(pids.map((pid) => ({ pid, countFrom: 0 }))); e.work(10_000);
-    log.forEach((n, k) => e.feed(n, 10 + k));
-    const r = norm(e.results()); expect(r).toEqual(norm(settleAll(eid, pids, log, cfg)));
-    expect(e.results().filter((x) => x.pattern === "top").length).toBe(2);
+  test("building cards in small slices gives the same answer, and resetCalls plus the same feed gives the same answer again", () => {
+    const cfg = cfgAll(2), eid = "PAR-SLICE", pids = mkPids(200), log = shuffle75("slice");
+    const e = new PrizeEngine(eid, cfg); e.addSeats(pids.map((pid) => ({ pid, countFrom: 0 })));
+    let slices = 0; let t = 0; while (!e.work(1, () => (t += 0.4))) slices++;
+    expect(slices).toBeGreaterThan(20); expect(e.seatCount).toBe(200);
+    for (let k = 0; k < 75; k++) e.feed(log[k]!, 100 + k);
+    const a = norm(e.results()); expect(a).toEqual(norm(settleAll(eid, pids, log, cfg)));
+    e.resetCalls(); expect(e.results()).toEqual([]); for (let k = 0; k < 75; k++) e.feed(log[k]!, 100 + k);
+    expect(norm(e.results())).toEqual(a);
   });
-  test("completion index of the whole-log helper and of the engine agree house by house for a single person", () => {
-    const eid = "HOUSES-ONE", pid = mkPids(1)[0]!, tk = ticketsFor(eid, pid, 1), log = shuffle("hone");
-    for (const id of [...NEW_IDS, "early5", "full"] as HouseId[]) {
-      const cfg = cfgWith(1, [id]), e = new PrizeEngine(eid, cfg); e.addSeats([{ pid, countFrom: 0 }]); e.work(1000); log.forEach((n, k) => e.feed(n, k));
-      const idx = completionIndexKey(tk, id, log), got = e.results()[0];
-      expect(got?.idx ?? -1).toBe(idx);
-    }
+  test("a seat is only counted once however many times it is offered", () => {
+    const e = new PrizeEngine("PE-DUP", defaultCfg()); e.addSeats([{ pid: "1xabcdef012345", countFrom: 0 }, { pid: "1xabcdef012345", countFrom: 0 }]); e.addSeats([{ pid: "1xabcdef012345", countFrom: 99 }]);
+    expect(e.seatCount).toBe(1);
   });
+  test("10,000 seats with two cards are built in slices and each call is cheap enough for a phone", () => {
+    const cfg = cfgAll(2), eid = "PE-BIG", pids = mkPids(10_000);
+    const e = new PrizeEngine(eid, cfg); e.addSeats(pids.map((pid) => ({ pid, countFrom: 0 })));
+    const t0 = performance.now(); while (!e.work(40)) { /* one slice per tick */ } const build = performance.now() - t0;
+    const log = shuffle75("big"); const t1 = performance.now(); for (let k = 0; k < 75; k++) e.feed(log[k]!, 5000 + k); const feed = performance.now() - t1;
+    console.log(`10,000 seats x 2 cards, every house: build ${Math.round(build)} ms in total, 75 calls ${Math.round(feed)} ms (${(feed / 75).toFixed(1)} ms per call)`);
+    expect(e.results().length).toBeGreaterThan(0); expect(feed / 75).toBeLessThan(50);
+  }, 180_000);
 });
 
-// ---- Unlucky, against an oracle written separately from the implementation
-function oracle(eid: string, pids: string[], log: number[], tickets: 1 | 2, out: Set<string>, rnd: string[], over: boolean): { at: number; pid: string | null } {
-  const tk = (pid: string) => ticketsFor(eid, pid, tickets);
-  const done = (n: number[], upto: number) => n.every((x) => log.slice(0, upto + 1).includes(x));
-  let at = -1;
-  for (let k = 0; k < log.length && at < 0; k++) if (pids.some((p) => tk(p).some((t) => done(ticketNumbers(t), k)))) at = k;
-  if (at < 0) { if (!over || !log.length) return { at: -1, pid: null }; at = log.length - 1; }
-  const rank = (pid: string) => bytesToHex(sha256(utf8ToBytes(`CT1-UNLUCKY|${eid}|${rnd[at] ?? ""}|${pid}`)));
-  const cands = pids.filter((p) => !out.has(p)).map((p) => ({ p, m: Math.min(...tk(p).map((t) => ticketNumbers(t).filter((x) => log.slice(0, at + 1).includes(x)).length)) }));
-  cands.sort((a, b) => a.m - b.m || (rank(a.p) < rank(b.p) ? -1 : 1));
-  return { at, pid: cands[0]?.p ?? null };
-}
-const unluckyOf = (cfg: EngagementCfg, eid: string, pids: string[], log: number[], rnd: string[], over: boolean, out = new Set<string>()) =>
-  settleAll(eid, pids, log, cfg, 1, undefined, { out, randomness: rnd, over }).find((x) => x.pattern === "unlucky");
-
-describe("Unlucky", () => {
-  test("it goes to the ticket with the fewest numbers marked when the first Full House is completed, even when Full House is not one of the prizes", () => {
-    const eid = "UNL-1", pids = mkPids(30), log = shuffle("unl1"), rnd = rands("u1"), cfg = cfgWith(1, ["unlucky"]);
-    const want = oracle(eid, pids, log, 1, new Set(), rnd, false);
-    expect(want.at).toBeGreaterThan(20);
-    const got = unluckyOf(cfg, eid, pids, log, rnd, false)!;
-    expect(got.idx).toBe(want.at); expect(got.pids).toEqual([want.pid!]);
-    // before anybody completes a Full House (and the game is not over), nothing is decided yet
-    expect(unluckyOf(cfg, eid, pids, log.slice(0, want.at), rnd, false)).toBeUndefined();
-    // and the winner really has the fewest: nobody else had fewer marked at that call
-    const marked = (p: string) => ticketNumbers(ticketsFor(eid, p, 1)[0]!).filter((n) => log.slice(0, want.at + 1).includes(n)).length;
-    expect(Math.min(...pids.map(marked))).toBe(marked(got.pids[0]!));
-  });
-  test("when Full House IS a prize, Unlucky is decided at the very call that awards the first Full House", () => {
-    const eid = "UNL-2", pids = mkPids(40), log = shuffle("unl2"), rnd = rands("u2"), cfg = cfgWith(1, ["full", "unlucky"]);
-    const r = settleAll(eid, pids, log, cfg, 1, undefined, { randomness: rnd });
-    expect(r.find((x) => x.pattern === "unlucky")!.idx).toBe(r.find((x) => x.pattern === "full")!.idx);
-  });
-  test("with no Full House at all, it is decided at the end of the game (the last number, or the stop), and not before", () => {
-    const eid = "UNL-3", pids = mkPids(5), rnd = rands("u3"), cfg = cfgWith(1, ["unlucky", "mid"]);
-    const log = shuffle("unl3").slice(0, 30); // 30 numbers: with five players nobody has all fifteen
-    expect(oracle(eid, pids, log, 1, new Set(), rnd, false).at).toBe(-1);
-    expect(unluckyOf(cfg, eid, pids, log, rnd, false)).toBeUndefined();
-    const ended = unluckyOf(cfg, eid, pids, log, rnd, true)!, want = oracle(eid, pids, log, 1, new Set(), rnd, true);
-    expect(ended.idx).toBe(29); expect(ended.pids).toEqual([want.pid!]);
-    // and a game that has not started has no winner even when "over"
-    expect(unluckyOf(cfg, eid, pids, [], rnd, true)).toBeUndefined();
-  });
-  test("it never delays the end: once every other prize is awarded, Unlucky is decided at that call, long before any Full House", () => {
-    const eid = "UNL-4", pids = mkPids(60), log = shuffle("unl4"), rnd = rands("u4"), cfg = cfgWith(1, ["early5", "unlucky"]);
-    const r = settleAll(eid, pids, log, cfg, 1, undefined, { randomness: rnd });
-    const e5 = r.find((x) => x.pattern === "early5")!, un = r.find((x) => x.pattern === "unlucky")!;
-    expect(un.idx).toBe(e5.idx); expect(un.idx).toBeLessThan(oracle(eid, pids, log, 1, new Set(), rnd, false).at);
-    const e = new PrizeEngine(eid, cfg); e.addSeats(pids.map((pid) => ({ pid, countFrom: 0 }))); e.work(10_000);
-    log.forEach((n, k) => e.feed(n, k + 1, rnd[k]!));
-    expect(norm(e.results())).toEqual(norm(r));
-  });
-  test("a tie is settled fairly by the public randomness of that round: the same on every phone, different randomness can pick another ticket", () => {
-    const eid = "UNL-5", pids = mkPids(50), cfg = cfgWith(1, ["unlucky"]);
-    const log = shuffle("unl5").slice(0, 3); // after 3 numbers almost everybody has 0 marked: a big tie
-    const pick = (seed: string) => unluckyOf(cfg, eid, pids, log, rands(seed), true)!.pids[0]!;
-    expect(pick("same")).toBe(pick("same"));
-    const picks = new Set(Array.from({ length: 12 }, (_, i) => pick("tie" + i)));
-    expect(picks.size).toBeGreaterThan(2); // the randomness really decides among the tied tickets
-    // it is the lowest hash among those tied on the fewest marked
-    const rnd = rands("tieX"), w = unluckyOf(cfg, eid, pids, log, rnd, true)!, want = oracle(eid, pids, log, 1, new Set(), rnd, true);
-    expect(w.pids[0]).toBe(want.pid!);
-    // unluckyPick itself: fewest first, then lowest hash, never a duplicate seat
-    expect(unluckyPick("e", "r", [{ pid: "a", marked: 3 }, { pid: "b", marked: 2 }, { pid: "c", marked: 2 }]) === "a").toBe(false);
-    expect(unluckyPick("e", "r", [])).toBeNull();
-  });
-  test("flagged (Organizer/Host/Co-host) and removed/blocked seats can never win it, even with the fewest marked", () => {
-    const eid = "UNL-6", pids = mkPids(40), log = shuffle("unl6").slice(0, 25), rnd = rands("u6"), cfg = cfgWith(1, ["unlucky"]);
-    const base = unluckyOf(cfg, eid, pids, log, rnd, true)!.pids[0]!;
-    const next = unluckyOf(cfg, eid, pids, log, rnd, true, new Set([base]))!.pids[0]!;
-    expect(next).not.toBe(base);
-    expect(next).toBe(oracle(eid, pids, log, 1, new Set([base]), rnd, true).pid!);
-    const e = new PrizeEngine(eid, cfg); e.addSeats(pids.map((pid) => ({ pid, countFrom: 0 }))); e.work(10_000); log.forEach((n, k) => e.feed(n, k + 1, rnd[k]!)); e.setOver(true);
-    expect(e.results()[0]!.pids).toEqual([base]);
-    e.setOut(base, true); expect(e.results()[0]!.pids).toEqual([next]); // a seat removed later takes effect on the next look
-    e.setOut(base, false); expect(e.results()[0]!.pids).toEqual([base]);
-    const e2 = new PrizeEngine(eid, cfg); e2.addSeats(pids.map((pid) => ({ pid, countFrom: 0, ...(pid === base ? { ex: true } : {}) }))); e2.work(10_000); log.forEach((n, k) => e2.feed(n, k + 1, rnd[k]!)); e2.setOver(true);
-    expect(e2.results()[0]!.pids).toEqual([next]);
-  });
-  test("a late joiner counts only the numbers since they joined, and a seat that joined after that moment is not a candidate", () => {
-    const eid = "UNL-7", pids = mkPids(20), log = shuffle("unl7").slice(0, 30), rnd = rands("u7"), start = 900, callRounds = log.map((_, k) => start + k * 3), cfg = cfgWith(1, ["unlucky"]);
-    const lateIn = pids[19]!, tooLate = pids[18]!;
-    const cf = new Map<string, number>([[lateIn, countFromOf(start + 3 * 10)], [tooLate, countFromOf(start + 3 * 60)]]); // tooLate's numbers would start after call 29
-    const late = { countFrom: cf, callRounds };
-    const r = settleAll(eid, pids, log, cfg, 1, late, { randomness: rnd, over: true }).find((x) => x.pattern === "unlucky")!;
-    expect(r.pids[0]).not.toBe(tooLate);
-    const e = new PrizeEngine(eid, cfg); e.addSeats(pids.map((pid) => ({ pid, countFrom: cf.get(pid) ?? 0 }))); e.work(10_000); log.forEach((n, k) => e.feed(n, callRounds[k]!, rnd[k]!)); e.setOver(true);
-    expect(norm(e.results())).toEqual(norm([r]));
-    // joined in time, a seat that has lost numbers to the lag has fewer marked and so is the unluckiest
-    const lateOnly = new Map<string, number>([[lateIn, countFromOf(start + 3 * 15)]]);
-    const r2 = settleAll(eid, pids, log, cfg, 1, { countFrom: lateOnly, callRounds }, { randomness: rnd, over: true }).find((x) => x.pattern === "unlucky")!;
-    expect(r2.pids[0]).toBe(lateIn);
-  });
-  test("two tickets: a person counts with the ticket that has fewer marked", () => {
-    const eid = "UNL-8", pids = mkPids(25), log = shuffle("unl8").slice(0, 40), rnd = rands("u8"), cfg = cfgWith(2, ["unlucky"]);
-    const w = unluckyOf(cfg, eid, pids, log, rnd, true)!, want = oracle(eid, pids, log, 2, new Set(), rnd, true);
-    expect(w.pids[0]).toBe(want.pid!); expect(w.idx).toBe(want.at);
-  });
-  test("unluckyAt: the earliest of the first Full House, the call every other prize was awarded, and the end", () => {
-    expect(unluckyAt(50, -1, 60, false)).toBe(50); expect(unluckyAt(50, 30, 60, false)).toBe(30); expect(unluckyAt(-1, -1, 60, false)).toBe(-1);
-    expect(unluckyAt(-1, -1, 60, true)).toBe(59); expect(unluckyAt(70, -1, 90, true)).toBe(70); expect(unluckyAt(-1, -1, 0, true)).toBe(-1);
-  });
-});
-
-describe("the most winners per house", () => {
-  const rw = (pattern: string, n: number, scope = "ticket") => Array.from({ length: n }, (_, i) => ({ pattern, scope, ordinal: i + 1, text: "" }));
+describe("the most winners per house, and the settings that carry them", () => {
   test("every house accepts exactly its maximum and refuses one more with a calm message", () => {
     for (const h of PRIZE_HOUSES) {
-      const scope = h.id === "full2" ? "two_ticket" : "ticket", pattern = h.id === "full2" ? "full" : h.id, tickets = h.id === "full2" ? 2 : 1;
-      expect(validateCfg({ tickets, rewards: rw(pattern, h.max, scope) }).ok).toBe(true);
-      const over = validateCfg({ tickets, rewards: rw(pattern, h.max + 1, scope) });
-      expect(over.ok).toBe(false);
-      if (!over.ok) { expect(over.error).toContain(h.label); expect(over.error).toMatch(h.max === 1 ? /only 1 winner/ : new RegExp(`at most ${h.max} winners`)); expect(over.error).not.toMatch(/undefined|NaN|\[object/); }
+      const ok = validateCfg({ rewards: Array.from({ length: h.max }, (_, i) => ({ pattern: h.id, ordinal: i + 1, text: "" })) });
+      expect(ok.ok).toBe(true);
+      const bad = validateCfg({ rewards: Array.from({ length: h.max + 1 }, (_, i) => ({ pattern: h.id, ordinal: i + 1, text: "" })) });
+      expect(bad.ok).toBe(false); if (!bad.ok) expect(bad.error).toContain("at most");
     }
   });
-  test("the agreed numbers: Unlucky 1, Early Five 1, Early Seven 1, Top/Middle/Bottom 2, Four Corners 1, Star 1, Full House 10, and 1 for each of the ten others", () => {
-    const m = (id: string) => maxWinnersFor(id);
-    expect([m("unlucky"), m("early5"), m("early7"), m("top"), m("mid"), m("bot"), m("corners"), m("star"), m("full")]).toEqual([1, 1, 1, 2, 2, 2, 1, 1, 10]);
-    for (const id of ["early10", "twolines", "plus", "frame", "topbottom", "midcorners", "odd5", "even5", "low5", "high5"]) expect(m(id)).toBe(1);
-    expect(validateCfg({ rewards: rw("full", 10) }).ok).toBe(true); expect(validateCfg({ rewards: rw("full", 11) }).ok).toBe(false);
-    expect(validateCfg({ rewards: rw("top", 3) }).ok).toBe(false); expect(validateCfg({ rewards: rw("unlucky", 2) }).ok).toBe(false);
+  test("every house together at its maximum fits in the reward limit; unknown houses and a repeated line are refused", () => {
+    expect(validateCfg({ rewards: everyHouse() }).ok).toBe(true);
+    expect(validateCfg({ rewards: [{ pattern: "early5", ordinal: 1 }] }).ok).toBe(false);
+    expect(validateCfg({ rewards: [{ pattern: "full", ordinal: 1 }] }).ok).toBe(false);
+    expect(validateCfg({ rewards: [{ pattern: "line", ordinal: 1 }, { pattern: "line", ordinal: 1 }] }).ok).toBe(false);
+    expect(validateCfg({ rewards: [{ pattern: "line", ordinal: 2 }] }).ok).toBe(false); // a 2nd needs a 1st
+    expect(linesFor(everyHouse(), "line").map((l) => l.ordinal)).toEqual([1, 2, 3]);
   });
-  test("every house together at its maximum fits in the reward limit; unknown houses and a repeated line are still refused", () => {
-    const all = PRIZE_HOUSES.flatMap((h) => h.id === "full2" ? rw("full", h.max, "two_ticket") : rw(h.id, h.max));
-    expect(all.length).toBeLessThanOrEqual(MAX_REWARD_LINES);
-    expect(validateCfg({ tickets: 2, rewards: all }).ok).toBe(true);
-    expect(validateCfg({ rewards: [{ pattern: "fivecorners", ordinal: 1 }] }).ok).toBe(false);
-    expect(validateCfg({ rewards: [{ pattern: "full2", ordinal: 1 }] }).ok).toBe(false);
-    expect(validateCfg({ rewards: [{ pattern: "plus", ordinal: 1 }, { pattern: "plus", ordinal: 1 }] }).ok).toBe(false);
-    expect(validateCfg({ rewards: [{ pattern: "plus", ordinal: 2 }] }).ok).toBe(false);
+  test("marking: auto is the default, tap is cosmetic and is kept; anything else is refused", () => {
+    expect(defaultCfg().mark).toBeUndefined();
+    const t = validateCfg({ mark: "tap" }); expect(t.ok && t.cfg.mark).toBe("tap");
+    const a = validateCfg({ mark: "auto" }, t.ok ? t.cfg : undefined); expect(a.ok && a.cfg.mark).toBeUndefined();
+    expect(validateCfg({ mark: "sometimes" }).ok).toBe(false);
   });
-  test("games saved before the limits keep working: up to 5 winners of any house load from storage, and an unchanged saved line is accepted when it is sent again", () => {
-    const old = [...rw("top", 4), ...rw("corners", 3), ...rw("full", 5)];
-    expect(validateCfg({ rewards: old }).ok).toBe(false); // new input follows today's limits
-    const stored = validateCfg({ rewards: old }, undefined, { stored: true });
-    expect(stored.ok).toBe(true);
-    expect(validateCfg({ rewards: rw("top", 6) }, undefined, { stored: true }).ok).toBe(false); // but not beyond what any game ever had
-    if (stored.ok) {
-      expect(validateCfg({ rewards: old }, stored.cfg).ok).toBe(true); // the console sends the saved list back: still fine
-      expect(validateCfg({ rewards: [...old, { pattern: "top", ordinal: 5, text: "" }] }, stored.cfg).ok).toBe(false); // adding a new over-limit line is not
-    }
-    expect(LEGACY_MAX_ORDINAL).toBe(5);
+  test("a random card from the plain generator behaves like a keyed one", () => {
+    const rand = seededRand("plain"); const c = generateTicket(rand);
+    for (const pat of ALL) expect(ticketCompletion(c, pat, shuffle75("plain"))).toBe(refCompletion(c, pat, shuffle75("plain")));
   });
 });
