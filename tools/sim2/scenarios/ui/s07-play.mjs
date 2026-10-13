@@ -2,7 +2,7 @@
 import { H, openConsole, openStep, guestText, nextPhone, guestJoinUi, joinApi } from "./kit.mjs";
 
 const { invariants: inv } = H;
-const ALL_RW = ["corners", "line", "x", "frame", "corners", "plus", "blackout"].map((p) => ({ pattern: p, scope: "ticket", ordinal: 1, text: "" }));
+const ALL_RW = ["line", "corners", "x", "frame", "plus", "blackout"].map((p) => ({ pattern: p, scope: "ticket", ordinal: 1, text: "" }));
 
 /** a paid game starting in `lead` ms with all seven classic houses */
 async function playGame(t, org, { lead = 8 * H.MIN, cfg = {}, settings = { whoCanJoin: "anyone" } } = {}) {

@@ -245,7 +245,7 @@ export default [
       const s = (await org.summary(g.id)).body;
       t.check("before the erasure the game is HELD (payment pending), not yet closed: it can still be paid", /not paid|held|pending/i.test(s.status ?? "") && !/did not start/i.test(s.status ?? ""), s.status);
       const gu = await t.open({ device: "mobile" }); await gu.page.goto(`${H.SIM}/z?e=${g.id}`); await gu.page.waitForTimeout(2500);
-      t.check("a new visitor before the erasure can still open the page (waiting wording or the join form for the waiting room)", /Waiting for the Organizer or Host|did not start|Get my ticket/i.test(await guestText(gu.page)), (await guestText(gu.page)).slice(0, 200));
+      t.check("a new visitor before the erasure can still open the page (waiting wording or the join form for the waiting room)", /Waiting for the Organizer or Host|did not start|Get my ticket|Join the game/i.test(await guestText(gu.page)), (await guestText(gu.page)).slice(0, 200));
       // the heads-up e-mail about 6 hours before the erasure, then the erasure itself
       await H.clock.advanceWithTicks(21 * H.HOUR, 10 * H.MIN);
       const heads = await H.mailbox.list({ to: org.email, subject: "time has passed" });
