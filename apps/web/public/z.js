@@ -44,7 +44,7 @@
   let lastJoin = null; // what the server said when a join was refused: the page decides what to show from it
   const api = async (method, path, body) => {
     const isJoin = method === "POST" && /\/join$/.test(path);
-    const sent = isJoin && TOKEN && body && typeof body === "object" && !body.token ? Object.assign({}, body, { token: TOKEN }) : body;
+    const sent = isJoin && body && typeof body === "object" ? Object.assign({}, body, TOKEN && !body.token ? { token: TOKEN } : {}, J.consent ? { consent: J.consent } : {}) : body; // the join carries the ticked K4 boxes; the server refuses it without them
     try {
       const r = await rawApi(method, path, sent);
       if (isJoin) { lastJoin = null; noteInfo(r, true); } else if (method === "GET" && /\/info$/.test(path)) noteInfo(r);
@@ -73,7 +73,7 @@
   const paintBrand = () => document.querySelectorAll(".zbrand").forEach((el) => { el.style.background = el.dataset.bg; el.style.color = el.dataset.fg; }); // set from the script, so a strict style policy never blocks the colour
 
   // ---------- joining: a personal link needs no number; a number may be asked for; a request may have to wait to be let in; a person may have been removed ----------
-  const J = { mode: "", phone: "", name: "", wid: "", who: "", timer: null, polling: false, note: "" };
+  const J = { k4: {}, consent: null, mode: "", phone: "", name: "", wid: "", who: "", timer: null, polling: false, note: "" };
   const inviteOf = () => (INVITE_FROM ? { from: INVITE_FROM, cat: INVITE_CAT } : undefined);
   const joinView = (msg) => {
     if (J.mode === "removed") return `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard" role="status"><h2>You are not on this game's list</h2><p class="zsmall" style="margin:0">You were removed from this game, so there is no card for you here. If you think this is a mistake, please ask the person who invited you.</p></div>`;
@@ -85,11 +85,12 @@
     return `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div>
     <div class="zcard zform"><h2>Join the game</h2>${INVITE_FROM ? `<div class="zbanner ok" style="margin:0 0 8px">A colleague invited you. Join with your name to get your own card.</div>` : ""}
     ${J.mode === "needPhone" ? `<div class="zbanner info" role="status" style="margin:0 0 8px">${J.note ? esc(J.note) : "This link was already opened on another phone. Please type your mobile number to get your card."}</div>` : ""}
+    ${DEMO ? "" : CBConsent.html("K4")}
     ${personal ? `<p class="zsmall" style="margin:0 0 6px">Your personal link is ready. Press the button to get your card.</p>` : ""}
     ${personal ? "" : `<label for="nm">Your name</label><input id="nm" autocomplete="name" maxlength="60" value="${esc(J.name)}">`}
     ${personal || !needPhone ? "" : `<label for="ph">Your mobile number</label><input id="ph" inputmode="tel" autocomplete="tel" placeholder="+1 555 010 0100" value="${esc(J.phone)}">`}
     ${msg ? `<div class="zbanner bad" role="alert">${esc(msg)}</div>` : ""}
-    <button class="zbtn" id="go">Get my card</button>
+    <button class="zbtn" id="go" ${DEMO ? "" : 'data-needs="K4" disabled aria-disabled="true"'}>Get my card</button>
     <p class="zsmall">We use your name for your card and, if you win, to hand over your prize. Your organizer sees it. Other players do not.</p>
     <p class="spriv">Players are 18 or older. Playing is free: you never pay, and no prize money is held or paid by us.</p>
     <p class="spriv"><a href="/legal.html#privacy" target="_blank" rel="noopener">Privacy Policy</a></p></div>`;
@@ -443,7 +444,7 @@
     const cp = document.getElementById("invcopy"); if (cp) cp.onclick = async () => { try { await navigator.clipboard.writeText(inviteLink(v)); cp.textContent = "Copied"; } catch { cp.textContent = "Press and hold the link above to copy"; } };
   }
   // ---------- My invites: for a guest who may invite (level 1) only. Their own small list: add, send on WhatsApp, resend, remove. A guest invited by a guest sees nothing. ----------
-  const MI = { people: [], limit: 0, used: 0, loaded: false, at: -Infinity, busy: false, note: "", bad: false, ask: "", name: "", phone: "" };
+  const MI = { k6: {}, people: [], limit: 0, used: 0, loaded: false, at: -Infinity, busy: false, note: "", bad: false, ask: "", name: "", phone: "" };
   const miQ = (v) => `?me=${encodeURIComponent(v.pid)}`;
   async function loadMine(v, force) {
     if (DEMO || !ME.canInvite || !v.pid || MI.busy) return;
@@ -469,7 +470,7 @@
         ${!gone && !started ? (MI.ask === p.id ? `<button class="zbtn s" type="button" data-miyes="${esc(p.id)}">Yes, remove</button><button class="zbtn s alt" type="button" data-mino="1">No</button>` : `<button class="zbtn s alt" type="button" data-mirm="${esc(p.id)}">Remove</button>`) : ""}</span></div>`;
     }).join("");
     return `<div class="zcard zinvite" id="mine"><h2>My invites</h2><p class="zsmall" style="margin:0 0 8px">${counter}</p>${rows}
-      ${MI.loaded && !left && MI.limit ? "" : `<div class="zform"><label for="mi-name">Name</label><input id="mi-name" autocomplete="off" maxlength="60" value="${esc(MI.name)}"><label for="mi-phone">Mobile number</label><input id="mi-phone" inputmode="tel" autocomplete="off" value="${esc(MI.phone)}" placeholder="98765 43210"><button class="zbtn s" id="mi-add" type="button"${MI.busy ? " disabled" : ""}>Add to my invites</button></div>`}
+      ${MI.loaded && !left && MI.limit ? "" : `<div class="zform"><label for="mi-name">Name</label><input id="mi-name" autocomplete="off" maxlength="60" value="${esc(MI.name)}"><label for="mi-phone">Mobile number</label><input id="mi-phone" inputmode="tel" autocomplete="off" value="${esc(MI.phone)}" placeholder="98765 43210">${CBConsent.html("K6")}<button class="zbtn s" id="mi-add" type="button" data-needs="K6" disabled aria-disabled="true"${MI.busy ? ' data-hold="1"' : ""}>Add to my invites</button></div>`}
       ${MI.note ? `<div class="zbanner ${MI.bad ? "bad" : "ok"}" role="status" style="margin-top:8px">${esc(MI.note)}</div>` : ""}</div>`;
   }
   function bindMine(v) {
@@ -482,12 +483,15 @@
       try { await fn(); MI.note = okNote || ""; } catch (e) { MI.bad = true; MI.note = (e && e.status !== 0 && e.message && !/^http \d+$|^offline$/.test(e.message) ? e.message : "Could not do that. Please try again."); }
       MI.busy = false; await loadMine(v, true); paint();
     };
+    if (add) CBConsent.wire(document, "K6", MI.k6); // the person who adds a name and number ticks that they may use them
     if (add) add.onclick = () => {
       const name = (nm.value || "").trim(), phone = (ph.value || "").trim();
+      if (!CBConsent.all(document, "K6")) { MI.bad = true; MI.note = "Please tick the box to continue."; return paint(); }
+      const consent = CBConsent.payload(document, "K6");
       if (name.length < 2) { MI.bad = true; MI.note = "Please type their name."; return paint(); }
       if (phone.replace(/\D/g, "").length < 10) { MI.bad = true; MI.note = "Please type their mobile number."; return paint(); }
       act(async () => {
-        const r = await api("POST", `/api/z/${EID}/people${miQ(v)}`, { people: [{ name, phone }], me: v.pid });
+        const r = await api("POST", `/api/z/${EID}/people${miQ(v)}`, { people: [{ name, phone }], me: v.pid, consent });
         if (r.invalid && r.invalid.length) throw new Error("That number does not look right. Please check it.");
         if (r.duplicates) throw new Error("That number is already invited.");
         MI.name = ""; MI.phone = "";
@@ -638,7 +642,10 @@
   function bindJoin() {
     const again = document.getElementById("again"); if (again) again.onclick = () => { J.mode = ""; J.wid = ""; clearWait(); paint(); };
     const go = document.getElementById("go"); if (!go) return;
+    if (!DEMO) CBConsent.wire(document, "K4", J.k4); // never ticked in advance; the button stays off until both boxes are ticked
     go.onclick = async () => {
+      if (!DEMO && !CBConsent.all(document, "K4")) return;
+      J.consent = DEMO ? null : CBConsent.payload(document, "K4");
       go.disabled = true;
       if (window.TBAudio) TBAudio.unlock();
       const ph = document.getElementById("ph"), nm = document.getElementById("nm");

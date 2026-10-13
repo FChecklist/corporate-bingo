@@ -1,7 +1,8 @@
 // Joining with a name only (the default for the common link): a guest is known by their name, their phone by its own random id.
 // A mobile number is only asked for when the organizer switches that on (join: "phone"), and a personal link or a typed number still work as before.
 import { beforeEach, describe, expect, test } from "bun:test";
-import { handle, type Env } from "../src/worker";
+import { type Env } from "../src/worker";
+import { handle } from "./with-terms";
 import { openPii } from "../src/pii";
 import { makeD1 } from "./d1-sqlite";
 
