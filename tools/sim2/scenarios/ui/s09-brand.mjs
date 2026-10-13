@@ -12,7 +12,7 @@ export default [
       const p = await t.open({ device: "mobile" }); await p.page.goto(`${H.SIM}/z?e=${g.id}`); await p.page.waitForTimeout(1800);
       const strip = await p.page.evaluate(() => { const s = document.querySelector(".zbrand"); return s ? s.innerText.trim() : ""; });
       t.check("the guest ticket page carries a strip that says CORPORATE BINGO", /CORPORATE BINGO/.test(strip), strip);
-      const pv = await t.open({ device: "mobile", token: org.token }); await pv.page.goto(`${H.SIM}/preview.html#w=ticket&e=${g.id}`); await pv.page.waitForTimeout(1800);
+      const pv = await t.open({ device: "mobile", token: org.token }); await pv.page.goto(`${H.SIM}/preview.html#w=card&e=${g.id}`); await pv.page.waitForTimeout(1800);
       t.check("the preview shows the same default strip", /CORPORATE BINGO/.test(await t.text(pv.page)));
       const b = await t.open({ device: "laptop" }); await b.page.goto(`${H.SIM}/big.html?e=${g.id}`); await b.page.waitForTimeout(2000);
       t.check("the big screen says Corporate Bingo and shows no logo", /Corporate Bingo/i.test(await t.text(b.page)) && !(await logoBox(b.page)));

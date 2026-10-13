@@ -1,7 +1,7 @@
 // Group 4: guests and people. Personal links through the WhatsApp simulator, common link, "Who can join" (list / anyone), waiting room (admit, decline, Approve all, who approved),
 // removing people before and during the game, a forwarded personal link, guests who invite (level 1 / level 2), limits and first-wins.
-import { H, openConsole, openStep, openPeople, clickWa, waSend, guestJoinUi, guestText, joinApi, nextPhone, nextIp } from "./kit.mjs";
-const startButton = async (page) => { await page.waitForSelector("#go", { timeout: 10000 }).catch(() => {}); const b = await page.$("#go"); if (b) { await b.click(); await page.waitForTimeout(3000); } };
+import { H, openConsole, openStep, openPeople, clickWa, waSend, guestJoinUi, guestText, joinApi, nextPhone, nextIp, joinForm, joinFromLink } from "./kit.mjs";
+const startButton = (page) => joinFromLink(page);
 
 const INV = { on: true, per: 2, cats: ["family", "colleagues"] };
 /** a paid, published game with a list policy */
@@ -62,7 +62,7 @@ export default [
     },
   },
   {
-    id: "S04-03", name: "Common link, number on the list: recognised and placed under the real inviter even through another inviter's link (first wins)",
+    id: "S04-03", name: "Same number on two lists: the first list wins; a nickname-only visitor on the common link of a list game is not given a seat, and nobody is placed under the wrong person",
     async run(t) {
       const org = await t.org("o"); const g = await listGame(t, org);
       const hostMail = t.mail("h"); const host = await org.inviteHost({ label: "Hema", email: hostMail, mobile: nextPhone() });
@@ -73,8 +73,10 @@ export default [
       t.check("the same number on a second list says 'already invited' (first wins)", dup.ok && (dup.body.duplicates ?? 0) >= 1 && (dup.body.added ?? 0) === 0, JSON.stringify(dup.body).slice(0, 200));
       const x = await t.open({ device: "mobile" });
       await guestJoinUi(x.page, g.id, phone, "Indu"); await x.page.waitForTimeout(3000);
-      t.check("Indu got in straight away with the common link", /YOU ARE IN|Starting in/i.test(await guestText(x.page)), (await guestText(x.page)).slice(0, 140));
-      t.check("nobody is waiting", (await waitingOf(org, g.id)).length === 0);
+      const txt = await guestText(x.page);
+      t.check("this game asks for a nickname only, so a nickname on the common link of a list game waits for the Organizer (no seat is given)", /by invitation|organizer|wait/i.test(txt) && !/You are in/i.test(txt), txt.slice(0, 200));
+      t.check("exactly one request is waiting for the Organizer", (await waitingOf(org, g.id)).length === 1, JSON.stringify(await waitingOf(org, g.id)).slice(0, 120));
+      t.check("the listed person has no seat yet", ((await org.participants(g.id)).body.total ?? 0) === 0);
       await t.shot(x.page, "common-link-listed");
     },
   },
@@ -88,7 +90,7 @@ export default [
       t.check("stranger sees a waiting message, not a ticket", /waiting|request|approve|let you in/i.test(txt) && !/YOU ARE IN/i.test(txt), txt.slice(0, 260));
       await t.shot(x.page, "guest-waiting");
       const w = await waitingOf(org, g.id);
-      t.check("one request in the waiting list showing first name + last 4 digits only (no phone, no surname)", w.length === 1 && w[0].firstName === "Zed" && /^\d{4}$/.test(w[0].last4) && !("phone" in w[0]) && !("name" in w[0]) && !/Zebra/.test(JSON.stringify(w[0])), JSON.stringify(w[0]).slice(0, 160));
+      t.check("one request in the waiting list showing the first name only (no number is asked: no phone, no surname)", w.length === 1 && w[0].firstName === "Zed" && !("phone" in w[0]) && !("name" in w[0]) && !/Zebra/.test(JSON.stringify(w[0])), JSON.stringify(w[0]).slice(0, 160));
       const c = await openConsole(t, org, g.id, { device: "laptop" }); await openPeople(c.page);
       const ctxt = await t.text(c.page, "#sec6");
       t.check("console shows 'Waiting to come in' with the person", /Waiting to come in/i.test(ctxt) && /Zed/.test(ctxt), ctxt.slice(0, 200));
@@ -109,7 +111,7 @@ export default [
       const org = await t.org("o"); const g = await listGame(t, org, { who: "anyone" });
       const x = await t.open({ device: "mobile" });
       await x.page.goto(`${H.SIM}/z?e=${g.id}`); await x.page.waitForSelector("#ph");
-      await x.page.fill("#ph", "123"); await x.page.fill("#nm", ""); await x.page.click("#go"); await x.page.waitForTimeout(800);
+      await joinForm(x.page, "123", ""); await x.page.waitForTimeout(800);
       t.check("a bad number gives a message and no ticket", !/YOU ARE IN/i.test(await guestText(x.page)) && /number|valid|mobile/i.test(await guestText(x.page)), (await guestText(x.page)).slice(0, 200));
       await guestJoinUi(x.page, g.id, nextPhone(), "Open Olga"); await x.page.waitForTimeout(3000);
       t.check("a stranger joins at once in 'anyone' mode", /YOU ARE IN|Starting in/i.test(await guestText(x.page)), (await guestText(x.page)).slice(0, 140));
