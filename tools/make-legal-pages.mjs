@@ -15,6 +15,7 @@ const META = {
   "legal.html": ["Rules, privacy and disclaimer", "The rules of a Corporate Bingo game, how guest names are erased within 24 hours, and the disclaimer. Plain English."],
   "legal-position.html": ["Legal position", "The legal position on which Corporate Bingo is supplied: software only, no stake from players, closed groups, data erased within 24 hours."],
   "refund-policy.html": ["Refund policy", "Cancellation, rescheduling and refund policy for Corporate Bingo: you pay per game, there is no refund after payment, and a paid game can be moved to any date within 365 days."],
+  "privacy.html": ["Privacy Policy and notice", "What Corporate Bingo keeps, why, for how long and who sees it. A stand-alone notice in plain English, with your rights and the Grievance Officer."],
   "terms.html": ["Terms", "The short, plain-English terms for organizers who run a Corporate Bingo game for their company or team."],
   "dpa.html": ["Data processing terms", "Data processing terms for organizers: what we do with your players' details, on one page."],
   "subprocessors.html": ["Sub-processors", "The providers that help us run Corporate Bingo, and what each one receives."],
@@ -30,7 +31,7 @@ export function withSeo(html, file) {
     `<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${attr(title)}"><meta name="twitter:description" content="${attr(d)}"><meta name="twitter:image" content="${SITE}/img/card.png">`].join(nl);
   return strip.replace(/(<title>[^<]*<\/title>)\r?\n?/, (m, a) => a + nl + tags + nl);
 }
-const FOOTNAV = '<nav class="fl" aria-label="Legal"><a href="/legal.html#rules">Rules</a><a href="/legal.html#privacy">Privacy</a><a href="/legal.html#disclaimer">Disclaimer</a><a href="/about.html">About</a><a href="/pricing.html">Pricing</a><a href="/contact.html">Contact</a><a href="/terms.html">Terms</a><a href="/legal-position.html">Legal position</a><a href="/refund-policy.html">Refund policy</a><a href="/dpa.html">Data processing</a><a href="/subprocessors.html">Sub-processors</a><a href="/organizer-guide.html">Organizer guide</a><a href="/partner-terms.html">Partner terms</a><a href="/partner.html">Refer &amp; earn</a><a href="/demo.html">Demo</a><a href="/brochure.pdf">Brochure</a><a href="/">Home</a></nav>';
+const FOOTNAV = '<nav class="fl" aria-label="Legal"><a href="/legal.html#rules">Rules</a><a href="/privacy.html">Privacy</a><a href="/legal.html#disclaimer">Disclaimer</a><a href="/about.html">About</a><a href="/pricing.html">Pricing</a><a href="/contact.html">Contact</a><a href="/terms.html">Terms</a><a href="/legal-position.html">Legal position</a><a href="/refund-policy.html">Refund policy</a><a href="/dpa.html">Data processing</a><a href="/subprocessors.html">Sub-processors</a><a href="/organizer-guide.html">Organizer guide</a><a href="/partner-terms.html">Partner terms</a><a href="/partner.html">Refer &amp; earn</a><a href="/demo.html">Demo</a><a href="/brochure.pdf">Brochure</a><a href="/">Home</a></nav>';
 const newFoot = foot.replace(/<nav class="fl"[\s\S]*?<\/nav>/, FOOTNAV);
 export const footNav = FOOTNAV;
 const e = (s) => s.replace(/&(?!rsquo;|amp;)/g, "&amp;");
@@ -38,6 +39,7 @@ const e = (s) => s.replace(/&(?!rsquo;|amp;)/g, "&amp;");
 const frag = (f) => readFileSync(new URL("legal/" + f, import.meta.url), "utf8").replace(/\r\n/g, "\n").replace(/\{\{TERMS_VERSION\}\}/g, TERMS_VERSION);
 const PAGES = {
   "legal-position.html": { title: "Legal position", frag: "legal-position.frag.html" },
+  "privacy.html": { title: "Privacy Policy and notice", frag: "privacy.frag.html" },
   "refund-policy.html": { title: "Cancellation, rescheduling and refund policy", frag: "refund-policy.frag.html" },
   "terms.html": { title: "Terms", frag: "terms.frag.html", h1: "Terms", lead: `Version ${TERMS_VERSION}.`, sections: [
     ["organizer", "For organizers", [
@@ -65,8 +67,7 @@ const PAGES = {
       "Unused places are not credited once the game has started.",
     ]],
     ["players", "For players", [
-      "Players are 18 or older.",
-      "A child may only watch, on a parent&rsquo;s or guardian&rsquo;s own card and phone, with that adult&rsquo;s permission.",
+      "Players are 18 or older. This game is for adults only.",
       "Playing is free and voluntary. One card per phone.",
       "The software decides every winner. Results are final.",
     ]],
@@ -80,7 +81,7 @@ const PAGES = {
       "A Host&rsquo;s personal link works once, for 7 days. After the Host confirms an e-mail and adds a mobile number, the Host signs in with an e-mail code or Google.",
     ]],
     ["data", "Data", [
-      "Your use of Corporate Bingo is also covered by the <a href=\"/legal.html#privacy\">Privacy &amp; Data Policy</a>.",
+      "Your use of Corporate Bingo is also covered by the <a href=\"/privacy.html\">Privacy Policy</a>.",
       "For the details you enter about your players, you are in charge and we are your processor. See the <a href=\"/dpa.html\">Data processing terms</a>.",
     ]],
     ["changes", "Changes and contact", [
@@ -90,9 +91,9 @@ const PAGES = {
   ] },
   "dpa.html": { title: "Data processing terms", h1: "Data processing terms", lead: "For organizers. One page.", sections: [
     ["roles", "Roles", ["You are in charge of the players&rsquo; details (the controller, or business, or data fiduciary in India). We process them for you (the processor).", "We act only on your instructions: run your game and send you the report."]],
-    ["data", "What we process", ["Names of players, mobile numbers only if you choose to ask for them, and, if you switch invitations on, who invited whom and what kind of guest.", "Winners&rsquo; prize hand-over details, which winners confirm on their own phone."]],
+    ["data", "What we process", ["Names of players, mobile numbers only if you choose to ask for them, and, if you switch invitations on, who invited whom and what kind of guest.", "Winners&rsquo; prize hand-over details (name, and a mobile number if the winner gives one), which winners confirm on their own phone."]],
     ["security", "Security", ["Names and numbers are sealed (AES-256) in our database and are also encrypted in transit and at rest.", "Players never see each other&rsquo;s data.", "Access to your game is limited to you, your co-hosts and your AI assistant, as you choose."]],
-    ["delete", "Deletion", ["All player data is deleted within 24 hours after the game ends.", "A game that did not start (nobody paid) is treated the same way: its player data is deleted 23 hours after it was meant to end.", "Its people lists, waiting requests and personal links go too. Its settings stay for 30 days so you can reuse them.", "Winners&rsquo; prize details and the winners record stay 365 days, then are deleted automatically.", "At the end of day 365 everything else about the game is deleted.", "Only these stay, as tax and accounting need them: payment and invoice records, the organizer&rsquo;s details on the invoice (name, e-mail, mobile), and who paid.","You can delete a game&rsquo;s player data any time from your console."]],
+    ["delete", "Deletion", ["All player data is deleted within 24 hours after the game ends.", "A game that did not start (nobody paid) is treated the same way: its player data is deleted 23 hours after it was meant to end.", "Its people lists, waiting requests and personal links go too. Its settings stay for 30 days so you can reuse them.", "Winners&rsquo; prize details and the winners record stay 365 days, then are deleted automatically.", "At the end of day 365 everything else about the game is deleted.", "We keep billing data for audit and tax reasons.","You can delete a game&rsquo;s player data any time from your console."]],
     ["help", "Helping you", ["We help you answer a player&rsquo;s request to see or delete their data. Use your console, or write to us.", "If we learn of a breach that affects your game, we tell you without undue delay."]],
     ["subs", "Sub-processors", ["We use the <a href=\"/subprocessors.html\">sub-processors</a> on our list. Changes are shown there.", "Data may be processed in other countries by these providers, under their own safeguards."]],
     ["end", "When it ends", ["When your account or the game ends, the deletion rules above apply.", "On request we give you the information that shows we follow these terms."]],
@@ -102,6 +103,8 @@ const PAGES = {
     ["Resend", "Sending e-mail to organizers", "United States, as published by Resend."],
     ["Google", "Optional &ldquo;Continue with Google&rdquo; sign-in for organizers and Hosts (only if you press the button)", "United States, as published by Google."],
     ["Razorpay", "Organizer payments (never players)", "India, as published by Razorpay."],
+    ["The IT Services payment service (itservices-rajat-agarwal.pages.dev)", "Records each payment for the organizer&rsquo;s invoice and our accounts (never players)", "Cloudflare, as above."],
+    ["GitHub", "Runs our scheduled jobs and holds a private copy of the payment records (never players)", "United States, as published by GitHub."],
   ], sections: [
     ["notes", "Also used", [
       "drand: public random numbers. Your phone contacts it; we send it no personal data.",
