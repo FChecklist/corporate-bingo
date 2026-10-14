@@ -38,7 +38,9 @@ html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,syste
 .blogo{height:44px;width:auto;max-width:160px;object-fit:contain;background:rgba(255,255,255,.92);border-radius:6px;padding:3px}
 
 /* letter colours */
-.l0{--lc:#1D4ED8}.l1{--lc:#B91C1C}.l2{--lc:#374151}.l3{--lc:#15803D}.l4{--lc:#C2410C}
+.l0{--lc:#1565D8}.l1{--lc:#D61F3A}.l2{--lc:#7B3FE4}.l3{--lc:#0B8A4B}.l4{--lc:#C2410C}
 .now .num{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;width:1.5em;height:1.5em;border-radius:50%;background:var(--lc,#374151);color:#fff;font-size:clamp(90px,16vw,300px);text-shadow:none;box-shadow:inset 0 0 0 .05em rgba(255,255,255,.6),0 0 .3em rgba(255,201,60,.35)}
 .now .num small{font:800 .32em/1 Inter,sans-serif;letter-spacing:.08em}
 .recent span{background:var(--lc);color:#fff;border-color:transparent;min-width:3em}
+
+#cb-notify{display:none}

@@ -66,11 +66,11 @@
   const fmt = (s) => (s >= 90 ? Math.round(s / 60) + " min" : s + "s");
 
   // ---------- the company strip at the top of the card page (colour and name set by the organizer; the small picture travels inside the settings) ----------
-  const brandStrip = () => {
-    const b = INFO.brand; if (!b) return `<div class="zbrand" data-bg="#0B5D5B" data-fg="#ffffff"><b>CORPORATE BINGO</b></div>`; // no company brand set: the card carries our own name in writing
-    return `<div class="zbrand" data-bg="${esc(b.color)}" data-fg="${esc(b.fg)}">${b.logo ? `<img class="zblogo" alt="" src="${esc(b.logo)}">` : ""}${b.name ? `<b>${esc(b.name)}</b>` : ""}</div><div class="zpow">Powered by Corporate Bingo</div>`;
+  const brandStrip = (sndBtn) => {
+    const b = INFO.brand; if (!b) return `<div class="zbar"><div class="zbrand zdef" data-bg="#0B5D5B" data-fg="#ffffff"><b>CORPORATE BINGO</b></div>${sndBtn || ""}</div>`; // no company brand set: the card carries our own name in writing
+    return `<div class="zbar"><div class="zbrand" data-bg="${esc(b.color)}" data-fg="${esc(b.fg)}">${b.logo ? `<img class="zblogo" alt="" src="${esc(b.logo)}">` : ""}${b.name ? `<b>${esc(b.name)}</b>` : ""}</div>${sndBtn || ""}</div><div class="zpow">Powered by Corporate Bingo</div>`;
   };
-  const paintBrand = () => document.querySelectorAll(".zbrand").forEach((el) => { el.style.background = el.dataset.bg; el.style.color = el.dataset.fg; }); // set from the script, so a strict style policy never blocks the colour
+  const paintBrand = () => document.querySelectorAll(".zbrand").forEach((el) => { if (!el.classList.contains("zdef")) el.style.background = el.dataset.bg; el.style.color = el.dataset.fg; }); // set from the script, so a strict style policy never blocks the colour
 
   // ---------- joining: a personal link needs no number; a number may be asked for; a request may have to wait to be let in; a person may have been removed ----------
   const J = { k4: {}, consent: null, mode: "", phone: "", name: "", wid: "", who: "", timer: null, polling: false, note: "" };
@@ -83,7 +83,9 @@
     const personal = !!TOKEN && J.mode !== "needPhone"; // a personal link is made for one person: nothing to type unless the server asks
     const needPhone = J.mode === "needPhone" || INFO.joinPhone; // the organizer asked guests to give a mobile number, or the link was already opened elsewhere
     return `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div>
-    <div class="zcard zform"><h2>Join the game</h2>${INVITE_FROM ? `<div class="zbanner ok" style="margin:0 0 8px">A colleague invited you. Join with your name to get your own card.</div>` : ""}
+    <div class="zcard zform zjoin"><h2>Join the game</h2>
+    <ol class="zsteps" aria-label="How to join"><li><b>1</b><span>Tick the boxes</span></li><li><b>2</b><span>${personal ? "Press the button" : "Type your name"}</span></li><li><b>3</b><span>${personal ? "Watch your card" : "Get your card"}</span></li></ol>
+    <p class="zgoalline" style="margin:0 0 6px">A card fills up as numbers are called. Complete a pattern to win a prize. No need to shout Bingo: the software checks every card.</p>${INVITE_FROM ? `<div class="zbanner ok" style="margin:0 0 8px">A colleague invited you. Join with your name to get your own card.</div>` : ""}
     ${J.mode === "needPhone" ? `<div class="zbanner info" role="status" style="margin:0 0 8px">${J.note ? esc(J.note) : "This link was already opened on another phone. Please type your mobile number to get your card."}</div>` : ""}
     ${DEMO ? "" : CBConsent.html("K4")}
     ${personal ? `<p class="zsmall" style="margin:0 0 6px">Your personal link is ready. Press the button to get your card.</p>` : ""}
@@ -170,7 +172,7 @@
       if (v === null) return `<div class="m free" role="img" aria-label="FREE square, already marked">${freeHtml()}</div>`;
       const isCalled = called.has(v), marked = isCalled && (!tap || dset.has(v)), w = win && win.has(v) && isCalled ? " w" : "";
       if (tap) return `<button type="button" class="c${marked ? " m" : isCalled ? " due" : ""}${w}" data-dn="${v}" data-dr="${round}" data-dc="${ci}" aria-pressed="${marked}" aria-label="${lblOf(v)}${isCalled ? (marked ? ", marked" : ", called, tap to mark") : ", not called yet"}">${v}</button>`;
-      return `<div class="c${marked ? " m" : ""}${w}" aria-label="${lblOf(v)}${marked ? ", marked" : ""}">${v}</div>`;
+      return `<div class="c${marked ? " m" : ""}${marked && NEWCALL === v ? " pop" : ""}${w}" aria-label="${lblOf(v)}${marked ? ", marked" : ""}">${v}</div>`;
     }).join("");
     return `<div class="zticket" role="group" aria-label="${label}">${heads}${cells}</div>`;
   };
@@ -218,6 +220,7 @@
       ? `<h2>Your game is setting up</h2><div class="zsetup">We are waiting 2 minutes more for everyone to join.</div><div class="zcount" aria-live="off" id="cd">${clock(toFirst)}</div><p class="zsmall" style="margin-top:0">until the first number. Keep this page open: the numbers appear on their own.</p>`
       : `<h2>You are in. See you at ${esc(when)}</h2><div class="zsmall" style="margin:0">Starting in</div><div class="zcount" aria-live="off" id="cd">${clock(toFirst - GRACE_SECS)}</div><p class="zsmall" style="margin-top:0">hours : minutes : seconds. Keep this page open: the numbers appear on their own.</p>`;
     return `<div class="zcard zwait">${top}
+      <div class="zdo"><b>What to do:</b> nothing yet. Keep this page open. ${TAP() ? "When a number is called, tap it on your card." : "Your card marks every number for you."}</div>
       ${prizes ? `<h3>What you can win</h3><ul class="zlist">${prizes}</ul>` : ""}
       <h3>How it works</h3><ol class="zlist"><li>Your card is below: 5 x 5 with the letters B I N G O, and FREE in the middle. Numbers are called one by one as a letter and a number, like G 52.</li><li>When your card completes a prize pattern you will see it. The software checks every card, so you do not need to shout Bingo.</li><li>The organizer hands over the rewards.</li></ol>
       <button class="zbtn s alt" id="soundtest">Check my sound</button><a class="zbtn s alt" id="addcal" download="engagement.ics" href="${icsFor(v)}">Add to my calendar</a></div>`;
@@ -331,8 +334,10 @@
     if (DEMO) return `<div class="zcard zfinal"><h2>That was the demo <span class="zdemotag">DEMO</span></h2><div class="zfbig">${PRIZES.length ? "You won Four corners." : "You saw how a game runs."}</div><p class="zsmall" style="font-size:15px;margin:6px 0 10px">A real game calls 75 numbers, has many prizes, your own brand messages and videos, lucky draws and a report. You build it in about five minutes and nobody pays until you are ready.</p><a class="zbtn" style="display:inline-flex;align-items:center;text-decoration:none" href="/">Create my game</a> <button class="zbtn s alt" id="dagain2" type="button">Run demo again</button> <button class="zbtn s alt" id="dcopy2" type="button">Copy the demo link</button></div>`;
     const n = PRIZES.length;
     return `<div class="zcard zfinal"><h2>Game complete</h2>
-      <div class="zfbig">Thank you for joining our extended family of Corporate Bingo.</div>
-      <p class="zsmall" style="font-size:15px;margin:6px 0 10px">${n ? "You won " + n + " prize" + (n === 1 ? "" : "s") + ". They are listed below and stay on this phone." : "Every game is a good game. We hope you had fun, and we would love to see you at the next one."}</p>
+      <div class="zmedal" aria-hidden="true">${n ? "&#127942;" : "&#127922;"}</div>
+      <div class="zfbig">${n ? "You won " + n + (n === 1 ? " prize!" : " prizes!") : "Well played!"}</div>
+      <p class="zsmall zthanks">Thank you for joining our extended family of Corporate Bingo.</p>
+      <p class="zsmall" style="font-size:15px;margin:6px 0 10px">${n ? "Your prizes are listed below and stay on this phone. Show them to your organizer to collect." : "No prize this time. Every game is a good game, and the next one is another chance."}</p>
       <button class="zbtn" id="shr">Share with friends and colleagues</button>
       <a class="zbtn s alt" style="display:inline-flex;align-items:center;text-decoration:none;margin-top:8px" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent("I just played Corporate Bingo with my team. Bring it to your company: " + shareLink)}">WhatsApp</a>
       <p class="zsmall" style="margin:10px 0 0"><a href="/partner.html?from=card">Earn 50% by sharing: Refer &amp; earn</a></p></div>`;
@@ -577,6 +582,27 @@
     const li = rows.map((x) => `<li><b>${esc(ZG.rankName(x.rank))}</b> ${esc(lineName(v.cfg, x.pattern, x.ordinal))}${x.text ? " (" + esc(x.text) + ")" : ""}: card ${esc(String(seatOf(x.pid)))}${x.pid === v.pid ? " <em>(you)</em>" : ""}${x.note ? `<br><small class="zsmall" style="margin:0">${esc(x.note)}</small>` : ""}</li>`).join("");
     return `<div class="zcard zrank"><h2>Winners</h2><ol class="zlist" style="padding-left:0;list-style:none">${li}</ol></div>`;
   }
+  // ---------- short, friendly movement (about 200 to 400 ms; none with "reduce motion"). Each one plays once, when the thing it shows first appears (the page redraws itself every second). ----------
+  const MOTION = () => { try { return !matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return false; } };
+  const COUNTS = {};
+  const countUps = () => document.querySelectorAll("[data-count]").forEach((el) => {
+    const key = el.dataset.ck || el.id || "c", to = Number(el.dataset.count), from = COUNTS[key] === undefined ? to : COUNTS[key]; COUNTS[key] = to;
+    if (from === to || !MOTION()) { el.textContent = String(to); return; }
+    const t0 = performance.now(); (function f(t) { const k = Math.min(1, (t - t0) / 350); el.textContent = String(Math.round(from + (to - from) * k)); if (k < 1 && el.isConnected) requestAnimationFrame(f); })(t0);
+  });
+  let NEWCALL = 0; // the number called since the last redraw (0 = none): its ball drops in and its place on the card is stamped
+  /** the big ball, a state chip, one plain line about what to do, and the last numbers as small balls */
+  function callCard(v, last, recent, sub) {
+    const secs = v.nextCallInSec, running = v.phase === "play" && !v.locked && !v.paused && !v.brk && !v.intermission && v.log.length > 0;
+    const tone = v.phase === "ended" ? "end" : v.paused || v.locked ? "pause" : running ? (secs !== null && secs <= 3 ? "go" : "soon") : "wait";
+    const chip = v.phase === "ended" ? "Game over" : v.paused ? "Paused" : v.locked ? "Waiting to start" : !v.log.length ? "Get ready" : running && secs !== null ? "Next number in " + secs + "s" : "Numbers coming";
+    const what = v.phase === "ended" ? "" : TAP() ? "Tap a number on your card when it is called." : "Your card marks every number for you. Just watch.";
+    const total = v.late ? "since you joined" : "of 75";
+    return `<div class="zcard zcall"><div class="zchiprow"><span class="zchip2 ${tone}">${esc(chip)}</span><span class="zchip2 plain"><b data-count="${v.log.length}" data-ck="called">${v.log.length}</b>&nbsp;${total} called</span></div>
+        <div class="zball"><div class="zbig ${last ? "l" + colOf(last) : "none"}${NEWCALL && NEWCALL === last ? " pop" : ""}" id="big" role="status" aria-live="assertive" aria-label="${last ? "Number " + lblOf(last) : "No number yet"}">${last ? `<small>${LET[colOf(last)]}</small><span>${last}</span>` : "–"}</div></div>
+        <div class="zsub">${sub}</div>${what ? `<p class="zsmall zwhat">${esc(what)}</p>` : ""}
+        <div class="zlast" aria-label="Last numbers called">${recent.map((n, i) => `<span class="l${colOf(n)}${NEWCALL && i === 0 ? " pop" : ""}" aria-label="${lblOf(n)}"><i>${LET[colOf(n)]}</i>${n}</span>`).join("")}</div></div>`;
+  }
   function playView(v) {
     const called = new Set(v.log);
     const last = v.log[v.log.length - 1];
@@ -595,7 +621,8 @@
     const ribbon = curWins.length ? `<div class="zwin" role="status">&#127881; Congratulations! You won ${curWins.map((w) => esc(lineName(v.cfg, w.pattern, w.ordinal))).join(", ")}${curWins.some((w) => w.text) ? " &middot; " + curWins.filter((w) => w.text).map((w) => esc(w.text)).join(", ") : ""}</div>` : "";
     const tix = v.tickets.map((t, i) => (v.tickets.length > 1 ? `<div class="zsmall" style="margin:${i ? 12 : 0}px 0 4px"><b>Card ${"AB"[i]}</b></div>` : "") + cardHtml(t, called, v.tickets.length > 1 ? "Card " + "AB"[i] : DEMO ? "Demo card" : "Your card", winSet, v.round, i)).join("");
     const recent = v.log.slice(-6, -1).reverse(), nudge = TAP() ? missedNudge(v, called) : "";
-    return `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b><button class="zsnd" id="snd" aria-pressed="${sound}">${sound ? "Sound on" : "Sound off"}</button></div>
+    const sndBtn = `<button class="zsnd zsndin" id="snd" aria-pressed="${sound}">${sound ? "&#128266; Sound on" : "&#128263; Sound off"}</button>`;
+    return `${brandStrip(sndBtn)}
       ${demoCard(v)}${annBanner(v)}${banners.join("")}
       ${v.phase === "ended" ? finalCard(v) + closingCard(v) + confirmCard(v) + prizesCard() : ""}
       ${waitingRoom(v)}
@@ -604,9 +631,7 @@
       ${roundCards(v)}
       ${v.brk ? breakCard(v.brk) : ""}
       ${rankCard(v)}
-      <div class="zcard"><div class="zball"><div class="zbig ${last ? "l" + colOf(last) : "none"}" id="big" role="status" aria-live="assertive" aria-label="${last ? "Number " + lblOf(last) : "No number yet"}">${last ? `<small>${LET[colOf(last)]}</small><span>${last}</span>` : "–"}</div></div>
-        <div class="zsub">${sub}</div>
-        <div class="zlast" aria-label="Last numbers called">${recent.map((n) => `<span class="l${colOf(n)}" aria-label="${lblOf(n)}"><i>${LET[colOf(n)]}</i>${n}</span>`).join("")}</div></div>
+      ${callCard(v, last, recent, sub)}
       <div class="zcard${curWins.length ? " zwon" : ""}"><h2>${DEMO ? 'Demo card <span class="zdemotag">DEMO</span>' : v.tickets.length > 1 ? "Your cards" : "Your card"}${TAP() ? ' <span class="zmode">tap to mark</span>' : ""}</h2>${ribbon}${nudge}${tix}<a class="zref" href="/partner.html?from=card">Refer &amp; earn</a></div>
       ${v.phase === "ended" ? "" : prizesCard()}
       ${mineCard(v)}${inviteCard(v)}
@@ -625,7 +650,9 @@
     if (ME.removed) { if (timer) { clearInterval(timer); timer = null; } mediaHost.style.display = "none"; $app.innerHTML = removedView(); paintBrand(); return; } // taken off the list: the phone stops
     const fresh = syncPrizes(v); reportToStore(v); loadCf(v); pollMe(v);
     { const af = document.activeElement; if (af && (af.id === "cfnm" || af.id === "cfph" || af.id === "mi-name" || af.id === "mi-phone")) return; } // never wipe a form someone is typing in
+    NEWCALL = v.log.length > lastLen && !firstPaint && MOTION() ? v.log[v.log.length - 1] : 0;
     $app.innerHTML = playView(v);
+    countUps();
     paintBrand(); syncMedia(v); bindShare(); bindDemo(); bindConfirm(v); loadInvites(v); bindInvite(v); loadMine(v); bindMine(v);
     if (fresh.length) showHurray(fresh);
     document.querySelectorAll("button[data-dn]").forEach((b) => (b.onclick = () => { const n = Number(b.dataset.dn), r = Number(b.dataset.dr), ci = Number(b.dataset.dc), d = daubs(r, ci); if (!v.log.includes(n)) return; if (d.has(n)) d.delete(n); else d.add(n); store.set(daubKey(r, ci), JSON.stringify([...d])); paint(); }));
