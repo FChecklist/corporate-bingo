@@ -78,9 +78,19 @@ export function scanText(file: string, src: string, uses: Use[] = [], cookies: C
   return { uses, cookies };
 }
 
+/** The pages and scripts the build really ships (pages/build.mjs FILES): a prototype page that is never uploaded keeps nothing on anybody's device. */
+export function shippedFiles(): string[] {
+  const all = readdirSync(PUB).filter((f) => /\.(js|html)$/.test(f)).sort();
+  try {
+    const m = /const FILES = \[([\s\S]*?)\];/.exec(readFileSync(join(PUB, "../../../pages/build.mjs"), "utf8"));
+    const list = m ? [...m[1]!.matchAll(/"([^"]+)"/g)].map((x) => x[1]!) : [];
+    return list.length ? all.filter((f) => list.includes(f)) : all;
+  } catch { return all; }
+}
+
 export function scan(): { uses: Use[]; cookies: Cookie[] } {
   const uses: Use[] = [], cookies: Cookie[] = [];
-  for (const file of readdirSync(PUB).filter((f) => /\.(js|html)$/.test(f)).sort()) scanText(file, readFileSync(join(PUB, file), "utf8"), uses, cookies);
+  for (const file of shippedFiles()) scanText(file, readFileSync(join(PUB, file), "utf8"), uses, cookies);
   return { uses, cookies };
 }
 

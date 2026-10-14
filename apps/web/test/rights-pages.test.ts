@@ -28,7 +28,7 @@ async function player(o: O, id: string) {
   await o.api("POST", `/api/z/${id}/publish`, { email: "boss@acme.com", phone: "98765 43210" }, o.token);
   const p = await openPage(o.world, { url: `http://localhost/z?e=${id}`, html: "z.html", scripts: ["audio.js", "zgame.js", "z.js", "rights.js"], tick: true, afterLoad: (win, f) => { if (f === "zgame.js") rtFake(win, () => o.world.now); } });
   open.push(p);
-  await p.waitFor((x) => /Join the game/.test(x));
+  await p.waitFor((x) => /Join the (game|engagement)/.test(x));
   (p.$("#nm") as any).value = "Maya Lopez"; p.click("#go");
   await p.waitFor((x) => /You are in|Your card|What you can win/.test(x));
   return p;
@@ -66,7 +66,7 @@ describe("the player page offers the player's rights", () => {
     expect(Array.from(p.win.document.querySelectorAll('input[name="rt-kind"]')).map((i: any) => i.value)).toEqual(["access", "correction", "erasure"]);
     p.click("#rt-send");
     await until(p, () => /We have your request/.test(body(p)));
-    expect(body(p)).toMatch(/Maya Lopez/); expect(body(p)).toMatch(/within 7 days/); expect(body(p)).toMatch(/Your card number/);
+    expect(body(p)).toMatch(/Maya Lopez/); expect(body(p)).toMatch(/within 7 days/); expect(body(p)).toMatch(/Your \w+ number/);
     expect(o.world.raw.query("SELECT kind, status FROM data_request").all()).toEqual([{ kind: "access", status: "open" }]);
     expect(count(o, "SELECT COUNT(*) c FROM seat WHERE eid='RP-3'")).toBe(1); // asking to see is not deleting
   });

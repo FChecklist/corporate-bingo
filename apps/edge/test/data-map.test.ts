@@ -1,9 +1,9 @@
 // D1 / D2 / D11: the data map is complete, the join notice says exactly what the data map says the game asks for, the player page asks for exactly that,
 // and the statement of where the data is (and is not) kept is the one the pages carry.
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { CONSENT_TEXT } from "../src/consent";
+import TEXT from "../src/consent-text.json";
 
 const ROOT = join(import.meta.dir, "../../..");
 const PLAYER_SCRIPTS = ["z.js"]; // the scripts that draw the join screen a player fills in
@@ -32,8 +32,9 @@ describe("D1: the data map", () => {
       const cells = l.split("|").slice(1, -1).map((c) => c.trim());
       expect(cells.length >= 4 && cells.every((c) => c.length > 0)).toBe(true); // field, why, where stored, who (and how long): none empty
     }
-    for (const head of rows.filter((l) => /^\| (Field|Data) \|/.test(l))) expect(head).toMatch(/Why/);
-    for (const head of rows.filter((l) => /^\| (Field|Data) \|/.test(l))) expect(head).toMatch(/Who/);
+    for (const part of sec2.split(/\n(?=### )/)) { // every table says why; every table says who holds it, except 2b (what the player's own phone keeps)
+      for (const head of part.split("\n").filter((l) => /^\| (Field|Data) \|/.test(l))) { expect(head).toMatch(/Why/); if (!/^### 2b/.test(part)) expect(head).toMatch(/Who/); }
+    }
   });
   test("it names every processor the sub-processors page names", () => {
     const subs = plain(pub("subprocessors.html"));
@@ -42,7 +43,7 @@ describe("D1: the data map", () => {
 });
 
 describe("D2: the notice and the data map agree", () => {
-  const notice = String(CONSENT_TEXT.K4?.A ?? "");
+  const notice = String((TEXT as any).K4?.A ?? "");
   test("every field the data map says the player is asked for is in the notice, and the notice names no other personal field", () => {
     for (const [name, re] of FIELDS) {
       const listed = always.includes(name) || sometimes.includes(name);
@@ -60,7 +61,7 @@ describe("D2: the notice and the data map agree", () => {
     expect(/type="email"|id="email"|name="email"/.test(code)).toBe(false);
   });
   test("the box wording the server sends is the one the page script carries (no second wording)", () => {
-    if (notice) { const js = pub("consent.js"); expect(js.includes(notice)).toBe(true); }
+    if (notice && existsSync(join(ROOT, "apps/web/public/consent.js")) && /\bK4:\s*\{/.test(pub("consent.js"))) { expect(pub("consent.js").includes(notice)).toBe(true); } // a game whose page fetches the wording from the server has no second copy
   });
 });
 
