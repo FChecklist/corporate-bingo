@@ -154,7 +154,7 @@ body{background:linear-gradient(180deg,#FFE9F3 0,#E3F6F3 36%,#FFF3D1 74%,#E8F0FF
 .zcard h2{display:inline-block;margin:0 0 10px;padding:3px 12px;border-radius:999px;background:#DDF3EF;color:var(--zgrape);font:800 12px/1.4 var(--sans,inherit);letter-spacing:.08em}
 .zboardcard h2{background:#E0ECFF;color:#0F4AA8}.zprizecard h2,.zprizes h2{background:#FFEFC2;color:#7A3A00}.zfinal h2{background:#FFE9A6;color:#6B3200}.zwait h2{background:#FFE0EE;color:#8A0E4F}
 .zbrand{border-radius:16px;box-shadow:0 4px 0 rgba(0,0,0,.18)}
-.zbrand.zdef{background:linear-gradient(100deg,#0A857A 0%,#B3126B 62%,#C2410C 100%);font-size:15px;letter-spacing:.06em;justify-content:center;text-align:center}
+.zbrand.zdef{background:linear-gradient(100deg,#0A857A 0%,#1565D8 38%,#B3126B 72%,#C2410C 100%);font-size:15px;letter-spacing:.06em;justify-content:center;text-align:center}
 .zbtn{min-height:52px;border-radius:14px;background:linear-gradient(180deg,#0E8C80,#0B5D5B);box-shadow:0 3px 0 #073F3D;font-size:17px}
 .zbtn:disabled,.zbtn[aria-disabled=true]{box-shadow:none}
 .zbtn.alt{background:#fff;color:var(--zgrape);border:2px solid var(--zgrape);box-shadow:none}
