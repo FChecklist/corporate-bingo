@@ -13,4 +13,4 @@ Disallow: /big.html
 Disallow: /preview.html
 Disallow: /demo.html
 
-Sitemap: https://corporate-bingo.pages.dev/sitemap.xml
+Sitemap: https://bingo.corporatetambola.com/sitemap.xml

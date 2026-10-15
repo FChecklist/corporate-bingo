@@ -56,7 +56,7 @@ describe("the document pages", () => {
   test("the public website pages describe Bingo only: no words of the game this product was copied from, and the software-only line is on the key pages", () => {
     const files = ["index.html", "pricing.html", "about.html", "contact.html", "legal.html", "terms.html", "legal-position.html", "refund-policy.html", "dpa.html", "subprocessors.html", "partner.html", "partner-terms.html", "organizer-guide.html", "brochure.html", "404.html", "site.js"];
     for (const f of files) {
-      let t = rd(f).replace(/<footer class="uf"[\s\S]*?<\/footer>/, "").replace(/i-ticket|ic\("ticket"\)/g, ""); // the uniform footer links the sister games on purpose
+      let t = rd(f).replace(/<footer class="uf"[\s\S]*?<\/footer>/, "").replace(/corporatetambola\.com/g, "").replace(/i-ticket|ic\("ticket"\)/g, ""); // the uniform footer links the sister games on purpose
       if (f === "terms.html" || f === "legal-position.html") t = t.replace(/lottery tickets?|purchase of a ticket|purchasing tickets|purchases any ticket|selling of tickets|sells no ticket|game card\/board or ticket|ticket or chance|a ticket/gi, ""); // the legal text names the thing it says nobody buys
       expect([f, /tambola|housie|early five|full house|top line|\bIST\b|90 numbers|\bticket/i.test(t)]).toEqual([f, false]);
     }

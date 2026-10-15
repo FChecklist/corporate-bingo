@@ -1,4 +1,4 @@
-# Corporate Bingo on Cloudflare Pages + Functions + D1: free plan only, no custom domain (https://corporate-bingo.pages.dev).
+# Corporate Bingo on Cloudflare Pages + Functions + D1: free plan only, no custom domain (https://bingo.corporatetambola.com).
 # Deploy with:  bun run pages:deploy   (see README.md in this folder). Secrets are NOT in this file.
 name = "corporate-bingo"
 pages_build_output_dir = "public"
@@ -12,8 +12,7 @@ database_id = "f2d1ed1b-77cd-401a-af4c-4c02724688ef"
 
 [vars]
 DAILY_WRITE_BUDGET = "80000"
-PUBLIC_ORIGIN = "https://corporate-bingo.pages.dev"
 PAY_HOP_URL = "https://itservices-rajat-agarwal.pages.dev/payframe/"   # Option 1: the Razorpay window runs on the website registered with Razorpay
-MAIL_FROM = "Corporate Bingo <bingo@veridian-aios.com>"
-OWNER_EMAIL = "rajatsiroffice@gmail.com"
-COMPANY_JSON = '{"email":"rajatsiroffice@gmail.com","phone":"(+91) 96503 97480","sacDescription":"Software solutions and products"}'
+# PUBLIC_ORIGIN, MAIL_FROM and OWNER_NOTIFY_EMAIL are Pages variables set in Cloudflare (a name cannot be in both places); the code defaults carry the same values.
+OWNER_EMAIL = "hello@corporatetambola.com"
+COMPANY_JSON = '{"email":"hello@corporatetambola.com","phone":"(+91) 96503 97480","sacDescription":"Software solutions and products"}'
