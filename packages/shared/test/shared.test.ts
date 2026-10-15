@@ -67,11 +67,11 @@ describe("cards", () => {
 
 describe("spoken phrase (letter and number, said twice)", () => {
   test("examples", () => {
-    expect(spokenPhrase(7)).toBe("Bee, seven. Bee, seven.");
-    expect(spokenPhrase(52)).toBe("Gee, fifty-two. Gee, five two.");
-    expect(spokenPhrase(10)).toBe("Bee, ten. Bee, one zero.");
-    expect(spokenPhrase(75)).toBe("Oh, seventy-five. Oh, seven five.");
-    expect(spokenPhrase(31)).toBe("En, thirty-one. En, three one.");
+    expect(spokenPhrase(7)).toBe("Next number is Bee, seven. Bee, seven.");
+    expect(spokenPhrase(52)).toBe("Next number is Gee, five two, fifty-two. Gee, fifty-two.");
+    expect(spokenPhrase(10)).toBe("Next number is Bee, one zero, ten. Bee, ten.");
+    expect(spokenPhrase(75)).toBe("Next number is Oh, seven five, seventy-five. Oh, seventy-five.");
+    expect(spokenPhrase(31)).toBe("Next number is En, three one, thirty-one. En, thirty-one.");
   });
   test("all 75 have words and bounds are enforced", () => {
     for (let n = 1; n <= 75; n++) expect(numberWords(n).length).toBeGreaterThan(2);

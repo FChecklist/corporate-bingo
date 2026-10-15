@@ -1,7 +1,7 @@
 /**
- * Spoken text for the one fixed voice. A call is a letter and a number, said twice, the second time digit by digit for two-digit numbers:
- *   52 (G) -> "Gee, fifty-two. Gee, five two."
- *    7 (B) -> "Bee, seven. Bee, seven."   (single digits are not spelled out again)
+ * Spoken text for the one fixed voice. Same calm pacing as Corporate Tambola: "Next number is <letter>, <digits>, <words>. <letter>, <words>."
+ *   52 (G) -> "Next number is Gee, five two, fifty-two. Gee, fifty-two."
+ *    7 (B) -> "Next number is Bee, seven. Bee, seven."   (single digits are not spelled out digit by digit)
  * The browser's own speech voice is used (no audio files ship with the app).
  */
 import { MAX_NUMBER, columnOf } from "./bingo-card";
@@ -23,9 +23,9 @@ export const numberDigits = (n: number): string => String(n).split("").map((d) =
 
 export function spokenPhrase(n: number): string {
   const w = numberWords(n), l = LETTER_WORDS[columnOf(n)]!;
-  if (n < 10) return `${l}, ${w}. ${l}, ${w}.`;
-  return `${l}, ${w}. ${l}, ${numberDigits(n)}.`;
+  if (n < 10) return `Next number is ${l}, ${w}. ${l}, ${w}.`;
+  return `Next number is ${l}, ${numberDigits(n)}, ${w}. ${l}, ${w}.`;
 }
 
 /** Version of the voice wording; bump when it changes so devices that cached a voice line refresh it. */
-export const AUDIO_PACK_VERSION = "v1-en-us-speech";
+export const AUDIO_PACK_VERSION = "v2-en-in-speech";

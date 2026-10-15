@@ -1,8 +1,8 @@
 /*
  * Number calling voice: the phone's own speech voice says the letter and the number, twice (no audio files are used).
- *   G 52 -> "Gee, fifty-two. Gee, five two."      B 7 -> "Bee, seven. Bee, seven."
+ *   G 52 -> "Next number is Gee, five two, fifty-two. Gee, fifty-two."      B 7 -> "Next number is Bee, seven. Bee, seven."
  * The words are the same as spokenPhrase() in packages/shared/src/audio.ts (a test keeps the two identical).
- * Voice: US English (en-US) when the phone has one, otherwise any English voice.
+ * Voice: the same as Corporate Tambola: Indian English (en-IN), a female voice when the phone has one, otherwise any en-IN, otherwise any English voice. Rate 0.82, pitch 1.05.
  */
 (function () {
   const ONES = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
@@ -13,9 +13,9 @@
   const col = (n) => Math.floor((n - 1) / 15);
   const letter = (n) => LETTERS[col(n)] || "";
   const label = (n) => (n >= 1 && n <= 75 ? letter(n) + " " + n : String(n)); // "B 7", "G 52"
-  const phrase = (n) => { const l = LETTER_WORDS[col(n)]; return n < 10 ? `${l}, ${words(n)}. ${l}, ${words(n)}.` : `${l}, ${words(n)}. ${l}, ${digits(n)}.`; };
+  const phrase = (n) => { const l = LETTER_WORDS[col(n)]; return n < 10 ? `Next number is ${l}, ${words(n)}. ${l}, ${words(n)}.` : `Next number is ${l}, ${digits(n)}, ${words(n)}. ${l}, ${words(n)}.`; };
 
-  const VERSION = "v1-en-us-speech";
+  const VERSION = "v2-en-in-speech";
   const A = (window.TBAudio = { phrase, label, letter, VERSION, enabled: true, unlocked: false, ctx: null, mode: "speech" });
 
   // Call from a tap (Join audio). Phones only allow sound after a tap.
@@ -30,13 +30,13 @@
   };
   A.preload = async () => 0; // nothing to download: the voice is the phone's own
 
-  const pickVoice = () => { const vs = speechSynthesis.getVoices(); return vs.find((v) => v.lang === "en-US" && /female|zira|samantha|natural|google/i.test(v.name)) || vs.find((v) => v.lang === "en-US") || vs.find((v) => /^en/.test(v.lang)); };
+  const pickVoice = () => { const vs = speechSynthesis.getVoices(); return vs.find((v) => v.lang === "en-IN" && /female|heera|neerja|veena|raveena|natural|google/i.test(v.name)) || vs.find((v) => v.lang === "en-IN") || vs.find((v) => /^en/.test(v.lang) && /female|zira|samantha|natural/i.test(v.name)) || vs.find((v) => /^en/.test(v.lang)); };
   A.play = (n) => {
     if (!A.enabled || !window.speechSynthesis) return;
     try {
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(phrase(n));
-      u.rate = 0.85; u.pitch = 1.0; u.lang = "en-US";
+      u.rate = 0.82; u.pitch = 1.05; u.lang = "en-IN";
       const pick = pickVoice(); if (pick) u.voice = pick;
       speechSynthesis.speak(u);
     } catch {}
@@ -46,7 +46,7 @@
     if (!A.enabled || !window.speechSynthesis) return;
     try {
       speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(lead + text); u.rate = 0.9; u.lang = "en-US";
+      const u = new SpeechSynthesisUtterance(lead + text); u.rate = 0.9; u.lang = "en-IN";
       const pick = pickVoice(); if (pick) u.voice = pick;
       speechSynthesis.speak(u);
     } catch {}
