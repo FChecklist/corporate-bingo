@@ -963,7 +963,7 @@ describe("brand moments: five for each ticket, placed by the software", () => {
   test("the AI manual teaches the new rules and no longer says breaks repeat in every round", async () => {
     const { manualText } = await import("../src/ai-link");
     const t = manualText("https://x.example", "cba_" + "a".repeat(48), "ai", T);
-    expect(t).toContain("5 for each ticket"); expect(t).toContain("ROUND 1 only"); expect(t).toContain("opening"); expect(t).toContain("closing");
+    expect(t).toContain("5 for each card"); expect(t).toContain("ROUND 1 only"); expect(t).toContain("opening"); expect(t).toContain("closing");
     expect(t).not.toContain("breaks repeat in every round");
   });
 });
