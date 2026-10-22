@@ -23,7 +23,9 @@ describe("sitemap and robots", () => {
     const r = rd("robots.txt");
     expect(r).toMatch(/User-agent: \*\s+Allow: \//); expect(r).toContain(`Sitemap: ${ORIGIN}/sitemap.xml`);
     for (const p of ["/api/", "/ai/", "/pay.html", "/signin.html", "/z.html", "/zc.html", "/big.html"]) expect(r).toContain("Disallow: " + p);
-    for (const f of INDEXABLE) expect(r).not.toMatch(new RegExp("Disallow: /" + (f === "index.html" ? "$" : f.replace(".", "\."))));
+    // only the rules for everyone (User-agent: *) count: the AI-crawler groups below them say "Disallow: /" on purpose (the public pages are allowed back to them by "Allow:" lines)
+    const everyone = r.replace(/\r/g, "").split(/\n\s*\n/).filter((g) => /^User-agent: \*$/m.test(g)).join("\n");
+    for (const f of INDEXABLE) expect(everyone).not.toMatch(new RegExp("Disallow: /" + (f === "index.html" ? "$" : f.replace(".", "\\.")), "m"));
   });
   test("a page that says noindex is never in the sitemap, and the owner page is not linked from any public page", () => {
     for (const f of NOINDEX) { let h = ""; try { h = rd(f); } catch { continue; } if (/name="robots" content="[^"]*noindex/.test(h)) expect(sm).not.toContain("/" + f); }
