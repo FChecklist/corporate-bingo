@@ -78,7 +78,7 @@
       <div class="sum" id="ordSum"></div>
       <form id="coForm" novalidate>
         <label class="lb" for="oName">Organization name</label><input class="inp" id="oName" autocomplete="organization" placeholder="e.g. Acme Industries">
-        <label class="lb" for="oMail">Your work email (invoice and login)</label><input class="inp" id="oMail" type="email" autocomplete="email" placeholder="you@company.com">
+        <label class="lb" for="oMail">Your work email (invoice and login)</label><input class="inp" id="oMail" type="email" autocomplete="email" placeholder="your e-mail">
         <label class="lb" for="oPh">Your mobile number (optional)</label><input class="inp" id="oPh" type="tel" autocomplete="tel" placeholder="98765 43210">
         <label class="lb" for="oCty">Country of your organization</label><select class="inp" id="oCty">${TB.countryOpts(def)}</select>
         <div id="taxBox"></div><div id="k3wrap">${CBConsent.html("K3")}</div><div id="fErr"></div>
@@ -110,7 +110,7 @@
       <div class="sheethead"><span class="rolepill">For the organizer or host</span><span class="sbrand" role="img" aria-label="Corporate Bingo"><span class="mark"><img src="/logo-mark.svg" alt="" width="26" height="26"></span><span class="word">Corporate Bingo<i>.</i></span></span></div>
       <div class="eyebrow ofeye">Build it and publish it free.</div><h2 id="ofTitle">Create your game</h2>
       <ul class="bgrid"><li><span class="bico">${ic("play")}</span><span>Add a message, video or lucky draw between calls</span></li><li><span class="bico">${ic("trophy")}</span><span>Pick your prizes: Line, Four Corners, X, Blackout</span></li><li><span class="bico">${ic("users")}</span><span>A closed-group Bingo for your company</span></li><li><span class="bico">${ic("ticket")}</span><span>Every card is unique: no two can ever match</span></li><li><span class="bico">${ic("phone")}</span><span>Each guest gets their own card on their phone</span></li><li><span class="bico">${ic("star")}</span><span>A free AI assistant sets it up for you</span></li><li><span class="bico">${ic("gift")}</span><span>Players never pay. You provide the prizes</span></li><li><span class="bico">${ic("trash")}</span><span>Guest names are erased within 24 hours of the game ending</span></li><li><span class="bico">${ic("shield")}</span><span>Designed to follow DPDP Act, GDPR and CCPA</span></li></ul>
-      <div id="k2wrap">${CBConsent.html("K2")}</div>${gBox}<form id="frForm" novalidate><label class="lb" for="fMail">Your email</label><input class="inp big" id="fMail" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="you@example.com" aria-describedby="fErr"><div id="fErr" role="alert"></div>
+      <div id="k2wrap">${CBConsent.html("K2")}</div>${gBox}<form id="frForm" novalidate><label class="lb" for="fMail">Your email</label><input class="inp big" id="fMail" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="your e-mail" aria-describedby="fErr"><div id="fErr" role="alert"></div>
       <button class="btn block big" style="margin-top:14px" type="submit" id="frGo" disabled aria-disabled="true">Create my game ${ic("arrow")}</button></form>
       <p class="trust">${ic("shield")}Free to build and publish. No password.</p>
       <p class="proto">Your console opens at once. We use your email for your invoice and to sign you in later.</p><p class="proto"><a href="/demo.html">Want to see it first? Try the free 70-second demo.</a></p>
@@ -162,7 +162,7 @@
   // ---------- login ----------
   function openLogin(email) {
     TB.sheet(`${xbtn}<div class="eyebrow">Organizer login</div><h2>Sign in with your work email</h2><p class="muted small">Players never log in here. They join with your link. We email you a 6-digit code: no password.</p>
-      ${gBox}<form id="lgForm" novalidate><label class="lb" for="lMail">Work email</label><input class="inp" id="lMail" data-need="1" type="email" autocomplete="email" placeholder="you@company.com" value="${esc(email || "")}"><div id="fErr"></div>
+      ${gBox}<form id="lgForm" novalidate><label class="lb" for="lMail">Work email</label><input class="inp" id="lMail" data-need="1" type="email" autocomplete="email" placeholder="your e-mail" value="${esc(email || "")}"><div id="fErr"></div>
       <button class="btn block" style="margin-top:14px" type="submit" id="lgGo">Email me a code ${ic("arrow")}</button></form>
       <p class="spriv accept">Our <a href="/terms.html" target="_blank" rel="noopener">Terms</a> and <a href="/legal.html#privacy" target="_blank" rel="noopener">Privacy &amp; Data Policy</a> are on our site.</p>`);
     $("lgForm").addEventListener("submit", (e) => { e.preventDefault(); const m = $("lMail").value.trim().toLowerCase(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(m)) return setErr("Please enter a valid work email."); askCode(m, $("lgGo")); });
