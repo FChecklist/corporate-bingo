@@ -67,13 +67,41 @@ export default [
     },
   },
   {
-    id: "S01-05", name: "Log in with an unknown e-mail: same calm answer, nothing leaks about who has an account",
+    id: "S01-05", name: "Sign in with a NEW e-mail: the Terms box appears, ticking it creates the account and opens the console (no code is needed for a new address)",
     async run(t) {
+      const email = nextMail("fresh"); t.team.add(email);
       const x = await t.open({ device: "laptop" });
-      await askCodeUi(x.page, nextMail("nobody"));
-      await x.page.waitForSelector("#lCode", { timeout: 8000 });
-      t.check("the code box appears for an unknown e-mail too", true);
-      t.check("no devCode helper for an unknown e-mail (no account)", !(await x.page.$("#useCode")), "the helper appears only for known e-mails");
+      await x.page.goto(H.SIM + "/#login"); await x.page.fill("#lMail", email); await x.page.click("#lgGo");
+      await x.page.waitForSelector("#k2slot input[data-box]", { timeout: 8000 });
+      t.check("a new address is told it is new and shown the Terms box (unticked)", !(await x.page.isChecked("#k2slot input[data-box]")) && /New here/i.test(await t.text(x.page, "#k2slot")));
+      await tickTerms(t, x.page, { scope: "#k2slot", btn: "#lgGo", what: "Sign-in (new)" }); await x.page.click("#lgGo");
+      await x.page.waitForURL(/\/zc/, { timeout: 15000 });
+      t.check("the account exists: a master key is stored", /^cbk_/.test((await sessionKey(x.page)) ?? ""));
+    },
+  },
+  {
+    id: "S01-12", name: "The console sign-in card for someone who already has an account: e-mail, six boxes typed digit by digit, Submit, back in the console",
+    async run(t) {
+      const org = await t.org("consold");
+      const x = await t.open({ device: "mobile" });
+      await x.page.goto(H.SIM + "/zc.html"); await x.page.waitForSelector("#lem", { timeout: 10000 });
+      const txt0 = await t.text(x.page);
+      t.check("the console card is e-mail first, in plain words", /Sign in to your console/.test(txt0) && /Enter your e-mail/.test(txt0) && !/work e-?mail|company\.com|example\.com/i.test(txt0), txt0.slice(0, 200));
+      t.check("the sign-in key is tucked away", !(await x.page.isVisible("#sec")));
+      await x.page.fill("#lem", org.email); await x.page.click("#goLogin");
+      await x.page.waitForSelector("#lMail"); await x.page.click("#lgGo");
+      await x.page.waitForSelector(".otpb", { timeout: 10000 });
+      const boxes = await x.page.$$(".otpb"); t.check("six code boxes", boxes.length === 6);
+      const txt = await t.text(x.page, "#sheet"); t.check("the words are plain: 'We have sent a 6-digit code' and a Submit button", /We have sent a 6-digit code/.test(txt) && /Submit/.test(txt) && /Send a new code/.test(txt) && !/company\.com/.test(txt), txt.slice(0, 200));
+      const m = await H.mailbox.waitFor({ to: org.email, timeout: 8000 }); const code = H.mailbox.code(m);
+      await boxes[0].click(); await x.page.keyboard.type(code, { delay: 30 });
+      const typed = await Promise.all((await x.page.$$(".otpb")).map((b) => b.inputValue()));
+      t.check("each digit landed in its own box, in order", typed.join("") === code, typed.join(""));
+      await t.shot(x.page, "console-code-phone");
+      await x.page.click("#cdGo");
+      await x.page.waitForURL(/\/zc/, { timeout: 15000 });
+      await x.page.waitForSelector("#mk", { timeout: 20000 });
+      t.check("signed in and back in the console", /^cbk_/.test((await sessionKey(x.page)) ?? ""));
     },
   },
   {

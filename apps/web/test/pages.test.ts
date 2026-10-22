@@ -752,7 +752,7 @@ describe("Refer & Earn page", () => {
     const o = await organizer(); const p = await page(o, "/partner.html", "partner.html", ["common.js", "partner.js"]);
     await p.waitFor((x) => /Get your link in 20 seconds/.test(x));
     (p.$("#ph") as any).value = "+91 98765 43210"; (p.$("#em") as any).value = "partner@example.com"; (p.$("#ok") as any).checked = true; p.click("#join");
-    await p.waitFor((x) => /Check your email/.test(x));
+    await p.waitFor((x) => /Check your e-?mail/.test(x));
     const mailed = (o.world.raw.prepare("SELECT body FROM outbox WHERE to_addr='partner@example.com' ORDER BY id DESC").get() as any).body.match(/\b\d{6}\b/)[0];
     (p.$("#cd") as any).value = mailed; p.click("#cdgo");
     const t = await p.waitFor(() => !!p.win.document.getElementById("dash")?.textContent?.includes("Your link"));
@@ -771,7 +771,7 @@ describe("Refer & Earn page", () => {
     expect(p.win.document.querySelectorAll(".bgrid li").length).toBe(9); expect(p.win.document.querySelectorAll(".bgrid .bico svg").length).toBe(9); for (const li of p.win.document.querySelectorAll(".bgrid li")) expect(li.textContent.trim().split(/s+/).length).toBeLessThanOrEqual(13); // one short line each
     expect(t).toContain("Free to build and publish. No password."); expect(t).toContain("Your console opens at once. We use your email for your invoice and to sign you in later.");
     expect(t).not.toMatch(/work email/i); expect(t.split(/s+/).length).toBeLessThan(150);
-    const f = p.$("#fMail") as any; expect(p.win.document.querySelector('label[for="fMail"]').textContent).toBe("Your email");
+    const f = p.$("#fMail") as any; expect(p.win.document.querySelector('label[for="fMail"]').textContent).toBe("Your e-mail");
     expect(f.getAttribute("type")).toBe("email"); expect(f.getAttribute("inputmode")).toBe("email"); expect(f.getAttribute("autocomplete")).toBe("email"); expect(f.getAttribute("placeholder")).toBe("your e-mail");
     expect(p.win.document.querySelector(".sheet .sbrand")!.getAttribute("aria-label")).toBe("Corporate Bingo"); expect(p.win.document.querySelector(".sheethead .rolepill")).toBeTruthy();
     expect((p.$("#frGo") as any).textContent).toMatch(/^s*Create my game/);
