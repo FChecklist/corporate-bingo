@@ -83,6 +83,7 @@ export class PhoneRuntime {
   private logs: number[][] = [[]];
   private ticketMemo = new Map<number, Ticket[]>();
   private offsetMs: number | null = null; // utc - mono
+  private offsetSamples: number[] = []; // the last few clock answers (the newest estimate is used)
   private syncedAtMono = -Infinity;
   private lastControlPoll = -Infinity;
   private lastResultPoll = -Infinity;
@@ -108,7 +109,12 @@ export class PhoneRuntime {
     if (this.offsetMs !== null && m - this.syncedAtMono < 60_000) return true;
     const x = await fetchRound("latest", { ...this.deps.beacon, ...(this.deps.verify ? { verify: this.deps.verify as any } : {}) }, 0);
     if (!x) return this.offsetMs !== null;
-    this.offsetMs = roundTimeMs(x.round) + (QUICKNET.periodSec * 1000) / 2 - m;
+    // One answer of "latest" can be a round or two old (a cached mirror) and then makes the clock run SLOW (seen: the countdown jumped 1:43 -> 1:49). A stale answer is never too new, so of the
+    // last 5 answers the NEWEST estimate (the largest) is the most accurate; the error left is under 1.5 s. An answer more than 15 s below the best one (a changed clock) starts the list again.
+    const sample = roundTimeMs(x.round) + (QUICKNET.periodSec * 1000) / 2 - m;
+    if (this.offsetSamples.length && Math.max(...this.offsetSamples) - sample > 15_000) this.offsetSamples = [];
+    this.offsetSamples.push(sample); if (this.offsetSamples.length > 5) this.offsetSamples.shift();
+    this.offsetMs = Math.max(...this.offsetSamples);
     this.syncedAtMono = m;
     return true;
   }
@@ -158,9 +164,9 @@ export class PhoneRuntime {
   }
 
   /** Joins with a mobile number. The same number again returns the same participant (and the same ticket). */
-  async join(phone: string, name?: string, invite?: { from?: number; cat?: string }): Promise<boolean> {
+  async join(phone: string, name?: string, invite?: { from?: number; cat?: string }, empId?: string): Promise<boolean> {
     try {
-      const r = await this.deps.api("POST", `/api/z/${this.eid}/join`, { phone, name, device: this.device(), ...(invite && Number.isInteger(invite.from) ? { from: invite.from, cat: invite.cat } : {}) });
+      const r = await this.deps.api("POST", `/api/z/${this.eid}/join`, { phone, name, ...(empId ? { empId } : {}), device: this.device(), ...(invite && Number.isInteger(invite.from) ? { from: invite.from, cat: invite.cat } : {}) });
       this.scheduledRound = r.startRound; this.startRound = r.startRound + GRACE_ROUNDS; this.callSeconds = r.callSeconds; this.trackClaims = r.trackClaims !== false;
       if (r.tickets !== undefined || r.rewards !== undefined || r.breaks !== undefined || r.rounds !== undefined || r.opening !== undefined || r.closing !== undefined) this.readCfg(r);
       this.deps.store.set(this.key("pid"), r.pid);

@@ -22,7 +22,7 @@ export interface Fn {
 
 export const FUNCTIONS: Fn[] = [
   { id: "facts", name: "Answer questions about the software", who: "ai", what: "Safety, privacy, law, cost, what the software does.", go: "facts", call: "GET facts", say: "Answer ONLY from the 10 facts; say \"I do not know that\" for anything else." },
-  { id: "demo", name: "Try a free demo", who: "human", what: "A real card and a real mini-game of about a minute; one button, nothing to type.", console: "/demo.html", say: "Give the organizer the demo link; they press Run Demo themselves." },
+  { id: "demo", name: "Watch the video", who: "human", what: "A real card and a real mini-game of about a minute; one button, nothing to type.", console: "/demo.html", say: "Give the organizer the video link; they press Run Demo themselves." },
   { id: "new-game", name: "Start a new game", who: "ai", what: "Pick day, time, occasion, size, how it plays, prizes, extras; then save a draft.", go: "go/new", call: "POST z", body: "{id, startRound, callSeconds, cap, ...}", say: "Nothing is saved until the organizer says yes to the read-back." },
   { id: "list-games", name: "List my games", who: "ai", what: "Games not yet started, with their code, start time and head-count.", go: "go/games", call: "GET history", say: "Show only games that have not started when the organizer wants to change something." },
   { id: "read-game", name: "Read one game back", who: "ai", what: "Everything saved, the links, and what is left to do.", go: "go/game?id={id}", call: "GET z/{id}/summary", say: "Read the summary back after every change." },

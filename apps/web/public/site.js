@@ -3,6 +3,9 @@
   const $ = TB.$, esc = TB.esc, ic = TB.ic;
   const nf = (n) => Number(n).toLocaleString("en-IN");
   const S = { cur: TB.guessCurrency(), pack: 1000 };
+  const DEMO = "demo"; // the first choice in both size lists: a demo game, a real game for 10 people at Rs 0; every other step is the same
+  const isDemo = () => S.pack === DEMO;
+  const packOptions = (sel) => `<option value="${DEMO}" ${sel === DEMO ? "selected" : ""}>Demo game · 10 people · Rs 0</option>` + TB.PACKS.map(([n]) => `<option value="${n}" ${n === sel ? "selected" : ""}>Up to ${nf(n)} players</option>`).join("");
   const FREE = { on: true, cap: 1e9 }; // the process: sign in, build the engagement, pay only when publishing
   let ORDER = null;
 
@@ -17,11 +20,18 @@
     document.querySelectorAll("[data-cur]").forEach((el) => {
       el.innerHTML = ["INR", "USD"].map((k) => `<button type="button" class="${S.cur === k ? "on" : ""}" aria-pressed="${S.cur === k}" data-c="${k}">${k === "INR" ? "₹ INR" : "US$"}</button>`).join("");
     });
-    $("pack").innerHTML = TB.PACKS.map(([n]) => `<option value="${n}" ${n === S.pack ? "selected" : ""}>Up to ${nf(n)} players</option>`).join("");
+    $("pack").innerHTML = packOptions(S.pack); $("pack").value = String(S.pack);
+    { const pb = $("payBtn"), bt = pb && pb.querySelector(".bt"); if (bt) bt.innerHTML = isDemo() ? "Start your demo game" : "Create your Corporate Bingo <small>(closed-group corporate bingo)</small>"; }
+    if (isDemo()) { // the demo game: the same process (sign in, then the draft), nothing to pay
+      if ($("heroBrk")) $("heroBrk").innerHTML = `<span>Total <b>Rs 0</b></span><span>Demo game · 10 people</span>`;
+      $("packs").innerHTML = `<div class="pcard"><div class="pwho"><label for="pack2">How many players?</label><div class="selwrap"><select id="pack2" aria-label="Number of players">${packOptions(S.pack)}</select><svg class="ic chev"><use href="#i-chev"/></svg></div></div><div class="pmain"><div class="pamt"><span class="tot"><small>Demo game</small> Rs 0</span></div><button type="button" class="btn pcta" data-demo="1" aria-label="Start your demo game">Start your demo game ${ic("arrow")}</button></div><ul class="pperks"><li><span class="tick" aria-hidden="true">&#10003;</span>Up to 10 people, nothing to pay</li><li><span class="tick" aria-hidden="true">&#10003;</span>A real game with every feature</li><li><span class="tick" aria-hidden="true">&#10003;</span>Need more people? Make a new game for the size you need</li></ul></div>`;
+      if ($("pack2")) $("pack2").value = String(S.pack);
+      $("priceNote").textContent = "A demo game is for up to 10 people and costs Rs 0. Sign in with your e-mail and build it the same way as any game."; return;
+    }
     if ($("heroBrk")) $("heroBrk").innerHTML = breakdown(S.pack, S.cur);
     { // one price card: the organizer picks the size, then sees the festive price (never a list of every pack)
       const n = S.pack, x = TB.price(n, S.cur), shown = S.cur === "INR" ? x.base : x.total, was = S.cur === "INR" ? shown * 2 + 1 : shown * 2; // "was" is the regular price that applies after the festive offer
-      const opts = TB.PACKS.map(([k]) => `<option value="${k}" ${k === n ? "selected" : ""}>Up to ${nf(k)} players</option>`).join("");
+      const opts = packOptions(n);
       const perks = ["All features included", "Free AI assistant to build your game", "Bingo for your whole team, wherever they are", "Your message, video or audio between numbers", "Build it free, pay just before the game starts", "No fee to create or edit your game", "Guest names erased within 24 hours of the game", "One payment per game, no yearly plan"];
       $("packs").innerHTML = `<div class="pcard"><div class="pwho"><label for="pack2">How many players?</label><div class="selwrap"><select id="pack2" aria-label="Number of players">${opts}</select><svg class="ic chev"><use href="#i-chev"/></svg></div></div>` +
         `<div class="pmain"><div class="pburst" title="Festive offer: 50% off"><b>50% OFF</b><span>Festive offer</span><span class="sr">Festive offer: 50% off</span></div>` +
@@ -30,18 +40,21 @@
         `<button type="button" class="btn pcta" data-buy="${n}" aria-label="Create your game for up to ${nf(n)} players">Create your game ${ic("arrow")}</button></div>` +
         `<ul class="pperks">${perks.map((t) => `<li><span class="tick" aria-hidden="true">&#10003;</span>${t}</li>`).join("")}</ul></div>`;
     }
+    if ($("pack2")) $("pack2").value = String(S.pack);
     if (FREE.on) { $("priceNote").textContent = "You build and publish your game for free. It does not begin until it is paid for. A late payment starts the first number 2 minutes after the payment is confirmed. " + (S.cur === "INR" ? "Prices in Indian rupees." : "Prices in US dollars."); return; }
     $("priceNote").textContent = S.cur === "INR" ? "Prices in Indian rupees. Billed in India." : "Prices in US dollars. Billed outside India.";
   }
   document.addEventListener("click", (e) => {
     const c = e.target.closest("[data-c]"); if (c) { S.cur = c.dataset.c; renderPrices(); if ($("ordSum")) sumRefresh(); return; }
+    if (e.target.closest("[data-demo]")) { startDemo(); return; }
     const b = e.target.closest("[data-buy]"); if (b) { S.pack = +b.dataset.buy; renderPrices(); openCheckout(S.pack); return; }
     if (e.target.closest("[data-close]")) TB.closeSheet();
   });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") TB.closeSheet(); });
-  $("pack").addEventListener("change", (e) => { S.pack = +e.target.value; renderPrices(); });
-  document.addEventListener("change", (e) => { if (e.target && e.target.id === "pack2") { S.pack = +e.target.value; renderPrices(); const f = $("pack2"); if (f) f.focus(); } });
-  $("payBtn").addEventListener("click", () => openCheckout(S.pack));
+  $("pack").addEventListener("change", (e) => { S.pack = e.target.value === DEMO ? DEMO : +e.target.value; renderPrices(); });
+  document.addEventListener("change", (e) => { if (e.target && e.target.id === "pack2") { S.pack = e.target.value === DEMO ? DEMO : +e.target.value; renderPrices(); const f = $("pack2"); if (f) f.focus(); } });
+  function startDemo() { try { sessionStorage.setItem("cbz-next", "/zc.html?demo=1"); } catch {} const t = (() => { try { return (window.CTK ? CTK.get("cbz-org") : sessionStorage.getItem("cbz-org")); } catch { return null; } })(); if (t) location.href = "/zc.html?demo=1"; else openLogin(""); } // signed in already: straight to the demo draft; otherwise the same sign-in as every game
+  $("payBtn").addEventListener("click", () => (isDemo() ? startDemo() : openCheckout(S.pack)));
   $("loginLink").addEventListener("click", (e) => { e.preventDefault(); openLogin(""); });
 
   // ---------- helpers ----------
@@ -127,7 +140,7 @@
         const r = await TB.api("POST", "/api/start", { email: m, consent: CBConsent.payload(k2, "K2") });
         if (r.exists) { TB.toast("You already have an account, so we are emailing you a code to confirm it is you"); return askCode(m, b); }
         try { CTK.set("cbz-org", r.token); sessionStorage.setItem("cbz-aimsg", r.aiMessage); CTK.set("cbz-email", m); } catch {}
-        location.href = "/zc.html";
+        location.href = nextAfterSignIn();
       } catch (x) { sync(); setErr(x.message); }
     });
     mountGoogle("signup", () => (CBConsent.all(k2, "K2") ? CBConsent.payload(k2, "K2") : null));

@@ -10,7 +10,7 @@ Plain, checked answers about safety, privacy, law, cost and what the software do
 - [Terms](https://bingo.corporatetambola.com/terms.html)
 - [Data processing](https://bingo.corporatetambola.com/dpa.html) and [sub-processors](https://bingo.corporatetambola.com/subprocessors.html)
 - [Organizer guide](https://bingo.corporatetambola.com/organizer-guide.html): how to set up, share, run and close a game
-- [Free demo](https://bingo.corporatetambola.com/demo.html): a real card and a real mini-game of about a minute; one button, nothing to type
+- [Video](https://bingo.corporatetambola.com/demo.html): a real card and a real mini-game of about a minute; one button, nothing to type
 - [Home, prices and how to start](https://bingo.corporatetambola.com/): price list by size; building and publishing are free, the organizer pays before the start
 
 ## For an AI assistant working for an organizer
