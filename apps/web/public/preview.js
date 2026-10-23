@@ -104,7 +104,7 @@
       return { name, color, logo, fg: 1.05 / (L + 0.05) >= (L + 0.05) / 0.05 ? "#ffffff" : "#111111" };
     };
     const eid = (q.get("e") || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
-    let key = ""; try { key = sessionStorage.getItem("cbz-org") || ""; } catch {}
+    let key = ""; try { key = CTK.get("cbz-org") || ""; } catch {}
     const fromHash = () => ({
       brand: q.get("n") ? { name: q.get("n"), color: q.get("c") || "" } : null,
       rewards: (q.get("p") || "").split("|").map((t) => t.trim()).filter(Boolean).slice(0, 8).map((t, i) => ({ pattern: "", ordinal: 1, text: t })),
