@@ -117,8 +117,8 @@ describe("the owner's three test sign-ins", () => {
   test("demo1/2/3@xyz.in sign in with 123456, no e-mail is sent, the same account comes back each time, and a wrong code or another address is refused", async () => {
     for (const em of ["demo1@xyz.in", "demo2@xyz.in", "demo3@xyz.in"]) {
       expect((await call("POST", "/api/auth/email", { email: em })).status).toBe(200);
-      const a = await j(await call("POST", "/api/auth/verify", { email: em, code: "123456" })); expect(a.token).toMatch(/^ctk_/);
-      const b = await j(await call("POST", "/api/auth/verify", { email: em, code: "123456" })); expect(b.token).toMatch(/^ctk_/);
+      const a = await j(await call("POST", "/api/auth/verify", { email: em, code: "123456" })); expect(a.token).toMatch(/^cbk_/);
+      const b = await j(await call("POST", "/api/auth/verify", { email: em, code: "123456" })); expect(b.token).toMatch(/^cbk_/);
       expect((await call("POST", "/api/auth/verify", { email: em, code: "654321" })).status).toBe(400);
     }
     expect(rowsOf("SELECT COUNT(*) c FROM outbox WHERE to_addr LIKE '%xyz.in'")[0].c).toBe(0);

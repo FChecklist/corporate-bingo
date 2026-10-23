@@ -152,7 +152,7 @@ export async function partnerRoute(req: Request, env: PayEnv, now: number, spend
   }
 
   // ---- signing in again (a new phone or laptop, or after "Sign out"): the e-mail is the only way in, with two ways to use the mail (6-digit code, or one tap) ----
-  const mintDeviceKey = async (code: string) => { const key = "ctp_" + randHex(20); await db.prepare("INSERT INTO partner_key(key_hash,code,created_ms) VALUES(?,?,?)").bind(await sha("partner|" + key), code, now).run(); return key; };
+  const mintDeviceKey = async (code: string) => { const key = "cbp_" + randHex(20); await db.prepare("INSERT INTO partner_key(key_hash,code,created_ms) VALUES(?,?,?)").bind(await sha("partner|" + key), code, now).run(); return key; };
   if (req.method === "POST" && p === "/api/partner/signin") { // the answer is the same whether or not the address is a partner's, so nobody can find out who is one
     const b = await body(req); const email = validEmail(b?.email);
     if (!email) return json({ error: "Please enter a valid e-mail address." }, 400);

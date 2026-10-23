@@ -46,7 +46,7 @@ Plain, checked answers about safety, privacy, law, cost and what the software do
 - [Terms](${ORIGIN}/terms.html)
 - [Data processing](${ORIGIN}/dpa.html) and [sub-processors](${ORIGIN}/subprocessors.html)
 - [Organizer guide](${ORIGIN}/organizer-guide.html): how to set up, share, run and close a game
-- [Free demo](${ORIGIN}/demo.html): a real card and a real mini-game of about a minute; one button, nothing to type
+- [Video](${ORIGIN}/demo.html): a real card and a real mini-game of about a minute; one button, nothing to type
 - [Home, prices and how to start](${ORIGIN}/): price list by size; building and publishing are free, the organizer pays before the start
 
 ## For an AI assistant working for an organizer

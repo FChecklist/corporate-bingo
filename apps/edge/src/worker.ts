@@ -354,7 +354,7 @@ async function signInResult(env: Env, req: Request, acct: { org: string } | null
   const hostKey = async () => { const hs = await hostStateRow(env.DB, hostAcct!.host_id); ready = !!hs?.verified_ms && !!hs?.mobile_ok; return mintDeviceKey(env, hostAcct!.host_id, newHostKey(), now); };
   if (acct) {
     await linkVisitor(env as VisitEnv, req, acct.org, "signin", now, email ?? undefined);
-    const t = "ctk_" + randHex(24); // a fresh organizer key; the old ones keep working until the organizer retires them
+    const t = "cbk_" + randHex(24); // a fresh organizer key; the old ones keep working until the organizer retires them
     await env.DB.prepare("INSERT INTO organizer_key(hash,org,kind,revoked,created_ms,is_test) VALUES(?,?,?,0,?,COALESCE((SELECT MAX(k2.is_test) FROM organizer_key k2 WHERE k2.org=?),0))").bind(await sha("key|" + t), acct.org, "master", now, acct.org).run();
     token = t; roles.push("organizer");
     if (hostAcct) { alt = { kind: "host", token: await hostKey() }; roles.push("host"); }
