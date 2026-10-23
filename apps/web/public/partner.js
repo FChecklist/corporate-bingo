@@ -61,7 +61,7 @@
       <p class="zsmall">Not there? Look in your spam or junk folder, or press Send a new code.</p><p class="zsmall"><a href="#" id="back2">Back</a></p></div>`;
   }
   function linkView() {
-    return `<div class="zhead"><b>Corporate Games · Refer &amp; earn</b></div><div class="zcard zform"><h2>Press the button to sign in</h2><p class="zsmall" style="margin-top:0">This is Option 2 from your e-mail. It works once, for 10 minutes.</p>
+    return `<div class="zhead"><b>Corporate Bingo · Refer &amp; earn</b></div><div class="zcard zform"><h2>Press the button to sign in</h2><p class="zsmall" style="margin-top:0">This is Option 2 from your e-mail. It works once, for 10 minutes.</p>
       ${S.err ? `<div class="zbanner bad" role="alert">${esc(S.err)}</div>` : ""}<button class="zbtn" id="lgo">Sign me in</button><p class="zsmall">Something wrong? <a href="/partner.html">Ask for a new e-mail</a>.</p></div>`;
   }
   function dashView() {
