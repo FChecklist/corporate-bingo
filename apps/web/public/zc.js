@@ -207,7 +207,7 @@
     cap: "Invited guests count too.", tix: "How many cards each person plays with.", mk: "Both play the same. Only the feel of the card is different.", spd: "The gap between two numbers. 9 seconds is lively, 12 seconds is relaxed.",
     rnd: "How many full games in a row. Each round has new cards and new numbers.", who: "Decides who gets straight in and who waits for your yes.", gj: "What a guest types on the common link.",
     ver: "What a person must type to get in.", emp: "Tick this for a staff-only game: only people on your list can play and nobody can invite anyone.",
-    inv: "Each guest sends the invites on WhatsApp. The people they invite cannot invite anyone else.", per: "The most people one guest can invite.", cats: "The kinds of guests they may invite.",
+    inv: "Each guest sends the invites on WhatsApp. The people they invite can play, but cannot invite anyone else.", per: "The most people one guest can invite.", cats: "The kinds of guests they may invite.",
   };
   const hintOf = (path) => (HINTS[path] ? `<span class="zc-hint2">${HINTS[path]}</span>` : "");
   const grp = (path, label, opts, multi) => `<span class="zc-lbl" id="${gid(path)}">${label}</span><div class="zc-chips" role="group" aria-labelledby="${gid(path)}">${opts.map(([v, l]) => chip(path, v, l, multi)).join("")}</div>${hintOf(path)}`;
