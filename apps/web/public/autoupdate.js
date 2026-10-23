@@ -30,9 +30,9 @@
       if (!now) return;
       if (loaded === null) { loaded = now; return; }
       if (now === loaded || typing() || inRunningGame()) return;
-      var done = ""; try { done = sessionStorage.getItem("ct-auto-done") || ""; } catch (e) {}
+      var done = ""; try { done = sessionStorage.getItem("cb-auto-done") || ""; } catch (e) {}
       if (done === now) return;
-      try { sessionStorage.setItem("ct-auto-done", now); } catch (e) {}
+      try { sessionStorage.setItem("cb-auto-done", now); } catch (e) {}
       clear().then(function () { location.reload(); });
     });
   }

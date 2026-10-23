@@ -129,15 +129,15 @@ describe("console (organizer page)", () => {
     const o = await organizer({ TEST_MODE: "1" });
     const r = await o.json(await o.api("POST", "/api/auth/email", { email: "boss@acme.com" }));
     const p = await page(o, "/signin?t=" + r.devToken + "&go=ai", "signin.html", ["signin.js"], {});
-    const t = await p.waitFor((x) => /Continue to Corporate Bingo/.test(x));
-    expect(t).toMatch(/Works once, for 10 minutes/); expect(t).not.toMatch(/cba_/); expect(p.win.sessionStorage.getItem("cbz-org")).toBeFalsy();
+    const t = await p.waitFor((x) => /Press the button to sign in/.test(x));
+    expect(t).toMatch(/works once, for 10 minutes/i); expect(t).not.toMatch(/cba_/); expect(p.win.sessionStorage.getItem("cbz-org")).toBeFalsy();
     expect(p.win.location.search).toBe(""); // the token left the address bar
     expect((await o.api("POST", "/api/auth/email", { email: "stranger@x.com" })).status).toBe(200);
     p.click("#go");
     await new Promise((res) => setTimeout(res, 400));
     expect(p.win.sessionStorage.getItem("cbz-org")).toMatch(/^cbk_[0-9a-f]{48}$/);
     const again = await page(o, "/signin?t=" + r.devToken + "&go=console", "signin.html", ["signin.js"], {});
-    await again.waitFor((x) => /Continue to Corporate Bingo/.test(x)); again.click("#go");
+    await again.waitFor((x) => /Press the button to sign in/.test(x)); again.click("#go");
     await again.waitFor((x) => /not valid any more/.test(x));
     expect(again.win.sessionStorage.getItem("cbz-org")).toBeFalsy();
   });
@@ -366,7 +366,7 @@ describe("console (organizer page)", () => {
   test("How it plays: tap choices for tickets, speed, rounds and who can join; the guest-invite option explains its three levels; all of it is saved", async () => {
     const o = await organizer(); await make(o, "UI-PLAY"); const pw = spy();
     const p = await consolePage(o, "UI-PLAY", o.token, {}, { afterLoad: pw.hook }); await p.waitFor((x) => /Hello/.test(x)); openStep(p, 2);
-    expect(p.win.document.querySelectorAll('[data-ck="cap"]').length).toBe(8); expect(p.text()).toMatch(/Up to 100 people/); expect(p.text()).not.toMatch(/Rs [\d,]+(\.\d\d)? (with|including) GST/); /* no price while choosing the size */ expect(p.$("#f-cap")).toBeTruthy(); expect((p.$("#f-cap") as any).type).toBe("number"); expect(p.text()).toMatch(/Or type your own number of players/);
+    expect(p.win.document.querySelectorAll('[data-ck="cap"]').length).toBe(9); expect(p.text()).toMatch(/Up to 100 people/); expect(p.text()).not.toMatch(/Rs [\d,]+(\.\d\d)? (with|including) GST/); /* no price while choosing the size */ expect(p.$("#f-cap")).toBeTruthy(); expect((p.$("#f-cap") as any).type).toBe("number"); expect(p.text()).toMatch(/Or type your own number of players/);
     p.click('[data-ck="tix"][data-v="2"]'); p.click('[data-ck="spd"][data-v="12"]'); p.click('[data-ck="rnd"][data-v="3"]'); p.click('[data-ck="who"][data-v="anyone"]');
     expect(p.text()).not.toMatch(/How many people can each guest invite/); expect(p.text()).toMatch(/Cards for each person \(participant\)/); expect(p.text()).toMatch(/Duration \(gap\) between two numbers/); expect(p.$('[data-ck="spd"][data-v="6"]')).toBeNull(); expect(p.$('[data-ck="spd"][data-v="15"]')).toBeNull(); expect(p.$('[data-ck="spd"][data-v="9"]')).toBeTruthy(); expect(p.text()).toMatch(/How many rounds \(games in a row\)\?/); expect(p.text()).toMatch(/One round is one full game of up to 75 numbers/); expect(p.text()).toMatch(/Anyone who clicks your link joins straight away/);
     p.click('[data-bool="inv"]'); const t = p.text();
@@ -406,7 +406,7 @@ describe("console (organizer page)", () => {
     let copied = ""; Object.defineProperty(p.win.navigator, "clipboard", { value: { writeText: async (t: string) => { copied = t; } }, configurable: true });
     p.click("#copy"); await p.waitFor((x) => /Copied/.test(x)); expect(copied).toBe(guest); p.click("#copybig"); await new Promise((r) => setTimeout(r, 50)); expect(copied).toBe("http://localhost/big.html?e=UI-SHARE");
     const t = p.text(); expect(t).toMatch(/Open it on a laptop or phone connected to the big screen\. It shows numbers and winners only\./); expect((p.$('a[href="http://localhost/big.html?e=UI-SHARE"]') as any).textContent).toMatch(/Open the big screen/);
-    expect(Array.from(doc.querySelectorAll("[data-mode]")).map((e: any) => e.textContent)).toEqual(["Add a name and number", "Paste from Excel", "Upload a CSV"]); // no contacts button where the browser has no contact picker
+    expect(Array.from(doc.querySelectorAll("[data-mode]")).map((e: any) => e.textContent)).toEqual(["Upload a PDF", "Add a name and number", "Paste from Excel", "Upload a CSV"]); // no contacts button where the browser has no contact picker
     p.click('[data-mode="file"]'); expect(p.$("#gfile")).toBeTruthy(); expect((p.$("#gfile") as any).type).toBe("file");
     expect(t).not.toMatch(/By e-mail|Send by e-mail|Send invites/); expect(t).toMatch(/Invite only people who would like to play/); expect(t).toMatch(/Names and numbers stay here: your AI never sees them\./); expect(t).toMatch(/Download my list/);
     expect(p.errors).toEqual([]);
@@ -484,7 +484,7 @@ describe("big screen", () => {
   });
   test("UC-56 a draft shows a message, not a crash", async () => {
     const o = await organizer(); await make(o, "UI-BIG2");
-    const p = await big(o, "UI-BIG2"); await p.waitFor((x) => /not open yet|Connecting/i.test(x));
+    const p = await big(o, "UI-BIG2"); await p.waitFor((x) => /not open yet|not published yet|Connecting/i.test(x));
   });
 });
 
@@ -619,6 +619,7 @@ describe("winners, the end, and break media on the phone", () => {
     await until(() => (o.world.raw.query("SELECT COUNT(*) c FROM winner WHERE src='phones'").get() as any).c >= 3 && (o.world.raw.query("SELECT COUNT(*) c FROM overvote").get() as any).c >= 1); // the phone told our store about its wins and that the game is over
     expect(o.world.raw.query("SELECT end_src FROM life").get()).toEqual({ end_src: "phones" });
     // the winner confirms where the prize goes; a changed number is kept with the original and shown to the organizer
+    o.world.now += 20_000; // the page asks again only after 15 seconds on its clock
     await p.waitFor((x) => /Confirm your prize details/.test(x), 40000);
     (p.$("#cfnm") as any).value = "Asha Rao"; (p.$("#cfph") as any).value = "98765 43210"; (p.$("#cfph") as any).dispatchEvent(new p.win.Event("input")); (p.$("#cfnm") as any).dispatchEvent(new p.win.Event("input"));
     p.click("#cfgo");
@@ -722,7 +723,7 @@ describe("Refer & Earn page", () => {
     (p.$("#cd") as any).value = mailed; p.click("#cdgo");
     const t = await p.waitFor(() => !!p.win.document.getElementById("dash")?.textContent?.includes("Your link"));
     const dash = p.win.document.getElementById("dash")!.textContent!;
-    expect(dash).not.toMatch(/9876543210/); expect(dash).toMatch(/\/\?ref=[A-HJ-NP-Z2-9]{8}/); expect(dash).toMatch(/Your partner key/);
+    expect(dash).not.toMatch(/9876543210/); expect(dash).toMatch(/\/\?ref=[A-HJ-NP-Z2-9]{8}/); expect(dash).toMatch(/Your link/);
     expect(p.win.document.body.classList.contains("signed")).toBe(true);
     expect(p.errors).toEqual([]);
   });
@@ -909,8 +910,8 @@ describe("the free demo game", () => {
     expect(sawBreak).toBe(true); expect((doc.querySelector("#cbmedia video") as any)?.src ?? "").toBe(""); /* no player is left after the break */ expect(logDuringBreak).toBe(3); expect(ticketDuringBreak).toBe(true); expect(breakGone).toBe(true);
     expect(rt.view().log).toEqual([7, 12, 75, 11, 24, 65]); // exactly the scripted numbers, in order, by the real number-drawing code
     expect(rt.view().won.map((w: any) => w.pattern)).toEqual(["corners"]); expect(rt.view().won[0].idx).toBe(5); // Four corners, on the 6th number, by the real winner check
-    const end = await p.waitFor((x) => /That was the demo/.test(x), 20000);
-    expect(end).toMatch(/You won Four corners/); expect(end).toMatch(/Create my game/); expect(end).toMatch(/Run demo again/);
+    const end = await p.waitFor((x) => /That was the video/.test(x), 20000);
+    expect(end).toMatch(/You won Four corners/); expect(end).toMatch(/Create my game/); expect(end).toMatch(/Run the video again/);
     expect(end).not.toMatch(/Confirm your prize details|Confirm where your prize goes/); // a demo asks for no name or number
     expect(calls.filter((u) => /\/api\//.test(u))).toEqual([]); // nothing was sent to our server
     return p;
@@ -919,13 +920,13 @@ describe("the free demo game", () => {
   test("stage links open the demo at one moment: ?stage=middle shows the break, ?stage=end shows the finished game, ?stage=before the idle card", async () => {
     const o = await organizer();
     const mid = await demo(o, "?stage=middle", { k: 1 }); await mid.p.waitFor((x) => /A short message from your host appears here/.test(x), 20000); expect(mid.p.win.__rt.view().log.length).toBe(3);
-    const end = await demo(o, "?stage=end", { k: 1 }); await end.p.waitFor((x) => /That was the demo/.test(x), 30000); expect(end.p.text()).toMatch(/You won Four corners/);
-    const before = await demo(o, "?stage=before", { k: 1 }); await before.p.waitFor((x) => /Run Demo/.test(x)); expect(before.p.text()).not.toMatch(/That was the demo|A short message from your host appears here/);
+    const end = await demo(o, "?stage=end", { k: 1 }); await end.p.waitFor((x) => /That was the video/.test(x), 30000); expect(end.p.text()).toMatch(/You won Four corners/);
+    const before = await demo(o, "?stage=before", { k: 1 }); await before.p.waitFor((x) => /Run Demo/.test(x)); expect(before.p.text()).not.toMatch(/That was the video|A short message from your host appears here/);
   }, 90_000);
   test("before anyone presses anything: a real card marked DEMO, a Run Demo button, and nothing happening: no countdown, no time, no date, no number to type", async () => {
     const o = await organizer(); const { p } = await demo(o); const doc = p.win.document; const rt = p.win.__rt;
     await p.waitFor((x) => /Run Demo/.test(x)); const t = p.text();
-    expect(t).toMatch(/Demo card/); expect(doc.querySelector(".zdemotag")?.textContent).toBe("DEMO"); expect(doc.querySelectorAll(".zticket .c, .zticket .free").length).toBe(25); // a real 5 x 5 card
+    expect(t).toMatch(/Video card/); expect(doc.querySelector(".zdemotag")?.textContent).toBe("VIDEO"); expect(doc.querySelectorAll(".zticket .c, .zticket .free").length).toBe(25); // a real 5 x 5 card
     expect(doc.getElementById("drun")?.textContent).toBe("Run Demo");
     let copied = ""; Object.defineProperty(p.win.navigator, "clipboard", { value: { writeText: async (x: string) => { copied = x; } }, configurable: true });
     p.click("#dcopy"); await until(() => copied !== "", 3000); expect(copied).toMatch(/^http:\/\/localhost\/demo\.html$/); // the plain address, no time in it: anyone who opens it runs their own demo
@@ -938,7 +939,7 @@ describe("the free demo game", () => {
     const o = await organizer(); const { p: idle } = await demo(o); await idle.waitFor((x) => /Run Demo/.test(x));
     idle.click("#drun"); const hash = idle.win.location.hash; expect(hash).toMatch(/^#r=\d+$/); // the press sets the start: nothing else is needed
     const first = await playToEnd(o, hash);
-    expect(first.win.document.getElementById("dagain2")?.textContent).toBe("Run demo again");
+    expect(first.win.document.getElementById("dagain2")?.textContent).toBe("Run the video again");
     first.click("#dagain2"); const again = first.win.location.hash; expect(again).toMatch(/^#r=\d+$/); expect(again).not.toBe(hash);
     await playToEnd(o, again); // the second run is the same game again
   }, 240_000);
@@ -1012,7 +1013,7 @@ describe("the console for an AI that works in the browser", () => {
     set(p, "#qk-name", "Diwali party"); set(p, "#qk-date", d); set(p, "#qk-time", "18:30");
     p.click('[data-ck="cap"][data-v="500"]'); p.click('[data-ck="tix"][data-v="2"]'); p.click('[data-ck="spd"][data-v="12"]'); p.click('[data-ck="join"][data-v="list"]'); p.click('[data-bool="inv"]');
     set(p, "#qk-t-blackout", "Voucher 5000"); p.click('[data-ck="hs.blackout.n"][data-v="2"]');
-    await until(() => /Diwali party: \d{4}-\d\d-\d\d at 18:30 \(Asia\/Calcutta time\); up to 500 people; 2 cards each, a number every 12 seconds, 1 round; only people on a list; 5 prizes/.test(p.text()), 8000).catch(() => { throw new Error("summary was: " + (p.$("#qk-summary") as any)?.textContent); });
+    await until(() => /Diwali party: \d{4}-\d\d-\d\d at 18:30 \(Asia\/(Calcutta|Kolkata) time\); up to 500 people; 2 cards each, a number every 12 seconds, 1 round; only people on a list; 5 prizes/.test(p.text()), 8000).catch(() => { throw new Error("summary was: " + (p.$("#qk-summary") as any)?.textContent); });
     p.click("#qk-save"); await p.waitFor((x) => /Your draft is saved/.test(x), 8000).catch(() => { throw new Error("save failed; error box: " + (p.$("#qk-err") as any)?.textContent + " | errors: " + p.errors.join("; ")); });
     const hist = await o.json(await o.api("GET", "/api/history", undefined, o.aiKey)); expect(hist.engagements.length).toBe(1);
     const id = hist.engagements[0].id; expect(id).toMatch(/^DIWALI-PARTY-\d{4}$/);
@@ -1494,18 +1495,14 @@ describe("console phase 4: Finish setup for a new Host, and Continue with Google
     expect(p.errors).toEqual([]);
   }, 60_000);
 
-  test("Continue with Google: shown on Finish setup and on the console sign-in only when the server has a client id, above 'Sign in with an e-mail code'; the credential goes to /api/auth/google with the right intent", async () => {
-    const plain = await organizer(); const a = await page(plain, "/zc", "zc.html", ZC_SCRIPTS, {}); await a.waitFor((x) => /Sign in with an e-mail code/.test(x)); expect(a.$("#gbtn")).toBeNull(); expect(a.text()).not.toMatch(/Continue with Google/);
+  test("one way in: the console sign-in and Finish setup show the e-mail way only, with or without a Google client id (no Google button, no pasted-key box); a refused link says so on the sign-in page", async () => {
+    const plain = await organizer(); const a = await page(plain, "/zc", "zc.html", ZC_SCRIPTS, {}); await a.waitFor((x) => /Type your e-mail and press Continue/.test(x)); expect(a.$("#gbtn")).toBeNull(); expect(a.text()).not.toMatch(/Continue with Google|sign-in key/);
     const o = await organizer({ GOOGLE_CLIENT_ID: "test-id.apps.googleusercontent.com" }); await make(o, "UI-GOO"); await publish(o, "UI-GOO");
-    const bodies: any[] = []; const w = spy({ "POST /api/auth/google": (_m, b) => { bodies.push(b); return { ok: true, token: o.token, created: false }; } }, google);
-    const s = await page(o, "/zc", "zc.html", ZC_SCRIPTS, {}, { afterLoad: w.hook }); await s.waitFor((x) => /Continue with Google/.test(x) && /Sign in with an e-mail code/.test(x));
-    const html = s.html(); expect(html.indexOf("gbtn")).toBeLessThan(html.indexOf("Sign in with an e-mail code"));
-    s.win.__gi.callback({ credential: "tok" }); await s.waitFor((x) => /Start a new game/.test(x)); expect(bodies).toEqual([{ credential: "tok", intent: "signin" }]); expect(s.win.sessionStorage.getItem("cbz-org")).toBe(o.token);
-    const added = await o.json(await o.api("POST", "/api/org/host", { label: "Anita", email: "anita@acme.com" }, o.token)); const hk = added.hostKey as string; bodies.length = 0;
+    const s = await page(o, "/zc", "zc.html", ZC_SCRIPTS, {}); await s.waitFor((x) => /Type your e-mail and press Continue/.test(x)); await new Promise((r) => setTimeout(r, 400));
+    expect(s.$("#gbtn")).toBeNull(); expect(s.text()).not.toMatch(/Continue with Google|sign-in key/); expect(s.$("#lem")).toBeTruthy(); expect(s.$("#goLogin")).toBeTruthy(); expect(s.$("#sec")).toBeNull();
+    const added = await o.json(await o.api("POST", "/api/org/host", { label: "Anita", email: "anita@acme.com" }, o.token)); const hk = added.hostKey as string;
     o.world.raw.prepare("UPDATE host_state SET verified_ms=NULL, mobile_ok=0, spent=0").run();
-    const h = await consolePage(o, "UI-GOO", hk, {}, { afterLoad: spy({ "POST /api/auth/google": (_m, b) => { bodies.push(b); return { status: 403, body: { error: "This link is for a***@acme.com", code: "email-mismatch" } }; } }, google).hook });
-    await h.waitFor((x) => /Finish setup/.test(x) && /Continue with Google/.test(x)); h.win.__gi.callback({ credential: "tok2" }); await h.waitFor((x) => /This link is for a\*\*\*@acme\.com/.test(x));
-    expect(bodies).toEqual([{ credential: "tok2", intent: "host", hostKey: hk, consent: { v: "2026-10-15", boxes: ["A"] } }]);
+    const h = await consolePage(o, "UI-GOO", hk); await h.waitFor((x) => /Finish setup/.test(x)); expect(h.$("#gbtn")).toBeNull(); expect(h.text()).not.toMatch(/Continue with Google/);
   }, 60_000);
 });
 
