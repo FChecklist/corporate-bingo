@@ -15,7 +15,7 @@ database_name = "corporate-bingo"
 database_id = "f2d1ed1b-77cd-401a-af4c-4c02724688ef"
 
 [vars]
-DAILY_WRITE_BUDGET = "2000000"   # a runaway guard only: the paid Workers plan has no daily limit on D1 writes
+DAILY_WRITE_BUDGET = "80000"   # the free Cloudflare plan allows 100,000 D1 writes a day for the whole account; this guard keeps Bingo below that (Corporate Tambola raised its own on the paid plan; Bingo waits for the owner to say so)
 JOIN_PER_IP_MINUTE = "600"   # new places one network address may open a minute: a whole office shares one address, so a crowd joining together must not be turned away
 JOIN_PER_IP_DAY = "20000"    # and in a day (the game size is the real limit)
 AI_LINK_MAIL_AT_SIGNUP = "0"   # the AI work link is hidden in the console, so its welcome e-mail is not sent

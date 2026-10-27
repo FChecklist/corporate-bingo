@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { deviceOf, withDevice } from "./device";
+import { SEEN_DEVICES, deviceOf, withDevice } from "./device";
 import { settleByPhones } from "./settle";
 import { type Env } from "../src/worker";
 import { handle } from "./with-terms";
@@ -131,7 +131,7 @@ describe("claims", () => {
 describe("winners are decided by the software", () => {
   let pids: string[] = [];
   beforeEach(async () => { await create(); pids = []; for (let i = 1; i <= 8; i++) pids.push(((await (await join(i)).json()) as any).pid); });
-  const vote = (pid: string, results: unknown[]) => call("POST", "/api/z/ENG1/vote", { pid, results });
+  const vote = async (pid: string, results: unknown[]) => { let r!: Response; for (const device of SEEN_DEVICES) { r = await call("POST", "/api/z/ENG1/vote", { pid, device, results }); if (r.status !== 403) break; } return r; }; // the phone's own device id goes with its vote
   const res = (idx: number, winners: string[]) => ({ pattern: "blackout", ordinal: 1, round: 1, idx, pids: winners });
   test("nobody can post a result: not the organizer, not the AI, not a stranger", async () => {
     const body = { results: [{ pattern: "line", idx: 20, pids: [pids[0]!] }] };
