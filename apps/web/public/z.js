@@ -86,9 +86,11 @@
     if (vm === "both") return phone("Your mobile number", "") + emp(eo ? "Your employee ID" : "Your employee ID (employees only)", eo ? "This game is for employees only." : "Not an employee? Leave this empty.");
     return needPhone ? phone("Your mobile number", "") : "";
   };
+  const BUSY_TRIES = 15;
   const joinView = (msg) => {
     if (J.mode === "removed") return `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard" role="status"><h2>You are not on this game's list</h2><p class="zsmall" style="margin:0">You were removed from this game, so there is no card for you here. If you think this is a mistake, please ask the person who invited you.</p></div>`;
     if (J.mode === "gone") return `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard" role="status"><h2>This link is not active any more</h2><p class="zsmall" style="margin:0">Please ask the person who invited you for a new link.</p></div>`;
+    if (J.mode === "busy") return `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard zwait" role="status"><h2>Many people are joining right now</h2><p style="margin:0 0 6px">Your request is safe. We are trying again for you every few seconds. Keep this page open.</p><p class="zsmall" style="margin:0">Try ${J.busyTries} of ${BUSY_TRIES}.</p></div><div class="zagain"><button class="zbtn s alt" id="again" type="button">Stop and try myself</button></div>`; // a whole office joins from one address: the server asks for a short wait, or the answer never comes: the page asks again by itself
     if (J.mode === "waiting") return `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard zwait" role="status"><h2>Please wait a moment</h2><p style="margin:0 0 6px">${J.note ? esc(J.note) : `Your request to join has gone to ${J.who ? esc(J.who) : "the organizer"}.`}</p><p class="zsmall" style="margin:0">Keep this page open. As soon as you are let in, your card appears here.</p></div>`;
     if (J.mode === "declined" || J.mode === "lapsed") return `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard" role="status"><h2>${J.mode === "declined" ? "Your request was not accepted" : "This request has run out"}</h2><p class="zsmall" style="margin:0 0 8px">${J.mode === "declined" ? "You are not on the list for this game. Please ask the person who invited you." : "Nobody answered in time. You can ask again."}</p>${J.mode === "lapsed" ? `<button class="zbtn s" id="again" type="button">Ask again</button>` : ""}</div>`;
     const personal = !!TOKEN && J.mode !== "needPhone"; // a personal link is made for one person: nothing to type unless the server asks
@@ -164,7 +166,8 @@
     else if (code === "declined" || b.declined) { J.mode = "declined"; rt.error = null; clearInterval(J.timer); }
     else if (code === "link-used" || b.needPhone) { J.mode = "needPhone"; J.note = ""; rt.error = null; }
     else if (code === "link-gone" || /link-gone/.test(l.message || "")) { J.mode = "gone"; rt.error = null; }
-    else if (J.mode === "waiting") J.mode = ""; // let in, but the join failed another way: show the usual message
+    else if ((code === "busy" || (!l.status && !code && !b.error && !b.waiting)) && (J.busyTries || 0) < BUSY_TRIES) { /* a join that timed out or lost its connection (no answer at all) is asked again by itself like a busy answer: joining is safe to repeat, the same phone gets the same card */ J.busyTries = (J.busyTries || 0) + 1; J.mode = "busy"; rt.error = null; clearTimeout(J.retry); J.retry = setTimeout(() => { if (J.mode === "busy") doJoin(); }, Math.round((4 + Math.min(26, J.busyTries * 2)) * 1000 * (0.7 + Math.random() * 0.6))); }
+    else if (J.mode === "waiting" || J.mode === "busy") J.mode = ""; // let in, but the join failed another way: show the usual message
     paint(); return false;
   }
 
@@ -285,7 +288,7 @@
     try {
       if (v.phase === "ended" && !store.get(overKey) && !overPending) {
         overPending = true; // spread over a little time so a big crowd does not ask at the same second
-        setTimeout(async () => { try { await api("POST", `/api/z/${EID}/over`, { pid: v.pid }); store.set(overKey, "1"); } catch { /* tried again later */ } overPending = false; }, Math.floor(Math.random() * 45000));
+        setTimeout(async () => { try { await api("POST", `/api/z/${EID}/over`, { pid: v.pid, device: myDevice() }); store.set(overKey, "1"); } catch { /* tried again later */ } overPending = false; }, Math.floor(Math.random() * 45000));
       }
     } catch { /* never in the way of the game */ }
   }
@@ -461,7 +464,7 @@
   }
   // ---------- My invites: for a guest who may invite (level 1) only. Their own small list: add, send on WhatsApp, resend, remove. A guest invited by a guest sees nothing. ----------
   const MI = { k6: {}, people: [], limit: 0, used: 0, loaded: false, at: -Infinity, busy: false, note: "", bad: false, ask: "", name: "", phone: "" };
-  const miQ = (v) => `?me=${encodeURIComponent(v.pid)}`;
+  const miQ = (v) => `?me=${encodeURIComponent(v.pid)}&device=${encodeURIComponent(myDevice())}`; // the card id is public: the people calls also carry the phone's own device id
   async function loadMine(v, force) {
     if (DEMO || !ME.canInvite || !v.pid || MI.busy) return;
     if (!force && performance.now() - MI.at < 60000) return;
@@ -679,7 +682,7 @@
     const st = document.getElementById("soundtest"); if (st) st.onclick = async () => { if (window.TBAudio) { TBAudio.enabled = true; await TBAudio.unlock(); TBAudio.test(); } };
   }
   function bindJoin() {
-    const again = document.getElementById("again"); if (again) again.onclick = () => { J.mode = ""; J.wid = ""; clearWait(); paint(); };
+    const again = document.getElementById("again"); if (again) again.onclick = () => { clearTimeout(J.retry); J.busyTries = 0; J.mode = ""; J.wid = ""; clearWait(); paint(); };
     const go = document.getElementById("go"); if (!go) return;
     if (!DEMO) CBConsent.wire(document, "K4", J.k4); // never ticked in advance; the button stays off until both boxes are ticked
     go.onclick = async () => {

@@ -38,6 +38,7 @@ const beaconFetcher = (opt: { blocked?: () => boolean } = {}): Fetcher => async 
   if (r > nowR) return { ok: false, status: 404, json: async () => ({}) };
   return { ok: true, status: 200, json: async () => ({ round: r, randomness: rnd(r), signature: "aa" } as Round) };
 };
+const ALLPHONES: { rt: PhoneRuntime; mem: Map<string, string> }[] = []; // every phone made, so a test can send a phone's vote with that phone's own device id
 const mkPhone = (n: number, o: { earlyEnd?: boolean; down?: () => boolean; blocked?: () => boolean; locked?: () => boolean; eid?: string; onApi?: (path: string) => void } = {}) => {
   const mem = new Map<string, string>();
   const rt = new PhoneRuntime(o.eid ?? EID, {
@@ -46,7 +47,7 @@ const mkPhone = (n: number, o: { earlyEnd?: boolean; down?: () => boolean; block
     beacon: { fetcher: beaconFetcher({ blocked: o.blocked }), mirrors: ["https://a.test", "https://b.test", "https://c.test"], timeoutMs: 500 },
     verify: (x) => x.signature === "aa" && x.randomness === rnd(x.round),
   });
-  return { rt, mem, phone: "9" + String(100000000 + n) };
+  const made = { rt, mem, phone: "9" + String(100000000 + n) }; ALLPHONES.push(made); return made;
 };
 const step = async (phones: ReturnType<typeof mkPhone>[], ms = 3000) => { t += ms; for (const p of phones) await p.rt.tick(); };
 const kvOf = (): KV => ({ get: async (k) => (await env.DB.prepare("SELECT v FROM kv WHERE k=?").bind(k).first<{ v: string }>())?.v ?? null, put: async () => {} });
@@ -72,7 +73,7 @@ const reference = (pauseState?: ReturnType<typeof resolveControl>) => {
 /** Several different phones report the same winners, which is how a result gets accepted (nobody, not even the organizer, can post one). */
 async function settleViaPhones(results: { pattern: string; ordinal?: number; round?: number; idx: number; pids: string[] }[], voters: string[]): Promise<number> {
   let last = 200;
-  for (const pid of voters.slice(0, 30)) for (let i = 0; i < results.length; i += 3) last = (await D.headCall("POST", `/api/z/${EID}/vote`, { pid, results: results.slice(i, i + 3).map((x) => ({ ordinal: 1, round: 1, ...x })) })).status;
+  for (const pid of voters.slice(0, 30)) for (let i = 0; i < results.length; i += 3) last = (await D.headCall("POST", `/api/z/${EID}/vote`, { pid, device: ALLPHONES.find((p) => p.rt.pid === pid)?.mem.get("cbz:device"), results: results.slice(i, i + 3).map((x) => ({ ordinal: 1, round: 1, ...x })) })).status;
   return last;
 }
 describe("a phone from first open to full house", () => {

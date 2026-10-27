@@ -17,6 +17,8 @@
   const QUICK = q.get("quick") === "1";
   const NEWGAME = q.get("new") === "1"; // the link on a participant's ticket: "Create a new game as an organizer"
   const NEWDEMO = q.get("demo") === "1"; // from the website: start a demo game (10 people, Rs 0) right away
+  // A demo pass link (zc.html?pass=...): the long secret in it is kept in this browser until the person is signed in, then used once, then forgotten. Nothing about it is shown to anybody else.
+  { const pt = (q.get("pass") || "").toLowerCase(); if (/^[0-9a-f]{32}$/.test(pt)) { ls.set("cbz-pass", JSON.stringify({ t: pt, at: Date.now() })); q.delete("pass"); try { const rest = q.toString(); history.replaceState(null, "", location.pathname + (rest ? "?" + rest : "")); } catch { /* the address stays */ } } }
   // A browser AI may open this page in a new tab, and a tab holds the key only for itself: another open tab of the same browser can hand it over (same site, same browser, never stored).
   const bc = typeof BroadcastChannel === "function" ? new BroadcastChannel("cbz-org-key") : null;
   const OLD_HOUSES = []; // the shared table (ZG.PRIZE_HOUSES) is the only source of the houses
@@ -269,8 +271,8 @@
       + grp("mk", "How the card marks the numbers", [["auto", "Automatically (squares light up)"], ["tap", "Tap to daub (guests tap the squares)"]])
       + small("Tap to daub is only the feeling of dabbing a card: the software always works out the winners, so a missed tap never loses a prize.")
       + grp("spd", "Duration (gap) between two numbers", spdOpts(f.spd))
-      + grp("rnd", "How many rounds (games in a row)?", [1, 2, 3, 4, 5].map((n) => [String(n), String(n)]))
-      + small("One round is one full game of up to 75 numbers (it ends sooner when every prize is awarded). With 2 rounds, guests play two games one after the other. Brand moments and lucky draws run in round 1 only.")
+      + `<div class="zc-hide" data-hidden="1">` + grp("rnd", "How many rounds (games in a row)?", [1, 2, 3, 4, 5].map((n) => [String(n), String(n)]))
+      + small("One round is one full game of up to 75 numbers (it ends sooner when every prize is awarded). With 2 rounds, guests play two games one after the other. Brand moments and lucky draws run in round 1 only.") + `</div>` // owner rule 2026-10-27: hide, never disable, the rarely used choice: one game is one round (the choice and its server rule stay for old games)
       + `<span class="zc-lbl zc-sec zc-sub">Who is this game for?</span><div class="zc-chips">${bchip("emp", "Only my employees (nobody can invite anyone)")}</div>`
       + small(f.emp ? "Only the employees on your list can play. Guests cannot invite anyone. Anyone else who opens your link waits for you to say yes." : "Employees, vendors, customers, families: everyone can play. Put the people you know on your list; others can still come in with the link.")
       + (f.emp ? "" : `<span class="zc-lbl zc-sec zc-sub">Who can join</span>` + grp("who", "Who can join?", [["list", "Only people on a list"], ["anyone", "Anyone with the link"]])
@@ -421,6 +423,7 @@
   function stepTeam() {
     const T = S.team, max = (T && T.maxHosts) || 5, hosts = (T && T.hosts) || [], co = (T && T.cohosts) || [];
     let h = roleCards() + (S.teamNote ? `<div class="zc-toast" role="status">${esc(S.teamNote)}</div>` : "");
+    if (S.passMsg) h += `<div class="zc-toast" role="status" id="passmsg">${esc(S.passMsg)}</div>`; // from a demo pass link
     if (!T && S.teamErr) h += `<p class="zc-small zc-warnt" role="status">${esc(S.teamErr)}</p>`;
     h += `<span class="zc-lbl zc-sec">Your Hosts: ${hosts.length} of ${max}</span>` + hosts.map((p) => teamRow(p, "host")).join("");
     if (isOrg()) h += `<div class="zc-inline"><label class="zc-sr" for="hostlabel">Name of the new Host</label><input id="hostlabel" value="${esc((S.tv || {}).hostlabel || "")}" class="zc-in" maxlength="40" placeholder="Name" autocomplete="off" required><label class="zc-sr" for="hostphone">Mobile number of the new Host</label><input id="hostphone" value="${esc((S.tv || {}).hostphone || "")}" class="zc-in" inputmode="tel" placeholder="Mobile number, 415 555 0132" autocomplete="off"><label class="zc-sr" for="hostemail">E-mail of the new Host</label><input id="hostemail" value="${esc((S.tv || {}).hostemail || "")}" class="zc-in" type="email" maxlength="120" placeholder="E-mail (their link is sent here)" autocomplete="off"><button type="button" class="zc-btn zc-btn-s" id="hostadd"${hosts.length >= max ? " disabled" : ""}>Add a Host</button></div>${hosts.length >= max ? small(`You have the most Hosts allowed (${max}). Remove one to add another.`) : small("A Host needs a name and a mobile number or an e-mail, or both. With an e-mail we send their private link there. With only a mobile number, you send it on WhatsApp.")}`;
@@ -1112,7 +1115,16 @@
   }
   async function loadPacks() { try { S.packs = (await fetch(BASE + "/api/z/ai-manifest").then((r) => r.json())).packs || []; } catch { S.packs = []; } }
 
+  async function redeemPass() { // a demo pass link was opened in this browser and the person is now signed in as an organizer: it gives ONE free game, once
+    let v = null; try { v = JSON.parse(ls.get("cbz-pass") || "null"); } catch { v = null; }
+    if (!v || !v.t) return; if (Date.now() - (Number(v.at) || 0) > 14 * 86400000) { ls.set("cbz-pass", ""); return; }
+    if (!isOrg() || !secret) return;
+    ls.set("cbz-pass", ""); // used or refused, it is not tried again
+    try { const r = await call("POST", "/api/pass", { token: v.t }); S.passMsg = r.again ? "This demo link is already yours: press Create a new game." : `Your free demo is ready: one game of up to ${r.cap} people at Rs 0. In step 2 choose "Up to ${r.cap} people".`; }
+    catch (e) { S.passMsg = e && e.message ? e.message : "This demo link could not be used. Please ask us for a new one."; }
+  }
   async function refreshHome() {
+    if (isOrg()) await redeemPass(); // a demo pass link opened in this browser is used now (before a first game is made for a new person)
     S.screen = "home";
     try { S.keys = (await call("GET", "/api/org/keys")).keys; } catch { S.keys = []; }
     try { S.sugs = (await call("GET", "/api/z/suggestions")).suggestions.slice(0, 6); } catch { S.sugs = []; }
@@ -1683,6 +1695,7 @@
     if (r === "cohost") { if (eid) return refreshCohost(); return redraw(); }
     if (r === "host" && !eid) { try { S.history = await call("GET", "/api/history"); } catch { S.history = null; } const gs = (S.history && S.history.engagements) || []; if (gs.length === 1) { eid = gs[0].id; refreshTeam(); return refreshEng(); } return redraw(); } // a Host with one game goes straight in; with several they pick
     refreshTeam();
+    if (eid && isOrg()) { await redeemPass(); } // a demo link opened while the person is taken straight back into a game must still be used (found with a real prospect in Corporate Tambola 1.3.5)
     if (eid) refreshEng();
     else if (QUICK) { S.screen = "quick"; S.f = quickDefault(); await loadPacks(); redraw(); }
     else refreshHome();

@@ -86,7 +86,7 @@ export async function countError(db: D1, now: number): Promise<void> {
   } catch { /* best effort */ }
 }
 /** The promise to players is "within 24 hours"; the job deletes at 23 (PURGE_AFTER_MS). The alarm rises when a game is this much later than that and its players' data is still there (the 5-minute tick normally clears a game within minutes). */
-export const OVERDUE_GRACE_MS = 30 * 60_000;
+export const OVERDUE_GRACE_MS = 3 * 3_600_000;
 /** A game the tick has not looked at yet (no `life` row) is taken to have ended this long after its scheduled start at the latest (5 rounds are a few hours; breaks and pauses are added generously). */
 const LONGEST_GAME_MS = 12 * 3_600_000;
 /**

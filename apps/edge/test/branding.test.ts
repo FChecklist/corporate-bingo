@@ -139,7 +139,7 @@ describe("the legal page carries the owner's final text, and each line matches w
     expect(r).not.toMatch(/Cut your own|Late claims|wrong claim|block your ticket|for fun/i);
     expect(r).toContain("The 75 numbers come from a public random beacon (drand)."); expect(r).not.toMatch(/No one can choose or change|not even the organizer|twice|every claim is checked/); expect(r).toContain("The game ends when every prize is won or all 75 numbers are called."); expect(r).toContain("You get one card per phone."); expect(r).not.toMatch(/ticket|Full House|Tambola|housie/i);
     const lc = read("apps/edge/src/lifecycle.ts");
-    expect(lc).toMatch(/PURGE_AFTER_MS = 23 \* 3_600_000/); // 23 h is inside "within 24 hours"
+    expect(lc).toMatch(/PURGE_AFTER_MS = 20 \* 3_600_000/); // 20 h (the job may run 3 h late) is inside "within 24 hours"
     expect(lc).toMatch(/endMs \+ 365 \* DAY/); expect(lc).toMatch(/DELETE FROM prize WHERE eid=\?/); // prize details go with the 365-day deletion
     expect(lc).toMatch(/DELETE FROM participant WHERE eid=\?/); expect(lc).toMatch(/DELETE FROM seat WHERE eid=\?/);
   });

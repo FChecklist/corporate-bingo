@@ -9,7 +9,7 @@
   const NAMES = { lucky: "Lucky draw" };
   (ZG.PRIZE_HOUSES || []).forEach((h) => { if (!NAMES[h.id]) NAMES[h.id] = h.label; }); // every house name comes from the shared table
   const ORD = (k) => ["", "1st", "2nd", "3rd"][k] || k + "th";
-  const S = { info: null, cf: null, store: new ZG.RoundStore({}), logs: {}, round: 1, now: null, st: null, results: [], err: "", lastNum: null };
+  const S = { info: null, infoAge: 0, cf: null, store: new ZG.RoundStore({}), logs: {}, round: 1, now: null, st: null, results: [], err: "", lastNum: null, t0: Date.now() };
   const j = async (url) => { const r = await fetch(url, { cache: "no-store" }); if (!r.ok) throw Object.assign(new Error("http " + r.status), { status: r.status }); return r.json(); };
   const hms = (s) => { s = Math.max(0, Math.round(s)); return [Math.floor(s / 3600), Math.floor((s % 3600) / 60), s % 60].map((n) => String(n).padStart(2, "0")).join(":"); };
   const mmss = (s) => { s = Math.max(0, Math.round(s)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(x).padStart(2, "0"); };
@@ -48,9 +48,11 @@
     if (S.cancelled) return ($app.innerHTML = `<div class="top"><div class="brand">Corporate Bingo</div></div><div class="big"><h1>This game was cancelled</h1><p>This game was cancelled by the organizer.</p></div><div class="foot">${esc(location.host)}/z?e=${esc(EID)}</div>`);
     if (S.locked) return ($app.innerHTML = `<div class="top"><div class="brand">Corporate Bingo</div></div><div class="big"><h1>Waiting for the Organizer or Host</h1><p>Waiting for the Organizer or Host to start the game.</p></div><div class="foot">${esc(location.host)}/z?e=${esc(EID)}</div>`);
     const paused = S.st && S.now !== null && S.st.intervals.some((i) => S.now >= i.start && S.now < i.end);
+    const lost = (S.now === null ? Date.now() - S.t0 : Date.now() - (S.nowAt || Date.now())) > 15000; // no answer from the public clock for 15 seconds: the numbers on this screen may be late
+    const lostBar = lost ? `<div class="lostbar" role="alert">Connection lost. The numbers on this screen may be late. Reconnecting…</div>` : "";
     const annBar = S.ann ? `<div class="annbar" role="alert">${esc(S.ann.text)}</div>` : "";
     const bd = info.brand && typeof info.brand === "object" ? info.brand : null, bLogo = bd && typeof bd.logo === "string" && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(bd.logo) ? bd.logo : ""; // the organizer's own logo and name, or ours in writing
-    const head = `${annBar}<div class="top"><div class="brand">${bLogo ? `<img class="blogo" alt="" src="${esc(bLogo)}">` : ""}${esc(bd && bd.name ? bd.name : "Corporate Bingo")}</div><div class="meta">${cfg.rounds > 1 ? "Round " + S.round + " of " + cfg.rounds + " · " : ""}${log.length} of 75 numbers called</div></div>`;
+    const head = `${lostBar}${annBar}<div class="top"><div class="brand">${bLogo ? `<img class="blogo" alt="" src="${esc(bLogo)}">` : ""}${esc(bd && bd.name ? bd.name : "Corporate Bingo")}</div><div class="meta">${cfg.rounds > 1 ? "Round " + S.round + " of " + cfg.rounds + " · " : ""}${log.length} of 75 numbers called</div></div>`;
     const sett = (S.results || []).filter((r) => (r.round === S.round || r.round === undefined) && r.pattern !== "lucky" && r.winners && r.winners.length).map((r) => ({ pattern: r.pattern, ordinal: r.ordinal, idx: r.idx, pids: r.winners, round: S.round, tied: r.tied }));
     const ranked = sett.length ? ZG.rankWinners(ZG.roundEid(EID, S.round), ZG.validateCfg({ tickets: info.tickets, rewards: info.rewards }, undefined, { stored: true }).cfg, sett, 10) : [];
     const wins = ranked.map((x) => `<span><b>${esc(ZG.rankName(x.rank))} ${esc(NAMES[x.pattern] || x.pattern)}</b> · card ${esc(String((/^(\d+)x/.exec(x.pid) || [0, "?"])[1]))}${x.note ? " · decided by fate" : ""}</span>`).join("");

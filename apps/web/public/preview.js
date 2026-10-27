@@ -11,7 +11,7 @@
   if (q.get("w") === "card") { ticketPreview(); return; }
   const when = ["break", "opening", "closing"].includes(q.get("w")) ? q.get("w") : "break";
   const b = { kind: q.get("k") || "speech", title: (q.get("t") || "Your message").slice(0, 80), mediaUrl: q.get("u") || "", seconds: Math.max(15, Math.min(600, Number(q.get("s")) || 60)) };
-  if (b.mediaUrl && !/^https:\/\/[^\s<>"'`]+$/i.test(b.mediaUrl)) b.mediaUrl = "";
+  let badLink = false; if (b.mediaUrl && !/^https:\/\/[^\s<>"'`]+$/i.test(b.mediaUrl)) { b.mediaUrl = ""; badLink = true; }
 
   const mediaHost = document.createElement("div");
   mediaHost.id = "cbmedia"; mediaHost.style.cssText = "position:absolute;z-index:30;display:none;background:#000;border-radius:12px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.3)";
@@ -62,7 +62,7 @@
   const sampleCard = `<div class="zcard"><h2>Your card (sample)</h2>${cardGrid("Sample card")}</div>`;
   const what = b.kind === "speech" ? "Please listen to the host." : b.kind === "slides" ? "Please look at the screen." : "";
   const heading = when === "break" ? "A short break" : when === "opening" ? "A message from your organizer" : "Thank you from your organizer";
-  const verdict = !b.mediaUrl ? "No link: guests see your message only." : kind ? "This link plays inside the game." : "<b>This link will NOT play inside the game.</b> It opens in a new tab and takes the guest out of the game. Use a YouTube link, or a direct link to a video (.mp4) or audio (.mp3) file.";
+  const verdict = badLink ? "<b>The link you pasted was not used.</b> It must start with https:// and have no spaces. Go back, correct it and press Test it again." : !b.mediaUrl ? "No link: guests see your message only." : kind ? "This link plays inside the game." : "<b>This link will NOT play inside the game.</b> It opens in a new tab and takes the guest out of the game. Use a YouTube link, or a direct link to a video (.mp4) or audio (.mp3) file.";
   let timer = 0, endsAt = 0;
 
   function paint(secondsLeft) {

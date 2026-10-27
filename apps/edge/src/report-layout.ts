@@ -35,7 +35,11 @@ export const istDate = (ms: number, tz: string = DEFAULT_TZ) => zoneDate(ms, tz)
 const utcFull = (ms: number) => { const d = new Date(ms); return `${p2(d.getUTCHours())}:${p2(d.getUTCMinutes())}:${p2(d.getUTCSeconds())} UTC`; };
 const hm = (ms: number, tz: string = DEFAULT_TZ) => { const d = zoneParts(ms, tz); return `${p2(d.h)}:${p2(d.mi)}:${p2(d.s)}`; };
 const dur = (ms: number) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 3600)} h ${p2(Math.floor((s % 3600) / 60))} min`; };
-const mob = (p: string | null) => (p ? p.replace(/^(\d{5})(\d{5})$/, "$1 $2") : "-");
+const mob = (p: string | null) => { // a kept number: India as 91 + 10 digits (shown as 98765 43210, as before), any other country as +<code><number>
+  if (!p) return "-";
+  const d = p.replace(/\D/g, "");
+  return p[0] !== "+" && (d.length === 10 || (d.length === 12 && d.startsWith("91"))) ? d.slice(-10).replace(/^(\d{5})(\d{5})$/, "$1 $2") : p;
+};
 const who = (w: { name: string | null; phone: string | null }) => `${w.name || "(no name)"}, ${mob(w.phone)}`;
 
 export function layoutReport(d: ReportData): Uint8Array {
@@ -93,7 +97,7 @@ export function layoutReport(d: ReportData): Uint8Array {
   for (const pr of d.prizes) {
     pdf.h2(`${d.rounds > 1 ? `Round ${pr.round}  |  ` : ""}${pr.label}${pr.text ? `   -   ${pr.text}` : ""}`);
     if (!pr.winners.length) { pdf.para("Not won.", { size: 9, color: [0.4, 0.43, 0.48] }); continue; }
-    pdf.table([{ head: "Seat", width: 5, align: "r" }, { head: "Name", width: 21 }, { head: "Mobile", width: 12 }, { head: "At call", width: 6, align: "r" }, { head: "Time", width: 8 }, { head: "Role", width: 10 }, { head: "Agreed by", width: 8 }, { head: "Prize given", width: 12 }],
+    pdf.table([{ head: "Seat", width: 5, align: "r" }, { head: "Name", width: 17 }, { head: "Mobile", width: 16 }, { head: "At call", width: 6, align: "r" }, { head: "Time", width: 8 }, { head: "Role", width: 10 }, { head: "Agreed by", width: 8 }, { head: "Prize given", width: 12 }],
       pr.winners.map((w) => [w.seat === null ? "-" : String(w.seat), w.name || "(no name)", mob(w.phone), w.callNo === null ? "-" : String(w.callNo), w.atMs ? hm(w.atMs, d.tz) : "-", w.role || "participant", w.verified ? "phones" : "-", w.given ? w.given : "not yet"]));
     for (const w of pr.winners) if (w.changedFrom) pdf.para(`Seat ${w.seat === null ? "-" : w.seat}: details changed after the game (${w.changedFrom}).`, { size: 8.5, color: [0.7, 0.15, 0.1] });
   }
@@ -108,7 +112,7 @@ export function layoutReport(d: ReportData): Uint8Array {
   }
   for (const l of d.lucky) {
     pdf.h2(`Lucky draw  -  ${l.title}`);
-    pdf.table([{ head: "Seat", width: 5, align: "r" }, { head: "Name", width: 24 }, { head: "Mobile", width: 12 }], l.winners.map((w) => [w.seat === null ? "-" : String(w.seat), w.name || "(no name)", mob(w.phone)]));
+    pdf.table([{ head: "Seat", width: 5, align: "r" }, { head: "Name", width: 20 }, { head: "Mobile", width: 16 }], l.winners.map((w) => [w.seat === null ? "-" : String(w.seat), w.name || "(no name)", mob(w.phone)]));
   }
   pdf.para("Every winner here was worked out by the software from the public numbers, and was accepted only when several different phones reported exactly the same result ('Agreed by: phones'). Neither you nor anyone at Corporate Bingo can choose, change or remove a winner or a number. Names and mobile numbers are those the winner confirmed on their own phone after the game; if they changed them, that is shown under the table.", { size: 8.5 });
 
@@ -198,7 +202,7 @@ function treeSection(pdf: PdfDoc, people: ReportPerson[]) {
 function listSection(pdf: PdfDoc, people: ReportPerson[], tz?: string) {
   pdf.h1("6. Everyone, with name and mobile number");
   pdf.para(`${people.length} people. 'Joined' is the time they opened the link (${zoneAbbr(people.find((x) => x.joinedMs)?.joinedMs ?? 0, tz)}). Names in scripts other than Latin letters print as ? in this PDF.`, { size: 9, gap: 4 });
-  const cols: Column[] = [{ head: "Seat", width: 5, align: "r" }, { head: "Name", width: 24 }, { head: "Mobile", width: 12 }, { head: "Joined", width: 8 }, { head: "Late", width: 4 }, { head: "Role", width: 9 }, { head: "By", width: 5, align: "r" }, { head: "List", width: 4 }];
+  const cols: Column[] = [{ head: "Seat", width: 5, align: "r" }, { head: "Name", width: 20 }, { head: "Mobile", width: 16 }, { head: "Joined", width: 8 }, { head: "Late", width: 4 }, { head: "Role", width: 9 }, { head: "By", width: 5, align: "r" }, { head: "List", width: 4 }];
   pdf.table(cols, [...people].sort((a, b) => (a.seat ?? 1e9) - (b.seat ?? 1e9)).map((p) => [p.seat === null ? "-" : String(p.seat), p.name || "(no name)", mob(p.phone), p.joinedMs ? hm(p.joinedMs, tz) : "-", p.late ? "yes" : "", p.role || "", p.invitedBy ? String(p.invitedBy) : "", p.onRoster ? "yes" : ""]), { zebra: true });
 }
 /** One of the extra PDFs of a big game: the invite tree and the list for up to 1,500 people. */

@@ -119,6 +119,7 @@
   TB.api("GET", "/api/payments/status").then((s) => { PAYMODE = s.mode; }).catch(() => {});
   // ---------- free launch: create an organizer account with a e-mail; the key arrives only through the e-mailed code ----------
   function openFree() {
+    try { if (Number.isInteger(S.pack) && S.pack > 10) { sessionStorage.setItem("cbz-cap", String(S.pack)); } } catch {} // the size chosen on the website carries through the sign-in: Quick setup opens with it
     TB.sheet(`${xbtn}<div class="openfree" role="group" aria-labelledby="ofTitle">
       <div class="sheethead"><span class="rolepill">For the organizer or host</span><span class="sbrand" role="img" aria-label="Corporate Bingo"><span class="mark"><img src="/logo-mark.svg" alt="" width="26" height="26"></span><span class="word">Corporate Bingo<i>.</i></span></span></div>
       <div class="eyebrow ofeye">Build it and publish it free.</div><h2 id="ofTitle">Create your game</h2>
@@ -137,7 +138,7 @@
       if (!CBConsent.all(k2, "K2")) return setErr("Please tick the box to continue.");
       const b = $("frGo"); b.disabled = true; setErr("");
       try {
-        const r = await TB.api("POST", "/api/start", { email: m, consent: CBConsent.payload(k2, "K2") });
+        const r = await TB.api("POST", "/api/start", { email: m, consent: CBConsent.payload(k2, "K2"), ...(passTok() ? { pass: passTok() } : {}) });
         if (r.exists) { TB.toast("You already have an account, so we are emailing you a code to confirm it is you"); return askCode(m, b); }
         try { CTK.set("cbz-org", r.token); sessionStorage.setItem("cbz-aimsg", r.aiMessage); CTK.set("cbz-email", m); } catch {}
         location.href = nextAfterSignIn();
@@ -174,7 +175,7 @@
 
   // ---------- login ----------
   /** Where a signed-in organizer goes next: the page the visit began on (the console, a pay page, or the free demo link) or the console. */
-  function nextAfterSignIn() { let nx = "/zc.html"; try { const n = sessionStorage.getItem("cbz-next"); if (n && /^\/(zc|pay)(\.html)?(\?(e=[A-Za-z0-9_-]{4,40}|demo=1))?$/.test(n)) nx = n; sessionStorage.removeItem("cbz-next"); } catch {} return nx; }
+  function nextAfterSignIn() { let nx = "/zc.html"; try { const n = sessionStorage.getItem("cbz-next"); if (n && /^\/(zc|pay)(\.html)?(\?(e=[A-Za-z0-9_-]{4,40}|demo=1|quick=1(&cap=\d{1,5})?))?$/.test(n)) nx = n; sessionStorage.removeItem("cbz-next"); } catch {} return nx; }
   function openLogin(email) {
     TB.sheet(`${xbtn}<div class="eyebrow">Organizer sign-in</div><h2>Sign in or create your account</h2><p class="muted small">Type your e-mail and press Continue. That is all: there is no password. New here? Your account is made at once. Coming back? We e-mail you two ways to get in; you use <b>one</b> of them. Participants never sign in here: they join with your game link.</p>
       ${gBox}<form id="lgForm" novalidate><label class="lb" for="lMail">Your e-mail</label><input class="inp big" id="lMail" data-need="1" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="your e-mail" value="${esc(email || "")}"><div id="k2slot"></div><div id="fErr" role="alert"></div>
@@ -200,12 +201,14 @@
     });
     mountGoogle("signin"); focusFirst("lMail");
   }
+  /** A demo link opened in this browser (kept by the console): sent with the e-mail so the server uses it whichever browser finishes the sign-in. */
+  const passTok = () => { try { const v = JSON.parse(localStorage.getItem("cbz-pass") || "null"); return v && /^[0-9a-f]{32}$/.test(v.t || "") && Date.now() - (Number(v.at) || 0) < 14 * 86400000 ? v.t : undefined; } catch { return undefined; } };
   async function askCode(email, btn) {
     if (btn) { btn.disabled = true; }
     try {
-      const r = await TB.api("POST", "/api/auth/email", { email });
-      codeView(email, r.devCode);
-    } catch (e) { if (btn) btn.disabled = false; const f = $("fErr"); if (f) f.innerHTML = err(e.message); else TB.toast(esc(e.message)); }
+      const r = await TB.api("POST", "/api/auth/email", { email, ...(passTok() ? { pass: passTok() } : {}) });
+      codeView(email, r.devCode); return true;
+    } catch (e) { if (btn) btn.disabled = false; const f = $("fErr"); if (f) f.innerHTML = err(e.message); else TB.toast(esc(e.message)); return false; }
   }
   function codeView(email, devCode) {
     const boxes6 = [0, 1, 2, 3, 4, 5].map((i) => `<input class="otpb" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" autocomplete="${i === 0 ? "one-time-code" : "off"}" aria-label="Digit ${i + 1} of 6" autocapitalize="off" spellcheck="false">`).join("");
@@ -242,7 +245,7 @@
       } catch (e) { b.disabled = false; setErr(e.message); boxes[0].focus(); }
     };
     $("cdForm").addEventListener("submit", (e) => { e.preventDefault(); verify(); });
-    $("resend").addEventListener("click", async () => { await askCode(email, $("resend")); TB.toast("A new code was sent"); });
+    $("resend").addEventListener("click", async () => { if (await askCode(email, $("resend"))) TB.toast("A new code was sent"); });
     const u = $("useCode"); if (u) u.addEventListener("click", () => { spread(devCode); verify(); });
     boxes[0].focus();
   }
