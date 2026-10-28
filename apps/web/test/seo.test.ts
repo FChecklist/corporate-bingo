@@ -65,7 +65,7 @@ describe("each indexable page", () => {
     for (const w of ["Inter-normal-400.woff2", "Fraunces-normal-500-700.woff2"]) expect(h).toContain(`<link rel="preload" href="/fonts/${w}" as="font" type="font/woff2" crossorigin>`);
     for (const s of h.match(/<script\b[^>]*\bsrc="[^"]+"[^>]*>/g) ?? []) if (!/theme\.js|keep\.js|consent\.js|common\.js|google\.js|site\.js/.test(s)) expect(s).toMatch(/\bdefer\b/); // theme.js must run first (no flash of the wrong colours); common.js and site.js are the last thing in the body
     expect(h).toMatch(/<script src="\/common\.js"><\/script><script src="\/google\.js"><\/script><script src="\/site\.js"><\/script>\s*<\/body>/); // the page scripts sit at the very end
-    expect(h.replace(/<footer class="uf"[\s\S]*?<\/footer>/, "")).not.toMatch(/(src|href)="https?:\/\/(?!bingo\.corporatetambola\.com|shobhakamalsolutions\.pages\.dev)/); // the uniform footer names the sister products on purpose
+    expect(h.replace(/<footer class="uf"[\s\S]*?<\/footer>/, "").replace(/<nav class="lp-choose"[\s\S]*?<\/nav>/, "").replace(/<p class="lp-contact">[\s\S]*?<\/p>/, "")).not.toMatch(/(src|href)="https?:\/\/(?!bingo\.corporatetambola\.com|home\.corporatetambola\.com|shobhakamalsolutions\.pages\.dev)/); // the uniform footer and the "Choose your game" row name the sister products on purpose
     expect(rd("../../../pages/build.mjs" as any).includes("max-age=31536000, immutable")).toBe(true);
   });
 });
