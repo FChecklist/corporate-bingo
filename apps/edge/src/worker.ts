@@ -1922,7 +1922,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
   if (action === "discard" && req.method === "POST") { // an unpublished draft the organizer no longer wants: gone at once, so the 10-draft limit can never trap anyone. A published, paid, cancelled or started game is never touched here.
     if (!(a.plat || (a.kind === "master" && !!a.org && e.org === a.org))) return deny(a);
     const published = await env.DB.prepare("SELECT 1 AS x FROM kv WHERE k=?").bind(`pub/${eid}`).first();
-    if (e.pack !== 0 || published || e.unplayed_ms != null || e.cancelled_ms != null) return json({ error: "Only a game that is not published yet can be deleted here. A published game is cancelled from step 10.", code: "not-a-draft" }, 409);
+    if (e.pack !== 0 || published || e.unplayed_ms != null || e.cancelled_ms != null) return json({ error: "Only a game that is not published yet can be deleted here. A published game is cancelled in step 7 (Check and publish).", code: "not-a-draft" }, 409);
     if (!(await spend(env, now, 20))) return BUSY();
     await eraseEverything(env as any, eid!, now);
     return json({ ok: true });
