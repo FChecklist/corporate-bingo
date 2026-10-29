@@ -654,6 +654,12 @@
       <div class="zcard"><h2>${v.rounds > 1 ? "Round " + v.round + " of " + v.rounds + " · " : ""}${v.late ? "Numbers since you joined · " + v.log.length : "Call board · " + v.log.length + " of 75"} called</h2><div class="zboard" role="group" aria-label="Call board, 75 numbers">${LET.map((l, c) => `<div class="bl l${c}" aria-hidden="true">${l}</div>` + Array.from({ length: 15 }, (_, i) => { const n = c * 15 + i + 1; return `<div class="${called.has(n) ? "c" : ""}" aria-label="${lblOf(n)}${called.has(n) ? ", called" : ""}">${n}</div>`; }).join("")).join("")}</div></div>`;
   }
 
+  // ---------- a finger on the screen: no redraw. The page redraws itself every second; a redraw between touch-down and touch-up replaces the button under the finger and the tap is lost (Corporate Tambola 1.4.4). ----------
+  let fingerAt = null; // performance.now() when a finger went down; null when none is down
+  const fingerDown = () => fingerAt !== null && performance.now() - fingerAt < 2500; // an "up" that never arrives cannot freeze the screen for more than 2.5 seconds
+  for (const ev of ["pointerdown", "touchstart"]) document.addEventListener(ev, () => { fingerAt = performance.now(); }, true);
+  for (const ev of ["pointerup", "pointercancel", "touchend", "touchcancel"]) document.addEventListener(ev, () => { fingerAt = null; }, true);
+  let lastTap = { key: "", at: -1e9 }; // a tap counts once: the same number tapped again within 0.45 s (a double tap, a bounce) is the same tap
   function paint() {
     const v = rt.view();
     if (window.ctzView) window.ctzView(v); // the flight recorder (blackbox.js) learns which stage the game is in
@@ -665,12 +671,13 @@
     if (ME.removed) { if (timer) { clearInterval(timer); timer = null; } mediaHost.style.display = "none"; $app.innerHTML = removedView(); paintBrand(); return; } // taken off the list: the phone stops
     const fresh = syncPrizes(v); reportToStore(v); loadCf(v); pollMe(v);
     { const af = document.activeElement; if (af && (af.id === "cfnm" || af.id === "cfph" || af.id === "mi-name" || af.id === "mi-phone")) return; } // never wipe a form someone is typing in
+    if (fingerDown()) return; // the next second's redraw (or the lift of the finger) brings the screen up to date; the game itself never waits for the screen
     NEWCALL = v.log.length > lastLen && !firstPaint && MOTION() ? v.log[v.log.length - 1] : 0;
     $app.innerHTML = playView(v);
     countUps();
     paintBrand(); syncMedia(v); bindShare(); bindDemo(); bindConfirm(v); loadInvites(v); bindInvite(v); loadMine(v); bindMine(v);
     if (fresh.length) showHurray(fresh);
-    document.querySelectorAll("button[data-dn]").forEach((b) => (b.onclick = () => { const n = Number(b.dataset.dn), r = Number(b.dataset.dr), ci = Number(b.dataset.dc), d = daubs(r, ci); if (!v.log.includes(n)) return; if (d.has(n)) d.delete(n); else d.add(n); store.set(daubKey(r, ci), JSON.stringify([...d])); paint(); }));
+    document.querySelectorAll("button[data-dn]").forEach((b) => (b.onclick = () => { const n = Number(b.dataset.dn), r = Number(b.dataset.dr), ci = Number(b.dataset.dc), d = daubs(r, ci); if (!v.log.includes(n)) return; const tk = r + ":" + ci + ":" + n, tn = performance.now(); if (lastTap.key === tk && tn - lastTap.at < 450) return; lastTap = { key: tk, at: tn }; if (d.has(n)) d.delete(n); else d.add(n); store.set(daubKey(r, ci), JSON.stringify([...d])); paint(); }));
     const s = document.getElementById("snd");
     if (s) s.onclick = async () => { sound = !sound; store.set("cbz-sound", sound ? "on" : "off"); if (window.TBAudio) { TBAudio.enabled = sound; if (sound) await TBAudio.unlock(); } paint(); };
     if (v.log.length > lastLen) { if (!firstPaint && v.log.length === lastLen + 1 && sound && window.TBAudio) TBAudio.play(v.log[v.log.length - 1]); lastLen = v.log.length; }
