@@ -628,7 +628,7 @@
     else if (v.paused) banners.push(`<div class="zbanner info">Paused by the organizer. It will carry on shortly.</div>`);
     else if (v.mode === "hold" && v.nowRound !== null) banners.push(`<div class="zbanner warn">Checking with the organizer… numbers will continue in a moment.</div>`);
     else if (v.mode === "blind") banners.push(`<div class="zbanner warn">Cannot reach the organizer's controls right now. Play continues; a pause may appear late.</div>`);
-    if (AWAY && v.phase === "play") banners.push(`<div class="zbanner info" role="status">Welcome back. You missed ${AWAY.k} number${AWAY.k === 1 ? "" : "s"}. ${TAP() ? "They are shown as called on your card: tap them to mark." : "They are marked as called."}</div>`);
+    if (AWAY && v.phase === "play") banners.push(`<div class="zbanner info" role="status">Welcome back. You missed ${v.log.length - AWAY.from} number${v.log.length - AWAY.from === 1 ? "" : "s"}. ${TAP() ? "They are shown as called on your card: tap them to mark." : "They are marked as called."}</div>`);
     if (v.phase === "ended" && !v.stopped && !v.endedByPrizes) banners.push(`<div class="zbanner ok">${v.rounds > 1 ? "All " + v.rounds + " rounds are finished." : "All 75 numbers have been called."} Thank you for taking part.</div>`);
     const sub = v.phase === "ended" || v.locked || v.brk || v.intermission || (DEMO && !DEMO.running) ? "" : v.late && v.late.secondsUntil > 0 ? "Your numbers start in " + clock(v.late.secondsUntil) : v.log.length === 0 ? (v.nextCallInSec !== null ? (v.nextCallInSec > GRACE_SECS ? "Starting in " + clock(v.nextCallInSec - GRACE_SECS) : "First number in " + clock(v.nextCallInSec)) : "Getting ready…") : v.paused || v.mode === "hold" ? "" : v.nextCallInSec !== null ? "Next number in " + v.nextCallInSec + "s" : "";
     const still = v.tickets.length ? stillToWinRows(v) : "";
@@ -682,7 +682,7 @@
     if (fingerDown()) return; // a finger is down: the next second's redraw (or the lift of the finger) brings the screen up to date. Before syncPrizes: a win found now must still be celebrated on the redraw that follows (the game itself never waits for the screen)
     const fresh = syncPrizes(v); reportToStore(v); loadCf(v); pollMe(v);
     { const af = document.activeElement; if (af && (af.id === "cfnm" || af.id === "cfph" || af.id === "mi-name" || af.id === "mi-phone")) return; } // never wipe a form someone is typing in
-    if (awayWatch) { if (v.log.length > awayWatch.from && !v.late) { AWAY = { k: v.log.length - awayWatch.from, until: performance.now() + AWAY_SHOW_MS }; awayWatch = null; } else if (performance.now() > awayWatch.until) awayWatch = null; }
+    if (awayWatch) { if (v.log.length > awayWatch.from && !v.late) { AWAY = { from: awayWatch.from, until: performance.now() + AWAY_SHOW_MS }; awayWatch = null; } else if (performance.now() > awayWatch.until) awayWatch = null; }
     if (AWAY && performance.now() > AWAY.until) AWAY = null;
     NEWCALL = v.log.length > lastLen && !firstPaint && MOTION() ? v.log[v.log.length - 1] : 0;
     $app.innerHTML = playView(v);

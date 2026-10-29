@@ -42,6 +42,16 @@ describe("away and back", () => {
     expect(t).toContain("They are marked as called."); expect(t).not.toMatch(/NaN|undefined/);
     await sleep(11_500); expect(p.text()).not.toMatch(/Welcome back/);
   });
+  test("5 minutes away: the count in the note keeps up with the numbers the phone catches up on (it froze at the first batch)", async () => {
+    const { w, p } = await running("auto", 10);
+    const board = () => Number(/Call board · (\d+) of 75/.exec(p.text())?.[1] ?? NaN);
+    const before = board(); await awayFor(p, w, 300_000);
+    const seen: { note: number; board: number }[] = []; const t0 = Date.now();
+    while (Date.now() - t0 < 14_000) { const t = p.text(), m = /Welcome back\. You missed (\d+) numbers?/.exec(t), b = board(); if (m && Number.isFinite(b)) seen.push({ note: Number(m[1]), board: b }); await sleep(250); }
+    expect(seen.length).toBeGreaterThan(3);
+    for (const x of seen) expect(x.note).toBe(x.board - before); // old code: the note stayed at the first batch (8) while the board went 11 to 37
+    expect(Math.max(...seen.map((x) => x.note))).toBeGreaterThanOrEqual(20);
+  });
   test("a tap-to-mark game says to tap them", async () => {
     const { w, p } = await running("tap", 10); await awayFor(p, w, 30_000);
     expect(await p.waitFor((x) => /Welcome back\. You missed \d+ numbers?\./.test(x), 20000)).toContain("tap them to mark");
