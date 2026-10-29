@@ -26,7 +26,7 @@ const rtFake = (win: any, nowMs: () => number) => {
   };
 };
 export async function phone(w: ReturnType<typeof newWorld>, store?: [string, string][]) {
-  const p = await openPage(w.world, { url: "http://localhost/z?e=TAP-1", html: "z.html", scripts: ["audio.js", "zgame.js", "z.js"], afterLoad: (win, f) => { if (f === "keep.js" || f === "consent.js") for (const [k, v] of store ?? []) win.localStorage.setItem(k, v); if (f === "zgame.js") rtFake(win, () => w.world.now); } });
+  const p = await openPage(w.world, { url: "http://localhost/z?e=TAP-1", html: "z.html", scripts: ["audio.js", "zgame.js", "z.js"], afterLoad: (win, f) => { if (f === "keep.js" || f === "consent.js") { if (win.__skew === undefined) { win.__skew = 0; const real = win.performance.now.bind(win.performance); win.performance.now = () => real() + win.__skew; /* a test can let time pass on the phone clock: p.win.__skew += ms */ } for (const [k, v] of store ?? []) win.localStorage.setItem(k, v); } if (f === "zgame.js") rtFake(win, () => w.world.now); } });
   opened.push(p); return p;
 }
 export async function joined(w: ReturnType<typeof newWorld>) {
@@ -46,6 +46,6 @@ export async function running(mark: "tap" | "auto" = "tap", calls = 25) {
   for (let i = 0; i < ls.length; i++) { const k = ls.key(i); kept.push([k, ls.getItem(k)]); }
   await p0.close(); opened.splice(opened.indexOf(p0), 1);
   w.world.now = roundMs(START + 40) + calls * 12_000 + 3000; // `calls` numbers have been called
-  const p = await phone(w, kept); await p.waitFor((x) => /called/.test(x) && !/Loading/.test(x), 20000);
+  const p = await phone(w, kept); await p.waitFor((x) => { const m = /(\d+) of 75 called/.exec(x); return !!m && Number(m[1]) >= calls; }, 40000); // the phone fetches the earlier numbers a few at a time
   return { w, p };
 }
