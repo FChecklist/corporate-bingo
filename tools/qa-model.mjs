@@ -62,8 +62,10 @@ function world(extra = {}) {
 const call = async (method, path, body, headers = {}, now = T, real = false) => {
   const r = await (real ? realHandle : handle)(new Request("http://x" + path, { method, headers: { "content-type": "application/json", ...headers }, body: body === undefined ? undefined : JSON.stringify(body) }), W.env, now);
   const text = await r.text(); let j = null; try { j = JSON.parse(text); } catch { /* not JSON */ }
+  CALLS.n++; if (r.status >= 500) CALLS.fivexx.push(`${method} ${path} -> ${r.status}`); if (/^\/api\//.test(path) && !j && r.status !== 204 && !/\/(csv|pdf)|\.csv|\.pdf|\/j\/|\/ai\//.test(path)) CALLS.notJson.push(`${method} ${path} -> ${r.status}`);
   return { status: r.status, j, text };
 };
+const CALLS = { n: 0, fivexx: [], notJson: [] }; // every call the model makes is counted: a server error or an answer with no JSON is a finding
 const PLAT = { "x-organizer": "plat" };
 const keyH = (k) => ({ "x-organizer": k });
 const ip = () => ({ "cf-connecting-ip": `7.${(ipn >> 16) & 255}.${(ipn >> 8) & 255}.${++ipn & 255}` });
@@ -682,6 +684,10 @@ for (const [name, fn] of Object.entries(families)) {
   console.log(`family ${name}: ${rows.length - before} combinations in ${Date.now() - s} ms`);
 }
 globalThis.fetch = realFetch;
+if (!only) {
+  chk("ALL", `${CALLS.n} calls to the real Worker`, "no server error (5xx)", CALLS.fivexx.length ? CALLS.fivexx.slice(0, 3).join("; ") : "none", CALLS.fivexx.length === 0, "FAIL", "apps/edge/src/worker.ts (a 5xx)");
+  chk("ALL", `${CALLS.n} calls to the real Worker`, "every /api answer is JSON (no empty or broken reply)", CALLS.notJson.length ? CALLS.notJson.slice(0, 3).join("; ") : "all JSON", CALLS.notJson.length === 0, "NO_RESULT", "apps/edge/src/worker.ts (an answer with no JSON)");
+}
 // ---------------------------------------------------------------- report
 const fails = rows.filter((r) => !r.ok);
 const groups = new Map();
