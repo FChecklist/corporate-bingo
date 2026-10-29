@@ -40,6 +40,14 @@ describe("Bingo's help talks about Bingo's houses only", () => {
     const t = manualText("https://bingo.test", "cba_x", "ai", now);
     expect(t).toContain("6 seconds fast, 9 lively, 12 normal (recommended), 15 slow"); expect(t).toContain("callSeconds%22%3A12");
   });
+  test("the AI manual and the next-steps list say what the server allows: no two-ticket house, each guest may invite 1 to 10", async () => {
+    const t = manualText("https://bingo.test", "cba_x", "ai", now);
+    expect(t).not.toMatch(/two[-_ ]ticket|full[- ]house/i); // lower-case forms the first check above does not see
+    expect(t).toMatch(/per\?: 1-10 /); expect(t).not.toMatch(/per\?: 1-4/);
+    const env: any = { DB: makeD1().db, ORGANIZER_SECRET: "plat", PUBLIC_ORIGIN: "https://bingo.test" };
+    const src = readFileSync(join(import.meta.dir, "../src/worker.ts"), "utf8");
+    expect(src).toContain("per: 1-10, cats"); expect(src).not.toContain("per: 1-4, cats"); void env;
+  });
   test("the guide's example prize is a Bingo prize (Line), not Full House", () => {
     const g = readFileSync(join(import.meta.dir, "../../web/public/guide.js"), "utf8");
     expect(find(g)).toBeNull();
