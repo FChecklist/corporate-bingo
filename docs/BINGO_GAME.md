@@ -28,7 +28,7 @@ One table: `PRIZE_HOUSES` in `packages/beacon/src/config.ts`, built on `PATTERN_
 | letterL / letterT | the letter shape | 2 each |
 | blackout | every square | 2 |
 
-Default set for a new game: Line, Four Corners, X, Blackout. Ties share the prize; the 2nd winner of a house is whoever completes it at the next distinct call. The game ends when every prize line is awarded or 75 numbers are called.
+Default set for a new game: Line, Four Corners, X, Blackout. There is no shared prize: when several guests finish a house on the same call, fate orders them (see "No ties" below); the 2nd winner of a house is the next in that order, then whoever completes it at a later call. The game ends when every prize line is awarded or 75 numbers are called.
 
 ## Who decides a winner
 Software only. Each phone runs the same engine (`prize-engine.ts`, proven equal to the whole-log `settleAll` in `game.ts` by `houses.test.ts` for every pattern) and reports what it worked out; the store accepts a result when enough different phones agree (`quorumFor`). No person can add, change or remove a winner.
@@ -48,3 +48,12 @@ Price ladder (up to N players, no tax added): 100 Rs 2,399 / US$ 34; 250 3,499 /
 - Ranking shown on the phone ("Winners"), the big screen, the report ("Ranking: top winners") and at prize hand-over: 1st, 2nd, 3rd ... and a top-10 list, ordered by prize value (the organizer's own prize list, first = most valuable), then call number, then fate; every row has a unique rank; a fate-decided tie carries the note "N guests completed it on the same call; decided by fate". Code: `rankWinners` in `game.ts`.
 - Tests: `packages/beacon/test/houses.test.ts` ("BG-04 / BG-18", "BG-19": ties of 2, 3 and 10 guests, stable on every phone, unique ranks 1-10, engine equals settleAll).
 - Public results now name winning seats (opaque seat ids, never names) so every screen can show the ranking.
+
+## The phone screen: small rules that came from real users of Corporate Tambola (QA 2026-10-29)
+- The page redraws itself every second, but never while a finger is down (a redraw between touch-down and touch-up swallows the tap); a lift that never arrives cannot hold the screen for more than 2.5 seconds. A second tap on the same number within 0.45 s is one tap. Code: `paint()` in `apps/web/public/z.js`; tests: `apps/web/test/tap-safety.test.ts`.
+- The counter reads "30 of 75 called · 45 left". The waiting room says "Tip: switch on Do Not Disturb so calls and chats do not interrupt your game." A player who comes back after 15 seconds or more is told once, for 10 seconds, "Welcome back. You missed 3 numbers. They are marked as called." Tests: `apps/web/test/phone-notes.test.ts`.
+- There is no claim step in Bingo today (phones settle the winners themselves). The claim step with the strict late rule, the gold Claim buttons and the claim timer are an open owner decision: `docs/QA-BINGO-2026-10-29.md`, section 5.
+
+## The end-of-game report
+Mailed to the organizer about 3 minutes after the end (in practice a few ticks later, see the QA report), link open 19 hours (`REPORT_LINK_MS`), guest data erased 20 hours after the end (`PURGE_AFTER_MS`). It carries the organizer's company name and logo, every prize with its winner, and says "Every prize was awarded, so the game ended early" with the real number of numbers called when the prizes ran out before number 75. Tests: `apps/edge/test/report-truth.test.ts`, `apps/edge/test/demo10-end-to-end.test.ts`.
+
