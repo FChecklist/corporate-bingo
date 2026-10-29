@@ -64,3 +64,16 @@ describe("S15: a Co-host can open the small game header of a free 10-person game
     const live = await call("GET", "/api/z/SEC-10/cohost", undefined, cohost); expect(live.status).toBe(200); expect((await j(live)).price).toBe(0); // old code: 500
   });
 });
+
+describe("S7: the security log keeps no guest's or Co-host's name or mobile number", () => {
+  test("redact() hides phone, mobile, employee ID and label, and a name that sits next to one of them; a game name and the rest stay", async () => {
+    const { redact } = await import("../src/audit");
+    expect(redact({ phone: "9833445566" })).toEqual({ phone: "[redacted]" }); // look up, move a card, mark (old code: the number as typed)
+    expect(redact({ pid: "p3", mobile: "9811223344", name: "Asha" })).toEqual({ pid: "p3", mobile: "[redacted]", name: "[redacted]" });
+    expect(redact({ label: "CoOne", phone: "9811223344" })).toEqual({ label: "[redacted]", phone: "[redacted]" }); // adding a Co-host
+    expect(redact({ empId: "E1042", seat: 7 })).toEqual({ empId: "[redacted]", seat: 7 });
+    expect(redact({ rows: [{ name: "Ben", phone: "9000000001" }, { name: "Chitra", empId: "E2" }] })).toEqual({ rows: [{ name: "[redacted]", phone: "[redacted]" }, { name: "[redacted]", empId: "[redacted]" }] }); // a short people list
+    expect(redact({ name: "Friday Bingo", callSeconds: 12 })).toEqual({ name: "Friday Bingo", callSeconds: 12 }); // a game name is not personal
+    expect(redact({ password: "x", otp: "1" })).toEqual({ password: "[redacted]", otp: "[redacted]" }); // the old rule still holds
+  });
+});
