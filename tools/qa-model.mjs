@@ -253,7 +253,11 @@ async function famPrizes() {
   for (const h of PRIZE_HOUSES) {
     chk(fam, `house ${h.id}: most winners`, String(dh[h.id]), String(h.max), dh[h.id] === h.max, "FAIL", "packages/beacon/src/config.ts PRIZE_HOUSES");
     chk(fam, `house ${h.id}: label and how-to are plain words`, "non-empty, no code words", `"${h.label}" / "${h.how}"`, !!h.label.trim() && !!h.how.trim() && !bad(h.label + h.how), "GIBBERISH", "packages/beacon/src/config.ts PRIZE_HOUSES");
-    chk(fam, `house ${h.id}: how-to and the squares column agree with the real shape`, String(ORACLE_SETS[h.id] ? new Set(ORACLE_SETS[h.id].flat()).size : "?"), h.squares, true, "FAIL", "n/a");
+    { // the squares to mark: every alternative shape of the house (a line can be any of 12), counted from the independent shape table
+      const alts = ORACLE_SETS[h.id] || [], sizes = h.id === "twolines" ? alts.flatMap((x, i) => alts.slice(i + 1).map((y) => new Set([...x, ...y]).size)) : alts.map((x) => new Set(x).size);
+      const lo = Math.min(...sizes), hi = Math.max(...sizes), want = h.id === "blackout" ? `${lo - 1} + FREE` : lo === hi ? String(lo) : `${lo}-${hi}`;
+      chk(fam, `house ${h.id}: the squares column agrees with the real shape`, want, h.squares, sizes.length > 0 && h.squares === want, "FAIL", "packages/beacon/src/config.ts PRIZE_HOUSES");
+    }
   }
   chk(fam, "default prize set", DOC_DEFAULT_SET.join(", "), defaultRewards().map((r) => r.pattern).join(", "), defaultRewards().map((r) => r.pattern).join() === DOC_DEFAULT_SET.join(), "FAIL", "packages/beacon/src/config.ts PATTERN_ORDER");
   // winners per prize: 1 .. max accepted; max+1 refused with the house name and the limit; ordinal chain must start at 1
@@ -458,12 +462,20 @@ async function famJoin() {
     const r = await call("POST", "/api/z/LIST-QA/people", { people }, o2.h);
     const text = r.text;
     const exp = nm === "eleven rows (one more than the size)" ? "refused or only 10 kept, said plainly" : nm === "no rows" ? "a plain message (nothing to add)" : nm === "same number twice" ? "one kept, the repeat reported" : nm === "number too short" || nm === "name missing" ? "refused with a plain reason for that row" : "accepted";
-    const okNow = r.status > 0 && !bad(text) && (nm === "ten rows" || nm === "one row" || nm === "name with markup" ? r.status === 200 : r.status >= 200);
-    chk(fam, `guest list: ${nm}`, exp, `${r.status} ${text.slice(0, 160)}`, okNow, "FAIL", "apps/edge/src/people.ts");
+    const J = r.j || {}, nrows = people.length;
+    const okNow = r.status > 0 && !bad(text) && (
+      nm === "ten rows" || nm === "one row" || nm === "name with markup" ? r.status === 200 && J.added === nrows && (J.invalid || []).length === 0
+      : nm === "eleven rows (one more than the size)" ? r.status === 409 || (r.status === 200 && J.added <= 10 && (J.invalid || []).length + J.added >= 10)
+      : nm === "no rows" ? r.status === 400
+      : nm === "same number twice" ? r.status === 200 && J.added === 1 && J.duplicates === 1
+      : nm === "number too short" ? r.status === 400 || (r.status === 200 && J.added === 0 && (J.invalid || []).length === 1)
+      : nm === "name missing" ? r.status === 400 || (r.status === 200 && ((J.invalid || []).length === 1 || (J.added === 1 && (J.people || []).every((x) => String(x.name || "").trim() !== ""))))
+      : r.status >= 200);
+    chk(fam, `guest list: ${nm}`, exp, `${r.status} ${text.slice(0, 160)}`, okNow, nm === "name missing" ? "INCOMPLETE" : "FAIL", "apps/edge/src/people.ts (a row with no name is listed with an empty name)");
     if (r.status === 200 || r.status === 400) {
       const lst = await call("GET", "/api/z/LIST-QA/people", undefined, o2.h);
       const names = (lst.j?.people || []).map((p) => p.name);
-      chk(fam, `guest list: ${nm}: what the console lists afterwards`, "no empty names, no markup", JSON.stringify(names), names.every((x) => typeof x === "string" && !bad(x) && !/[<>]/.test(x)), "GIBBERISH", "apps/edge/src/people.ts");
+      chk(fam, `guest list: ${nm}: what the console lists afterwards`, "a visible name, no markup", JSON.stringify(names), names.every((x) => typeof x === "string" && x.trim() !== "" && !bad(x) && !/[<>]/.test(x)), "INCOMPLETE", "apps/edge/src/people.ts (a person listed with no name shows as an empty row)");
     }
   }
 }
@@ -519,7 +531,7 @@ async function famRoles() {
       const allowed = r.status >= 200 && r.status < 300;
       let want = !!exp[role];
       // 'add a Host' with five hosts present: nobody can add a sixth, so expected 'refused'. The organizer gets a plain limit message, the others a refusal.
-      chk(fam, `${role}: ${what}`, want ? "allowed" : "refused", `${r.status} ${(r.j?.error ?? "").slice(0, 90)}`, allowed === want || (before && allowed !== want && role === "organizer" && what === "erase all guest data now"), "FAIL", "apps/edge/src/worker.ts permission checks (can / canAi / mayPay)");
+      chk(fam, `${role}: ${what}`, want ? "allowed" : "refused", `${r.status} ${(r.j?.error ?? "").slice(0, 90)}`, allowed === want, "FAIL", "apps/edge/src/worker.ts permission checks (can / canAi / mayPay)");
       if (!allowed && (r.j?.error ?? "") === "" && r.status >= 400) chk(fam, `${role}: ${what}: the refusal has words`, "a plain sentence", `${r.status} no text`, false, "INCOMPLETE", "apps/edge/src/worker.ts deny()");
       if (!allowed && r.j?.error) chk(fam, `${role}: ${what}: refusal text`, "plain, no code words", r.j.error, !bad(r.j.error), "GIBBERISH", "apps/edge/src/worker.ts deny()");
     }
@@ -674,8 +686,57 @@ async function famDemo10() {
   log(`12. mails sent during the whole flow: ${outbox.length} (${[...new Set(outbox.map((m) => m.subject.slice(0, 50)))].join(" | ")})`);
 }
 
+
+// ================================================================ family 10: STATES (sequences: what the audits found that single-step combinations missed)
+async function famStates() {
+  const fam = "STATES";
+  const pack = (id, size) => W.raw.prepare("INSERT INTO entitlement(id,org,pack,payment_id,eid,created_ms) VALUES(?,(SELECT org FROM engagement WHERE id=?),?,'p',NULL,?)").run("ent_" + id, id, size, T);
+  const row = (sql, ...a) => W.raw.prepare(sql).get(...a);
+  // a pack bought before the game exists
+  world(); let o = await organizer();
+  await call("POST", "/api/z", eng("ST-SEED"), o.h); pack("ST-SEED", 500);
+  const small = await call("POST", "/api/z", eng("ST-10", { cap: 10 }), o.h); await call("POST", "/api/z/ST-10/publish", contact, o.h);
+  chk(fam, "a bought 500 pack waits; a game for 10 people is made and published", "Rs 0 and the pack is still unused", `draft=${small.j?.draft}, pack used by: ${row("SELECT eid FROM entitlement WHERE id='ent_ST-SEED'")?.eid ?? "nobody"}`, small.j?.draft === true && row("SELECT eid FROM entitlement WHERE id='ent_ST-SEED'")?.eid == null, "FAIL", "apps/edge/src/worker.ts (game creation and publish look for a pack)");
+  world(); o = await organizer(); await call("POST", "/api/z", eng("ST-SEED"), o.h); pack("ST-SEED", 500); // a fresh account: its pack has not been used by the check above
+  const viaAi = await call("POST", "/api/z", eng("ST-AI"), o.aiH);
+  chk(fam, "a bought pack waits; the organizer's AI key makes a game", "a draft (the AI cannot publish)", `draft=${viaAi.j?.draft}`, viaAi.j?.draft === true, "FAIL", "apps/edge/src/worker.ts game creation");
+  // published unpaid, then lowered to 10
+  world(); o = await organizer();
+  await call("POST", "/api/z", eng("ST-LOW"), o.h); await call("POST", "/api/z/ST-LOW/publish", contact, o.h); await call("PATCH", "/api/z/ST-LOW/settings", { cap: 10 }, o.h);
+  chk(fam, "a published game (payment pending) is lowered to 10 people", "free in fact: pack set, no payment to ask", `pack=${row("SELECT pack FROM engagement WHERE id='ST-LOW'")?.pack}`, row("SELECT pack FROM engagement WHERE id='ST-LOW'")?.pack === 10, "FAIL", "apps/edge/src/worker.ts settings");
+  // erase before the start, then guests join, then the 20 hours
+  world(); o = await organizer();
+  await call("POST", "/api/z", eng("ST-ERA", { cap: 10 }), o.h); await call("POST", "/api/z/ST-ERA/publish", contact, o.h);
+  await call("POST", "/api/z/ST-ERA/erase", {}, o.h, T + HOUR);
+  chk(fam, "the organizer erases the participants' data before the start", "the game is not marked as erased for good", `purged row: ${row("SELECT purged_ms FROM life WHERE eid='ST-ERA'")?.purged_ms ?? "none"}`, !row("SELECT purged_ms FROM life WHERE eid='ST-ERA'")?.purged_ms, "FAIL", "apps/edge/src/lifecycle.ts erasePersonal");
+  // the Co-host's header of a 10-person game
+  world(); o = await organizer();
+  await call("POST", "/api/z", eng("ST-CO", { cap: 10 }), o.h); await call("POST", "/api/z/ST-CO/publish", contact, o.h);
+  const ch = await call("POST", "/api/org/cohost", { label: "Ravi", phone: "9876500001", e: "ST-CO" }, o.h);
+  const hd = ch.j?.cohostKey ? await call("GET", "/api/z/ST-CO/cohost", undefined, keyH(ch.j.cohostKey)) : { status: 0, j: null };
+  chk(fam, "a Co-host opens the small header of a published 10-person game", "200 and Rs 0", `${hd.status} price=${hd.j?.price}`, hd.status === 200 && hd.j?.price === 0, "FAIL", "apps/edge/src/worker.ts cohost header");
+  // five Hosts at the same moment
+  world(); o = await organizer();
+  const rs = await Promise.all(Array.from({ length: 8 }, (_, i) => call("POST", "/api/org/host", { mobile: `98765000${10 + i}`, label: "H" + i }, o.h)));
+  chk(fam, "eight Host adds at the same moment", "5 Hosts, three told to retire one first", `${rs.filter((r) => r.status === 200).length} made`, rs.filter((r) => r.status === 200).length === 5, "FAIL", "apps/edge/src/worker.ts add Host");
+  // reuse: people copied from an earlier game get a card before they open the link
+  world(); o = await organizer();
+  await call("POST", "/api/z", eng("ST-OLD", { cap: 10 }), o.h); await call("POST", "/api/z/ST-OLD/publish", contact, o.h);
+  for (let i = 1; i <= 3; i++) await call("POST", "/api/z/ST-OLD/join", { name: "Old " + i, device: dev(i) }, ip(), T + HOUR);
+  await call("POST", "/api/z", eng("ST-NEW", { cap: 10 }), o.h); await call("POST", "/api/z/ST-NEW/publish", contact, o.h);
+  await call("POST", "/api/z/ST-NEW/reuse", { from: "ST-OLD" }, o.h);
+  const seats = row("SELECT COUNT(*) AS c FROM seat WHERE eid='ST-NEW'")?.c, bound = row("SELECT COUNT(*) AS c FROM seat WHERE eid='ST-NEW' AND dev IS NOT NULL")?.c;
+  chk(fam, "an earlier game's 3 people are reused for a new game", "invited, with a card only when they open the link", `${seats} seats with a card, ${bound} on a phone`, !(seats > 0 && bound === 0), "GAP", "apps/edge/src/worker.ts reuse and roster create seats at once (O-21)");
+  // nobody can change a winner (RULES_bingo.md 8; the console says so)
+  const ov = await call("POST", "/api/z/ST-NEW/override", { round: 1, pattern: "line", ordinal: 1, seat: null }, o.h);
+  chk(fam, "the organizer tries to take a prize away from its winner", "no such route (RULES_bingo.md 8: the organizer cannot decide a winner)", `${ov.status} ${ov.j?.code ?? ""}`, ov.j?.code !== "no-prize", "GAP", "apps/edge/src/worker.ts override route and winners.ts overridePrize (O-16)");
+  // the join form against the server
+  const zjs = readFileSync(join(ROOT, "apps/web/public/z.js"), "utf8");
+  chk(fam, "employees only, checked by mobile number: the join form", "has a mobile number box (the server refuses a join without a number)", /needPhone \|\| eo \? phone\(/.test(zjs) ? "box shown" : "no box", /needPhone \|\| eo \? phone\(/.test(zjs), "FAIL", "apps/web/public/z.js joinWho");
+}
+
 // ================================================================ run
-const families = { PRICE: famPrice, OPTIONS: famOptions, PRIZES: famPrizes, ENGINE: famEngine, SCHEDULE: famSchedule, JOIN: famJoin, ROLES: famRoles, TEXT: famText, DEMO10: famDemo10 };
+const families = { PRICE: famPrice, OPTIONS: famOptions, PRIZES: famPrizes, ENGINE: famEngine, SCHEDULE: famSchedule, JOIN: famJoin, ROLES: famRoles, TEXT: famText, DEMO10: famDemo10, STATES: famStates };
 const t0 = Date.now();
 for (const [name, fn] of Object.entries(families)) {
   if (only && !new RegExp(only, "i").test(name)) continue;
