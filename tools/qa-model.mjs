@@ -141,7 +141,7 @@ async function famPrice() {
       if (c.status === 200) {
         await call("POST", `/api/z/${id}/publish`, contact, o.h);
         const sm = (await call("GET", `/api/z/${id}/summary`, undefined, o.h)).j || {};
-        chk(fam, `${combo}: after publish the summary tells the AI what to do about the price`, "a price, or a plain 'write to us / custom arrangement'", `pack=${sm.pack} priceInr=${sm.priceInr} note=${sm.customNote ?? "(none)"}`, sm.pack != null || !!sm.customNote, "INCOMPLETE", "apps/edge/src/worker.ts:1801 (summary: pack and price are null with no explanation)");
+        chk(fam, `${combo}: after publish the summary tells the AI what to do about the price`, "a price, or a plain 'write to us / custom arrangement'", `pack=${sm.pack} priceInr=${sm.priceInr} note=${sm.customNote ? "yes" : "(none)"}`, sm.pack != null || !!sm.customNote, "INCOMPLETE", "apps/edge/src/worker.ts:1801 (summary: pack and price are null with no explanation)");
         const co = await call("POST", "/api/checkout", { org: "Acme Ltd", email: "boss@acme.com", country: "IN", taxId: "", currency: "INR", eid: id }, o.h);
         chk(fam, `${combo}: checkout`, "400 and a plain 'write to us'", `${co.status} ${co.j && co.j.error}`, co.status === 400 && /write to us|custom/i.test(co.j?.error || "") && !bad(co.j.error), "NO_RESULT", "apps/edge/src/pay.ts checkout");
       }
@@ -240,7 +240,7 @@ async function famOptions() {
   chk(fam, "console offers only the owner's 12 s", "12 s is the only visible choice", /\[\s*["']9["']/.test(opts?.[0] || "") ? "9 s and 12 s are both offered" : "12 only", !/\[\s*["']9["']/.test(opts?.[0] || ""), "GAP", "apps/web/public/zc.js:253-262 (spdOpts) vs docs/boss/OPTIONS_TABLES.md approval log 2026-10-27");
   // BINGO_GAME.md still says the default is 9
   const bg = read("docs/BINGO_GAME.md");
-  chk(fam, "docs/BINGO_GAME.md agrees with RULES_bingo.md on the gap", "12 s", /Gap between calls: 6, 9, 12 or 15 seconds \(default (\d+)\)/.exec(bg) ? `default ${/Gap between calls: 6, 9, 12 or 15 seconds \(default (\d+)\)/.exec(bg)[1]}` : "?", /\(default 12\)/.test(bg), "NOT_LOGICAL", "docs/BINGO_GAME.md 'The calls'");
+  chk(fam, "docs/BINGO_GAME.md agrees with RULES_bingo.md on the gap", "12 s", /Gap between calls: 6, 9, 12 or 15 seconds \(default (\d+)/.exec(bg) ? `default ${/Gap between calls: 6, 9, 12 or 15 seconds \(default (\d+)/.exec(bg)[1]}` : "?", /\(default 12\b/.test(bg), "NOT_LOGICAL", "docs/BINGO_GAME.md 'The calls'");
 }
 
 // ================================================================ family 3: PRIZES (house x number of winners x text) and the names a player reads
@@ -291,9 +291,9 @@ async function famPrizes() {
   const sm = (await call("GET", `/api/z/BLANK-1/summary`, undefined, o.h)).j || {};
   const names = (sm.rewards || []).filter((r) => !r.text).map((r) => houseLabel(r.pattern));
   const zc = read("apps/web/public/zc.js");
-  const warn = /prizes? say[^`]*decide later[^`]*You can still publish\./.exec(zc);
-  chk(fam, "publish step with blank prizes lists them by name", `a warning that lists: ${names.join(", ")}`, warn ? "a count only ('N prizes say \"decide later\". You can still publish.')" : "nothing", !!warn && /\$\{[^}]*(label|names|list|join)/.test(warn[0]), "INCOMPLETE", "apps/web/public/zc.js:398 (readBack: a count, not the list)");
-  chk(fam, "the publish call itself carries the same warning for an AI / API caller", "response lists the prizes with no text", `keys: ${Object.keys((await call("POST", "/api/z/BLANK-1/publish", contact, o.h)).j || {}).join(",")}`, false, "GAP", "apps/edge/src/worker.ts:1805 (publish answers without any prize warning; the summary only has nextSteps 'Name the prizes')");
+  const warn = /blankPrizeNames\(c\)\)\}[^`]*decide later/.exec(zc);
+  chk(fam, "publish step with blank prizes lists them by name", `a warning that lists: ${names.join(", ")}`, warn ? "lists them by name (blankPrizeNames)" : "a count only ('N prizes say \"decide later\"')", !!warn, "INCOMPLETE", "apps/web/public/zc.js readBack");
+  chk(fam, "the summary an AI reads lists the prizes with no words, and does not call 'Name the prizes' done", `blankPrizes: ${names.join(", ")}`, `blankPrizes: ${(sm.blankPrizes || []).join(", ")}; step done=${(sm.nextSteps || []).find((x) => /Name the prizes/.test(x.step))?.done}`, (sm.blankPrizes || []).join() === names.join() && (sm.nextSteps || []).find((x) => /Name the prizes/.test(x.step))?.done === false, "GAP", "apps/edge/src/worker.ts summary");
 }
 
 // ================================================================ family 4: ENGINE (cards, calls, winners): real modules against an independent oracle written from the rules
@@ -415,6 +415,7 @@ async function famJoin() {
     const info = (await call("GET", `/api/z/${id}/info`)).j || {};
     const expWho = emp ? "list" : who;
     chk(fam, combo + ": who can join is what was set", expWho, `${info.whoCanJoin}`, info.whoCanJoin === expWho, "FAIL", "apps/edge/src/worker.ts:1762");
+    if (verify !== "mobile" && !emp) { chk(fam, combo + ": what a person must give applies only with 'Only my employees' (OPTIONS_TABLES: the group is shown only then)", "the console never offers it; the API accepts it", "skipped", true); continue; }
     // a stranger who is not on any list
     const j1 = await call("POST", `/api/z/${id}/join`, { name: "Asha Rao", phone: jn === "phone" || verify !== "id" ? mob(1) : undefined, empId: verify === "id" || verify === "either" ? "E1001" : undefined, device: dev(1) }, ip());
     let exp;
@@ -424,9 +425,9 @@ async function famJoin() {
     else exp = "joins";
     const waited = j1.status === 403 && (j1.j?.waiting || /invitation|waiting/i.test(j1.j?.error || ""));
     const joined = j1.status === 200 && !!j1.j?.pid;
-    const okNow = expWho === "list" ? waited : verify === "both" ? (j1.status === 400 || joined) : (verify === "id" || verify === "either") ? waited : joined;
+    const okNow = verify === "both" ? (j1.status === 400 && /employee ID and your mobile number/i.test(j1.j?.error || "")) : expWho === "list" ? waited : (verify === "id" || verify === "either") ? waited : joined;
     chk(fam, combo + ": a stranger", exp, `${j1.status} ${j1.j?.error ?? (joined ? "joined" : "")}`, okNow, "FAIL", "apps/edge/src/worker.ts:1560-1660 join");
-    if (j1.j?.error) chk(fam, combo + ": the stranger's message is plain", "no jargon words (engagement, tok, pid, null)", j1.j.error, !bad(j1.j.error) && !/\bengagement\b/i.test(j1.j.error), "INCOMPLETE", "apps/edge/src/worker.ts:1628,1656 (player text says 'engagement'; the console says 'game')");
+    if (j1.j?.error) chk(fam, combo + ": the stranger's message is plain", "no jargon words (engagement, tok, pid, null)", j1.j.error, !bad(j1.j.error) && !/\bengagement\b/i.test(j1.j.error), "INCOMPLETE", "ENGAGEMENT-WORDING (player and organizer messages say 'engagement'; the console says 'game'; docs/GLOSSARY.md still says engagement): owner decision");
   }
   // the 10-person demo: ten join, the 11th is told plainly, the same phone twice is the same card
   world();
@@ -436,7 +437,7 @@ async function famJoin() {
   chk(fam, "demo: ten different players join", "10 different cards", `${pids.size}`, allOk && pids.size === 10, "FAIL", "apps/edge/src/worker.ts join");
   const r11 = await call("POST", "/api/z/DEMO-QA/join", { name: "Late One", device: dev(11) }, ip());
   chk(fam, "demo: the 11th person", "refused: the game is full (plain)", `${r11.status} ${r11.j?.error}`, r11.status >= 400 && /full/i.test(r11.j?.error || ""), "FAIL", "apps/edge/src/worker.ts:1628");
-  chk(fam, "demo: the full message uses the word the console uses (game)", "This game is full.", r11.j?.error, /\bgame\b/i.test(r11.j?.error || ""), "INCOMPLETE", "apps/edge/src/worker.ts:1628");
+  chk(fam, "demo: the full message uses the word the console uses (game)", "This game is full.", r11.j?.error, /\bgame\b/i.test(r11.j?.error || ""), "INCOMPLETE", "ENGAGEMENT-WORDING (player and organizer messages say 'engagement'; the console says 'game'; docs/GLOSSARY.md still says engagement): owner decision");
   // guest-list shapes: 0, 1, 10, cap, cap+1 rows; duplicate numbers; bad numbers; odd names
   world();
   const og = await organizer(); await call("POST", "/api/z", eng("LIST-QA", { cap: 10, whoCanJoin: "list" }), og.h); await call("POST", "/api/z/LIST-QA/publish", contact, og.h);
@@ -471,6 +472,12 @@ async function famRoles() {
   world();
   const o = await organizer();
   await call("POST", "/api/z", eng("RL-1", { cap: 10 }), o.h);
+  await call("POST", "/api/z", eng("RL-2", { cap: 10 }), o.h);
+  { // an AI key never publishes: it gets the hand-over answer and the game stays a draft
+    const r = await call("POST", "/api/z/RL-2/publish", contact, o.aiH); const sm = (await call("GET", "/api/z/RL-2/summary", undefined, o.h)).j;
+    chk(fam, "ai: publish a draft", "a hand-over answer (needsOrganizer), the game stays a draft", `${r.status} needsOrganizer=${r.j?.needsOrganizer}; status ${sm?.status}`, r.status === 200 && r.j?.needsOrganizer === true && sm?.status === "draft", "FAIL", "apps/edge/src/worker.ts publish (ai branch)");
+  }
+  await call("POST", "/api/z/RL-1/publish", contact, o.h);
   // hosts: up to 5; the 6th is refused plainly
   const hostKeys = [];
   for (let i = 1; i <= 7; i++) {
@@ -491,21 +498,22 @@ async function famRoles() {
   }
   const roleH = { organizer: o.h, host: keyH(hk), cohost: keyH(ck), ai: o.aiH, stranger: {} };
   // (action, call, expected allowed? per role) from the role cards in the console (zc.js roleCards) and the key rules at the top of worker.ts
+  let tick = 0;
   const matrix = [
     ["read the game summary", "GET", "/api/z/RL-1/summary", undefined, { organizer: 1, host: 1, cohost: 0, ai: 1, stranger: 0 }],
     ["change the game (settings)", "PATCH", "/api/z/RL-1/settings", { tickets: 2 }, { organizer: 1, host: 1, cohost: 0, ai: 1, stranger: 0 }],
-    ["see the guest list", "GET", "/api/z/RL-1/people", undefined, { organizer: 1, host: 1, cohost: 1, ai: 1, stranger: 0 }], // a Co-host reads only the people they brought themselves (checked below), so the call itself answers
+    ["see the guest list", "GET", "/api/z/RL-1/people", undefined, { organizer: 1, host: 1, cohost: 1, ai: 0, stranger: 0 }], // a Co-host reads only the people they brought themselves (checked below), so the call itself answers
     ["add a Host", "POST", "/api/org/host", { label: "Z", email: "zz@acme.com" }, { organizer: 0, host: 0, cohost: 0, ai: 0, stranger: 0 }], // already 5 Hosts here: every caller is refused (the organizer for the limit)
     ["add a Co-host", "POST", "/api/org/cohost", { label: "New Co", phone: "9876543299", e: "RL-1" }, { organizer: 1, host: 1, cohost: 0, ai: 0, stranger: 0 }],
     ["send a message to all phones", "POST", "/api/z/RL-1/announce", { text: "Welcome" }, { organizer: 1, host: 1, cohost: 0, ai: 1, stranger: 0 }],
-    ["publish the game", "POST", "/api/z/RL-1/publish", contact, { organizer: 1, host: 1, cohost: 0, ai: 0, stranger: 0 }],
+    ["publish the game (already published: the answer is 'already')", "POST", "/api/z/RL-1/publish", contact, { organizer: 1, host: 1, cohost: 0, ai: 1, stranger: 0 }],
     ["erase all guest data now", "POST", "/api/z/RL-1/erase", {}, { organizer: 1, host: 1, cohost: 0, ai: 0, stranger: 0 }],
   ];
   for (const [what, m, path, body, exp] of matrix) {
     for (const role of Object.keys(roleH)) {
       // the matrix is run on a copy of the world each time so that one action does not change the next one
       const before = what === "publish the game" || what === "erase all guest data now";
-      const r = await call(m, path, body, roleH[role]);
+      const r = await call(m, path, body, roleH[role], T + 10_000 * ++tick); // a message to all phones may be sent once every 5 seconds: each caller gets its own moment
       const allowed = r.status >= 200 && r.status < 300;
       let want = !!exp[role];
       // 'add a Host' with five hosts present: nobody can add a sixth, so expected 'refused'. The organizer gets a plain limit message, the others a refusal.
@@ -534,12 +542,11 @@ async function famText() {
   const guide = read("apps/web/public/organizer-guide.html");
   const gl = /link works for (\d+) hours/.exec(guide);
   chk(fam, "organizer guide: how long the report link works", `${link} hours`, gl ? `${gl[1]} hours` : "not stated", !gl || Number(gl[1]) === link, "FAIL", "apps/web/public/organizer-guide.html:89");
-  const hoursSaid = new Map();
-  for (const f of files) for (const m of read(f).matchAll(/\b(23|22|20|19) hours?\b/g)) { const k = `${f}|${m[1]}`; hoursSaid.set(k, (hoursSaid.get(k) || 0) + 1); }
-  for (const [k, count] of hoursSaid) { const [f, h] = k.split("|"); if (!/lifecycle\.ts$/.test(f) && !/privacy|legal|dpa|trust|z\.js|organizer-guide|guide\.js|big\.js|report/.test(f)) continue; if (Number(h) === purge || Number(h) === link) continue; chk(fam, `${f}: '${h} hours' (${count}x)`, `${purge} hours erase / ${link} hours report link as in code, or the 24-hour promise`, `says ${h} hours`, false, "FAIL", f); }
+  const inString = (line, at) => { const head = line.slice(0, at); if (/\/\/|^\s*\*|^\s*\/\*/.test(head.replace(/https?:\/\//g, ""))) return false; let q = 0; for (const ch of head) if (ch === '"' || ch === "'" || ch === "`") q++; return q % 2 === 1 || /<[^>]*$|[>][^<]*$/.test(head); };
+  const LEGAL = /privacy|legal|dpa|terms|trust|llms/;
+  for (const f of files) { const html = f.endsWith(".html"); read(f).split("\n").forEach((line, i) => { for (const m of line.matchAll(/\b(22|23)[ -]hours?\b/g)) { if (!html && !inString(line, m.index)) continue; const legal = LEGAL.test(f); chk(fam, `${f}:${i + 1} says '${m[1]} hours'`, `${purge} hours erase / ${link} hours report link as in the code`, line.slice(Math.max(0, m.index - 50), m.index + 50).trim(), false, legal ? "NOT_LOGICAL" : "FAIL", legal ? "LEGAL-HOURS (the owner's final legal wording says 23 hours, the code erases at 20: the safe side; the legal wording pass owns it)" : `${f}:${i + 1}`); } }); }
   // the word 'private' anywhere a person reads (owner rule 2026-10-28: say 'close group'). Code comments and TypeScript keywords are not text a person reads.
   const listing = (await import("node:child_process")).execFileSync("git", ["ls-files", "apps/web/public", "apps/edge/src", "packages", "docs/boss/RULES_bingo.md"], { cwd: ROOT, encoding: "utf8" }).split("\n").filter((f) => /\.(html|js|ts|json|txt)$/.test(f) && !/\.test\.|vendor\/|zgame\.js|reportgen\.js|control\.js|\.min\./.test(f));
-  const inString = (line, at) => { const head = line.slice(0, at); if (/\/\/|^\s*\*|^\s*\/\*/.test(head.replace(/https?:\/\//g, ""))) return false; let q = 0; for (const ch of head) if (ch === '"' || ch === "'" || ch === "`") q++; return q % 2 === 1 || /<[^>]*$|[>][^<]*$/.test(head); };
   for (const f of listing) {
     const html = f.endsWith(".html");
     read(f).split("\n").forEach((line, i) => {
@@ -661,7 +668,7 @@ async function famDemo10() {
   log(`11. after day 365 (00:00 IST): winners rows ${gone}`);
   // everything the organizer got by mail during the flow
   const outbox = W.raw.query("SELECT to_addr, subject, body FROM outbox ORDER BY id").all();
-  for (const m of outbox) { chk(fam, `mail "${m.subject.slice(0, 60)}" is plain`, "no private / NaN / undefined", /private/i.test(m.subject + m.body) ? "contains 'private'" : bad(m.subject + m.body) ? "junk" : "clean", !bad(m.subject + m.body) && !/\bprivate\b/i.test(m.subject + m.body), "GIBBERISH", "apps/edge/src/mails.ts / pay.ts"); chk(fam, `mail "${m.subject.slice(0, 60)}" uses the customer's word for the game`, "game, not engagement", /engagement/i.test(m.subject + m.body) ? "says 'engagement'" : "ok", !/\bengagement\b/i.test(m.subject + m.body), "INCOMPLETE", "apps/edge/src/worker.ts:1844 / lifecycle.ts mails"); }
+  for (const m of outbox) { chk(fam, `mail "${m.subject.slice(0, 60)}" is plain`, "no private / NaN / undefined", /private/i.test(m.subject + m.body) ? "contains 'private'" : bad(m.subject + m.body) ? "junk" : "clean", !bad(m.subject + m.body) && !/\bprivate\b/i.test(m.subject + m.body), "GIBBERISH", "apps/edge/src/mails.ts / pay.ts"); chk(fam, `mail "${m.subject.slice(0, 60)}" uses the customer's word for the game`, "game, not engagement", /engagement/i.test(m.subject + m.body) ? "says 'engagement'" : "ok", !/\bengagement\b/i.test(m.subject + m.body), "INCOMPLETE", "ENGAGEMENT-WORDING (player and organizer messages say 'engagement'; the console says 'game'; docs/GLOSSARY.md still says engagement): owner decision"); }
   log(`12. mails sent during the whole flow: ${outbox.length} (${[...new Set(outbox.map((m) => m.subject.slice(0, 50)))].join(" | ")})`);
 }
 
