@@ -58,7 +58,7 @@ export interface D1Stmt { bind(...v: unknown[]): D1Stmt; run(): Promise<D1Result
 export interface D1 { prepare(sql: string): D1Stmt; batch(s: D1Stmt[]): Promise<D1Result[]> }
 export interface R2Like { put(key: string, value: string, opts?: unknown): Promise<unknown>; delete(key: string): Promise<unknown> }
 export interface Env {
-  DB: D1; ORGANIZER_SECRET?: string; DAILY_WRITE_BUDGET?: string; PHONE_SALT?: string;
+  DB: D1; ORGANIZER_SECRET?: string; DAILY_WRITE_BUDGET?: string; ONLY_12S?: string; PHONE_SALT?: string;
   /** The secret that seals names and mobile numbers at rest (AES-256-GCM). Never stored in the database. */
   DATA_KEY?: string;
   /** Optional: the key that hashes network addresses for the public-page visit tracking (visits.ts); when absent it is derived from DATA_KEY. VISIT_DAILY_WRITES caps that tracking's share of the daily write allowance (default 20,000). */
@@ -228,6 +228,9 @@ const MAX_BODY = 4096;
 /** The gap between two numbers: 6, 9, 12 or 15 seconds (the console offers these; the server holds every caller, an AI included, to them). */
 const GAPS = [6, 9, 12, 15];
 const GAP_MSG = "The gap between numbers can be 6, 9, 12 or 15 seconds.";
+/** NEW games use one speed, a new number every 12 seconds (the live site sets ONLY_12S="1"; B02, same rule as Corporate Tambola). Older games keep the speed they have; copying a game gives the copy 12. */
+export const ONLY_12S_MSG = "New games use one speed: a new number every 12 seconds.";
+export const only12 = (env: any): boolean => String(env?.ONLY_12S ?? "") === "1";
 /** A game that is not paid for yet can be set at most 30 days ahead; once it is paid, up to 365 days from the payment (the life of its credit; the server enforces both for the console, the API and an AI alike). */
 const TOO_FAR = "A game that is not paid for yet can be set at most 30 days ahead. Please pick a day within the next 30 days. Once it is paid you can move it to any day within 365 days of the payment.";
 const AFTER_PAID_WINDOW = (endMs: number) => `Pick a date on or before ${creditLastDay(endMs)}: a paid game can be moved to any day within 365 days of the payment.`;
@@ -1332,6 +1335,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     if (!a.plat && !a.org) return deny(a);
     if (a.kind === "host") return deny(a);
     const b = await body(req, BRAND_BODY_MAX); // room for a brand logo (30 KB picture = about 40 KB of text)
+    if (b && only12(env)) { if (b.callSeconds === undefined || b.callSeconds === null) b.callSeconds = 12; if (b.callSeconds !== 12) return json({ error: ONLY_12S_MSG }, 400); }
     if (b && Number.isInteger(b.callSeconds) && !GAPS.includes(b.callSeconds)) return json({ error: GAP_MSG }, 400);
     if (!b) return json({ error: "Check the details and try again." }, 400);
     if (!ID.test(b.id ?? "")) return json({ error: "The game code can use letters, numbers, - and _ only (3 to 40 characters)." }, 400);
@@ -1975,6 +1979,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     if (!vc.ok) return json({ error: vc.error }, 400);
     const next = { start_round: b.startRound ?? e.start_round, call_seconds: b.callSeconds ?? e.call_seconds, cap: b.cap ?? e.cap, closed: vc.cfg.employeesOnly ? 1 : b.whoCanJoin !== undefined ? (b.whoCanJoin === "list" ? 1 : 0) : b.closed === undefined ? e.closed : b.closed ? 1 : 0, cohost_limit: b.coHostLimit ?? e.cohost_limit ?? null }; // whoCanJoin "list" is the same switch as the older `closed`
     if (Number.isInteger(next.call_seconds) && !GAPS.includes(next.call_seconds)) return json({ error: GAP_MSG }, 400);
+    if (only12(env) && next.call_seconds !== 12 && next.call_seconds !== e.call_seconds) return json({ error: ONLY_12S_MSG }, 400); // an older game keeps its own speed; nothing new may pick another
     if (!Number.isInteger(next.start_round)) return json({ error: "Pick the day and time the game starts." }, 400);
     if (!Number.isInteger(next.call_seconds) || next.call_seconds % 3 || next.call_seconds < 6) return json({ error: GAP_MSG }, 400);
     if (!Number.isInteger(next.cap) || next.cap < 1 || next.cap > 100000) return json({ error: "The number of people must be a whole number from 1 up. Please check it." }, 400);
