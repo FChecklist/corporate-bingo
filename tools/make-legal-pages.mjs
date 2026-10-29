@@ -1,3 +1,7 @@
+// DISABLED (Bingo 1.4.0): the public pages now wear the Corporate Games look and are kept by hand (text) and by apps/web/tools/make_site.py (head, header, footer). This script would write the older frame over them,
+// and its organizer guide text still says the banned word. Update the fragments in tools/legal from the current pages first, then remove this guard.
+console.error("make-legal-pages.mjs refuses to run: see the comment at the top of this file.");
+process.exit(1);
 // Builds the short document pages (Terms, Data processing terms, Sub-processors, Partner terms, Organizer guide) in the same style as legal.html.
 // Run: node tools/make-legal-pages.mjs   (writes apps/web/public/*.html; commit the result). The pages are plain static files: no new user flow.
 // The Terms page and the Legal position page are the two files in tools/legal/ (their {{TERMS_VERSION}} is replaced by the one constant in apps/edge/src/brand.ts).

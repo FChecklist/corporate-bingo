@@ -1,8 +1,22 @@
 [
   {
+    "version": "1.4.0",
+    "date": "2026-10-29",
+    "commit": "this release",
+    "title": "The Corporate Games look: new website, one logo, six-item menu",
+    "changes": [
+      "Every public page now looks and feels like the Corporate Tambola website: warm colours, the Corporate Bingo badge with CORPORATE above the name, the same header, footer, buttons and fonts",
+      "The header menu has six items: How it works, Free demo game, Guide, Brochure, Refer & earn, Log in",
+      "New pages: How it works and Guide (the organizer guide); the Brochure is a web page with the one-page PDF to download",
+      "One Corporate Games bar at the top of every public page; new app icons, share picture and e-mail header in the same brand",
+      "The organizer console and the phone pages wear the same colours, fonts and header bar. Nothing in how the console works has changed",
+      "Wording: close group everywhere, shorter plain sentences; the old organizer-guide address points to the Guide"
+    ]
+  },
+  {
     "version": "1.3.2",
     "date": "2026-10-27",
-    "commit": "this release",
+    "commit": "bd66d3c",
     "title": "A game waiting for payment never blocks a new game",
     "changes": [
       "Only drafts that were never published count toward the limit of ten drafts; a game that is published but not yet paid for no longer stops an Organizer or Host from making a new game",

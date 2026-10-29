@@ -132,7 +132,7 @@ describe("the legal page carries the owner's final text, and each line matches w
     expect(html).toContain('href="mailto:hello@corporatetambola.com?subject=%5BBingo%5D%20"');
   });
   test("the six disclaimer lines, word for word", () => {
-    expect(items("disclaimer")).toEqual(["This is a private game for a closed group, run by your organizer.", "Corporate Bingo provides the software only. We never hold or pay prize money. Participants pay nothing to play.", "The organizer provides and hands over the prizes.", "The software decides the winners. Results are final.", "The organizer makes sure the game is allowed under local law.", "We are not responsible for prize handover or for disputes between the organizer and participants."]);
+    expect(items("disclaimer")).toEqual(["This is a close group game, open only to the people the organizer invites, run by your organizer.", "Corporate Bingo provides the software only. We never hold or pay prize money. Participants pay nothing to play.", "The organizer provides and hands over the prizes.", "The software decides the winners. Results are final.", "The organizer makes sure the game is allowed under local law.", "We are not responsible for prize handover or for disputes between the organizer and participants."]);
   });
   test("the rules say only what the software does (no claims, no manual cutting, no blocking), and the privacy timings match lifecycle.ts", () => {
     const r = items("rules").join(" ");
