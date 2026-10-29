@@ -35,3 +35,15 @@ describe("C10: a game for 10 people or fewer never uses up a bought pack", () =>
     expect(big.draft).toBe(false); expect(row("SELECT eid FROM entitlement WHERE id='ent_C10-SEED'").eid).toBe("C10-B"); // a 100-person game still takes it
   });
 });
+
+describe("C3: a published game lowered to 10 people or fewer is free in fact, not only in the summary", () => {
+  test("publish at 100 people (unpaid), then change to 10: the game is paid (Rs 0) and the summary says so", async () => {
+    const master = await start();
+    expect((await call("POST", "/api/z", { id: "C3-A", startRound: FAR_START, callSeconds: 12, cap: 100 }, master)).status).toBe(200);
+    expect((await j(await call("POST", "/api/z/C3-A/publish", PUB, master))).paid).toBe(false); // published, payment pending
+    expect((await call("PATCH", "/api/z/C3-A/settings", { cap: 10 }, master)).status).toBe(200);
+    const sm = await j(await call("GET", "/api/z/C3-A/summary", undefined, master));
+    expect(row("SELECT pack FROM engagement WHERE id='C3-A'").pack).toBe(10); // old code: 0, so the game would not have started unpaid
+    expect(sm.paid).toBe(true); expect(sm.nextSteps.find((x: any) => /^Pay/.test(x.step))?.done).toBe(true); // old code: the summary said "nothing to pay" while the game was still unpaid
+  });
+});

@@ -1997,6 +1997,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     if (next.cap < Math.max(have?.c ?? 0, listed?.c ?? 0)) return json({ error: "The limit cannot be lower than the people already on the list." }, 409);
     if (!(await spend(env, now))) return BUSY();
     await env.DB.prepare("UPDATE engagement SET start_round=?, call_seconds=?, cap=?, closed=?, tickets=?, config=?, cohost_limit=? WHERE id=?").bind(next.start_round, next.call_seconds, next.cap, next.closed, vc.cfg.tickets, cfgJson(vc.cfg), next.cohost_limit, eid).run();
+    if (e.pack === 0 && next.cap <= DEMO_CAP && (await isPublished(env, e))) await env.DB.prepare("UPDATE engagement SET pack=? WHERE id=? AND pack=0").bind(next.cap, eid).run(); // lowered to 10 or fewer after publishing: it is Rs 0, paid like a game published at that size (the summary already said so)
     if (next.start_round !== e.start_round) { // a new time: for a game nobody paid for, the erasure clock follows it (the lifecycle tick re-reads the schedule), and the date has been chosen
       await env.DB.prepare("DELETE FROM kv WHERE k=?").bind(`startpending/${eid}`).run();
       if (unpaid) await env.DB.prepare("DELETE FROM life WHERE eid=? AND report_ms IS NULL").bind(eid).run();
