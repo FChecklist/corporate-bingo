@@ -78,7 +78,7 @@ const examples = (base: string, startRound: number) => {
   const q = (o: unknown) => encodeURIComponent(JSON.stringify(o));
   return [
     `Read what is saved:        GET ${base}/z/DIWALI-2026/summary`,
-    `Create (header-free mode): GET ${base}/z?_method=POST&_body=${q({ id: "DIWALI-2026", startRound, callSeconds: 9, cap: 250 })}`,
+    `Create (header-free mode): GET ${base}/z?_method=POST&_body=${q({ id: "DIWALI-2026", startRound, callSeconds: 12, cap: 250 })}`,
     `Change settings:           GET ${base}/z/DIWALI-2026/settings?_method=PATCH&_body=${q({ tickets: 2, rewards: [{ pattern: "blackout", ordinal: 1, text: "Voucher 50" }] })}`,
     `Mark card 3 as host:     GET ${base}/z/DIWALI-2026/mark?_method=POST&_body=${q({ seat: 3, role: "host" })}`,
     `Send a message to guests:  GET ${base}/z/DIWALI-2026/announce?_method=POST&_body=${q({ text: "Welcome! The game starts in 10 minutes." })}`,
@@ -180,7 +180,7 @@ export const CONVERSATION: string[] = [
   "1. The event and the guests: what is the occasion (for example a Diwali party, a dealer meet, a town hall) and who takes part (employees, their families, dealers, customers, vendors). This is only context for your suggestions; nothing needs to be saved.",
   "2. How many people at most. Recommend a limit a little above the headcount. See the sizes. Building and publishing are free; the game does not begin until it is paid for (any time until the guest data is erased).",
   "3. Date and time, and their time zone (default Asia/Kolkata). The date must be at most 30 days ahead (the organizer can move a paid game to any day within 365 days of the payment). Turn it into startRound with GET {api}/z/schedule?at=<ISO time with offset> (this call only reads, so you may use it before the organizer has said yes). It must be in the future. Suggest at least 2 hours ahead so everyone can join.",
-  "4. Calling speed: 6 seconds fast, 9 normal (recommended), 12 relaxed, 15 slow. A full game (75 numbers) is about 8, 11, 15 or 19 minutes of calling.",
+  "4. Calling speed: 6 seconds fast, 9 lively, 12 normal (recommended), 15 slow. A full game (75 numbers) is about 8, 11, 15 or 19 minutes of calling.",
   "5. Cards per person: 1 (simple) or 2 (more chances: each person gets two different cards).",
   "6. Rewards: which houses to reward (the houses listed above) and how many winners for each (1st, 2nd... up to the house maximum). Ask what each reward is, for example a gift voucher. Remind them that the organizer gives the rewards; we only provide the software.",
   "7. Brand moments (optional, 5 for each card: 5 with 1 card, 10 with 2): an opening before the game starts, up to 3 per card during the game (a message, a YouTube link, a video or audio file link, slides, or a lucky draw of 1, 3, 5 or 10 winners, with the reward named in its title) and a closing at the end. The owner may choose any one or more. Leave out `after`: the software spreads the during-the-game moments evenly.",

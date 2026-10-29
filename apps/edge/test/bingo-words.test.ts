@@ -36,6 +36,10 @@ describe("Bingo's help talks about Bingo's houses only", () => {
     const t = manualText("https://bingo.test", "cba_x", "ai", now);
     expect(t).toContain(`about ${mins.slice(0, 3).join(", ")} or ${mins[3]} minutes of calling`); expect(t).not.toContain("9, 14, 18 or 22 minutes");
   });
+  test("the speed the AI recommends is the owner's 12 seconds, and the example call uses it", () => {
+    const t = manualText("https://bingo.test", "cba_x", "ai", now);
+    expect(t).toContain("6 seconds fast, 9 lively, 12 normal (recommended), 15 slow"); expect(t).toContain("callSeconds%22%3A12");
+  });
   test("the guide's example prize is a Bingo prize (Line), not Full House", () => {
     const g = readFileSync(join(import.meta.dir, "../../web/public/guide.js"), "utf8");
     expect(find(g)).toBeNull();

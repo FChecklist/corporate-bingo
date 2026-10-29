@@ -325,6 +325,15 @@ describe("console (organizer page)", () => {
     q.click('[data-ph="corners"]'); expect(q.$('[data-ck="hs.corners.pt"][data-v="none"]')!.className).toMatch(/\bon\b/); expect(q.$('[data-ck="hs.corners.n"][data-v="2"]')!.className).toMatch(/\bon\b/);
     expect(q.text()).toMatch(/decide later/); expect(p.errors).toEqual([]);
   });
+  test("Speed: a new game starts on 12 seconds (owner 2026-10-27: Bingo gap 12 s), and a game that already has another speed keeps its own", async () => {
+    const o = await organizer();
+    const qk = await page(o, "/zc?quick=1", "zc.html", ZC_SCRIPTS, { "cbz-org": o.token }); await qk.waitFor((x) => /1\. Which game\?/.test(x));
+    const on = (pp: Page, v: string) => /\bon\b/.test(pp.$(`[data-ck="spd"][data-v="${v}"]`)?.className ?? "");
+    expect([on(qk, "12"), on(qk, "9")]).toEqual([true, false]); expect(qk.text()).toMatch(/12 seconds is the usual choice, 9 seconds is livelier/);
+    await o.api("POST", "/api/z", { id: "UI-SPD6", startRound: roundAt(T + 3 * 86_400_000), callSeconds: 6, cap: 100 }, o.aiKey);
+    const p = await consolePage(o, "UI-SPD6"); await p.waitFor((x) => /Hello/.test(x)); openStep(p, 2);
+    expect(on(p, "6")).toBe(true); expect(on(p, "12")).toBe(false); // an older game keeps the 6 it was made with
+  });
   test("Publish step: the note about prizes left on 'decide later' says WHICH prizes (Tambola rule, owner 2026-10-28), never blocks publishing, and disappears when every prize has words", async () => {
     const o = await organizer(); await make(o, "UI-BLANK");
     const note = (p: Page) => (p.text().match(/[^.]*say "decide later"\. You can still publish\./) || [""])[0].replace(/^.*Change/, "").trim();

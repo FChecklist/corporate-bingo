@@ -88,13 +88,21 @@ describe("the guided path, followed like an outside AI", () => {
     expect(t).toContain(`${ORIGIN}/zc.html?e=DIWALI-1002&do=publish`); // the one-tap hand-over for publishing
     expect(t).toMatch(/I never pay/);
     const sm = await j(await call("GET", `/ai/${o.key}/z/DIWALI-1002/summary`));
-    expect(sm).toMatchObject({ id: "DIWALI-1002", name: "Diwali party, Fri 2 Oct", tickets: 2, tz: "Asia/Kolkata", limit: 250, callSeconds: 9, rounds: 1, closed: false, status: "draft" });
+    expect(sm).toMatchObject({ id: "DIWALI-1002", name: "Diwali party, Fri 2 Oct", tickets: 2, tz: "Asia/Kolkata", limit: 250, callSeconds: 12, rounds: 1, closed: false, status: "draft" });
     expect(sm.startMs).toBe(Date.UTC(2026, 9, 2, 10, 30)); // 4 pm India time tomorrow
     expect(sm.rewards.map((r: any) => r.pattern)).toEqual(["line", "corners", "x", "blackout"]);
     expect(sm.breaks).toMatchObject([{ kind: "lucky", winners: 1, after: 38 }]); // placed by the software
     expect(sm.links.publishHandover).toBe(`${ORIGIN}/zc.html?e=DIWALI-1002&do=publish`); expect(sm.links.console).toBe(`${ORIGIN}/zc.html?e=DIWALI-1002`);
     expect(sm.nextSteps.map((s: any) => s.step)).toEqual(["Name the prizes", expect.stringMatching(/^Publish/), "Pay (the game does not begin until it is paid)", "Share the guest link and load the guest list"]);
     expect(sm.nextSteps.every((s: any) => s.done === false)).toBe(true);
+  });
+  test("the guided path suggests 12 seconds between numbers (owner 2026-10-27) and creates the game with 12", async () => {
+    const o = await organizer();
+    let t = (await open(`${o.base}/go/new`)).text; t = await pick(t, /^India time/); t = await pick(t, /^Tomorrow/); t = await pick(t, /^4 pm/); t = await pick(t, /Diwali/); t = await pick(t, /Up to 100/);
+    expect(t).toMatch(/a number every 12 seconds/); expect(t).not.toMatch(/every 9 seconds/);
+    t = await pick(t, /Looks good/); t = await pick(t, /^Simple/); t = await pick(t, /No lucky draw/); t = await pick(t, /Yes, save/);
+    const id = /code is ([A-Z0-9-]+)\./.exec(t)![1]!; const sm = await j(await call("GET", `/api/z/${id}/summary`, undefined, { "x-organizer": o.key }));
+    expect(sm.callSeconds).toBe(12);
   });
   test("a second game on the same day gets its own code, never overwriting the first", async () => {
     const o = await organizer();

@@ -11,7 +11,7 @@ Corporate Bingo is 75-ball Bingo. This page is the short, current description. I
 ## The calls
 - 75 numbers, each once, in an order derived from the engagement id and the public drand beacon: `pickNumber` in `packages/beacon/src/index.ts` (domain string `CB1`). Nobody can predict or choose it.
 - A call is shown and spoken as letter + number ("G 52"). Voice: the phone's own speech voice, Indian English (en-IN, rate 0.82, pitch 1.05) as in Corporate Tambola; wording "Next number is Gee, five two, fifty-two. Gee, fifty-two."; `apps/web/public/audio.js`. No audio files ship.
-- Gap between calls: 6, 9, 12 or 15 seconds (default 9). The first call is 2 minutes after the start time.
+- Gap between calls: 6, 9, 12 or 15 seconds (default 12: owner decision 2026-10-27, "Bingo gap 12 s only", docs/boss/OPTIONS_TABLES.md; the console still offers 9 and 12 until the limited-options release hides 9). The first call is 2 minutes after the start time.
 
 ## The prizes (houses)
 One table: `PRIZE_HOUSES` in `packages/beacon/src/config.ts`, built on `PATTERN_RULES` in `bingo-card.ts`.
