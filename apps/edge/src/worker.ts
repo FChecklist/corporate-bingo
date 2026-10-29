@@ -1353,7 +1353,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     if (have) return json({ ok: true, existed: true }); // creating twice never overwrites (and never reveals whose it is)
     // an organizer needs a purchased engagement (entitlement) big enough for the limit they ask for; we (platform) do not. A demo game never uses up a bought pack.
     if (!a.plat && a.org) { try { await ownerTestGrant(env, a.org, b.cap, now); } catch { /* no grant: the game is a draft as for everybody */ } }
-    const ent = a.plat || a.kind === "ai" ? null : await env.DB.prepare("SELECT id, pack FROM entitlement WHERE org=? AND eid IS NULL AND pack>=? ORDER BY pack, created_ms LIMIT 1").bind(a.org, b.cap).first<{ id: string; pack: number }>(); // the organizer's AI key never puts a game live: it makes a draft, and the organizer's own publish (Terms ticked, report e-mail given) applies a waiting pack
+    const ent = a.plat || a.kind === "ai" || b.cap <= DEMO_CAP ? null : await env.DB.prepare("SELECT id, pack FROM entitlement WHERE org=? AND eid IS NULL AND pack>=? ORDER BY pack, created_ms LIMIT 1").bind(a.org, b.cap).first<{ id: string; pack: number }>(); // the organizer's AI key never puts a game live: it makes a draft, and the organizer's own publish (Terms ticked, report e-mail given) applies a waiting pack
     // no payment is needed to BUILD an engagement: without a purchased pack it is saved as a draft (pack 0) that participants cannot see or join;
     // payment is asked only when the organizer publishes it (POST /api/z/:id/publish)
     const draft = !a.plat && !ent;
@@ -1830,7 +1830,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     if (!/^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/.test(cEmail)) return json({ error: "Please confirm a valid email address." }, 400);
     if (cPhone.length < 10 || cPhone.length > 15 || !cleanPhone(pb?.phone).ok) return json({ error: "Please confirm a valid mobile number. " + (cleanPhone(pb?.phone) as any).why }, 400);
     if (roundMs(e.start_round) <= now || (await env.DB.prepare("SELECT 1 AS x FROM kv WHERE k=?").bind(`startpending/${eid}`).first())) return json({ error: "The start time has passed or has not been chosen. Please choose a new start time first.", code: "start-pending" }, 400);
-    const ent = await env.DB.prepare("SELECT id, pack FROM entitlement WHERE org=? AND eid IS NULL AND pack>=? ORDER BY pack, created_ms LIMIT 1").bind(e.org, e.cap).first<{ id: string; pack: number }>();
+    const ent = e.cap <= DEMO_CAP ? null : await env.DB.prepare("SELECT id, pack FROM entitlement WHERE org=? AND eid IS NULL AND pack>=? ORDER BY pack, created_ms LIMIT 1").bind(e.org, e.cap).first<{ id: string; pack: number }>(); // a game for 10 people or fewer is Rs 0 and never uses up a bought pack
     const free = !ent && (e.cap <= DEMO_CAP || (freeLaunch(env as PayEnv) && e.cap <= FREE_CAP)); // a game for up to 10 people is Rs 0, always; the optional switch frees small engagements while the gateway is off
     if (!(await spend(env, now, 4))) return BUSY();
     await env.DB.batch([
