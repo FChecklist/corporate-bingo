@@ -17,10 +17,10 @@ describe("phone number formats on a guest list", () => {
   for (const [label, raw] of VALID) {
     test(`${label} (${raw}) is accepted and stored sealed`, async () => {
       const g = await paidGame({ cap: 100 });
-      const r = await j(await add(g.key, g.id, [{ name: "Asha", phone: raw }]));
+      const r = await j(await add(g.key, g.id, [{ name: "Asha Venkataraman", phone: raw }]));
       expect(r.added).toBe(1); expect(r.invalid).toEqual([]);
-      expect(JSON.stringify(q("SELECT * FROM person"))).not.toContain("Asha");
-      expect(JSON.stringify(q("SELECT * FROM person"))).not.toMatch(/9876543210|50 123|7911/);
+      expect(JSON.stringify(q("SELECT * FROM person"))).not.toContain("Venkataraman");
+      expect(JSON.stringify(q("SELECT * FROM person"))).not.toMatch(/9876543210|971501234567|447911123456|14155552671/); // whole numbers: a 4-digit piece such as "7911" turns up in random sealed text about once in 200 runs
     });
   }
   const INVALID: [string, unknown][] = [
