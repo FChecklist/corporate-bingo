@@ -1085,9 +1085,11 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     const hGame = await ownGameId(env, a.org, hb?.e); // added from inside a game: the Host's link opens that game
     const sealedEmail = hEmail ? await sealText(env as any, hEmail) : null, sealedWho = hMob && hMob.ok ? await sealPii(env, { phone: hMob.digits, name: label || null }) : null; // the Host's e-mail and mobile are kept sealed, on the key row
     await env.DB.batch([
-      env.DB.prepare("INSERT INTO organizer_key(hash,org,kind,revoked,created_ms,is_test,label,email_sealed,pii,created_by,host_id) VALUES(?,?,?,0,?,COALESCE((SELECT MAX(k2.is_test) FROM organizer_key k2 WHERE k2.org=?),0),?,?,?,'o',?)").bind(kh, a.org, "host", now, a.org, label, sealedEmail, sealedWho, kh),
-      env.DB.prepare("INSERT INTO host_state(host_id,org,link_exp_ms,mobile_ok) VALUES(?,?,?,?)").bind(kh, a.org, now + HOST_LINK_TTL_MS, hMob ? 1 : 0),
+      // the limit is checked again inside the statement itself: adds that arrive at the same moment all passed the check above (QA 2026-10-29: 12 at once made 12 Hosts)
+      env.DB.prepare("INSERT INTO organizer_key(hash,org,kind,revoked,created_ms,is_test,label,email_sealed,pii,created_by,host_id) SELECT ?,?,?,0,?,COALESCE((SELECT MAX(k2.is_test) FROM organizer_key k2 WHERE k2.org=?),0),?,?,?,'o',? WHERE (SELECT COUNT(*) FROM organizer_key WHERE org=? AND kind='host' AND revoked=0 AND expires_ms IS NULL AND (host_id IS NULL OR host_id=hash) AND COALESCE(created_by,'')<>'d') < ?").bind(kh, a.org, "host", now, a.org, label, sealedEmail, sealedWho, kh, a.org, MAX_HOSTS),
+      env.DB.prepare("INSERT INTO host_state(host_id,org,link_exp_ms,mobile_ok) SELECT ?,?,?,? WHERE EXISTS (SELECT 1 FROM organizer_key WHERE hash=?)").bind(kh, a.org, now + HOST_LINK_TTL_MS, hMob ? 1 : 0, kh),
     ]);
+    if (!(await env.DB.prepare("SELECT 1 AS x FROM organizer_key WHERE hash=?").bind(kh).first())) return json({ error: `You can have up to ${MAX_HOSTS} Hosts at a time. Retire one first.` }, 409);
     const hOrigin = (env as PayEnv).PUBLIC_ORIGIN ?? new URL(req.url).origin, hLink = `${hOrigin}/zc.html?k=${key}${hGame ? "&e=" + encodeURIComponent(hGame) : ""}`;
     let hostMailed = false;
     if (hEmail) { const hostMail = hostLinkMail(hOrigin, key, label, hGame); hostMailed = await sendMail(env as PayEnv, env.DB, hEmail, hostMail.subject, hostMail.text, now, { html: hostMail.html, secret: true }); } // to the Host only

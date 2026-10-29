@@ -77,3 +77,15 @@ describe("S7: the security log keeps no guest's or Co-host's name or mobile numb
     expect(redact({ password: "x", otp: "1" })).toEqual({ password: "[redacted]", otp: "[redacted]" }); // the old rule still holds
   });
 });
+
+describe("S15: at most 5 Hosts, even when the Organizer's adds arrive at the same moment", () => {
+  test("12 adds at once: 5 are made, 7 are told to retire one first, no sixth key exists", async () => {
+    const master = await start("boss@acme.com");
+    const rs = await Promise.all(Array.from({ length: 12 }, (_, i) => call("POST", "/api/org/host", { mobile: `98765000${String(10 + i)}`, label: "H" + i }, master)));
+    const codes = rs.map((r) => r.status);
+    expect(codes.filter((c) => c === 200).length).toBe(5); // old code: 12
+    expect(codes.filter((c) => c === 409).length).toBe(7);
+    expect((raw.prepare("SELECT COUNT(*) AS c FROM organizer_key WHERE kind='host' AND revoked=0 AND expires_ms IS NULL").get() as any).c).toBe(5);
+    expect((raw.prepare("SELECT COUNT(*) AS c FROM host_state").get() as any).c).toBe(5); // no half-made Host
+  });
+});
