@@ -1482,6 +1482,8 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
   if (didNotStart && req.method !== "GET" && !["erase", "forget", "person", "cancel", "clone", "leave", "datareq"].includes(action!)) return json({ error: DNS_MSG, code: "did-not-start", didNotStart: true }, 409);
   if (cancelled && req.method === "POST" && action === "join") return json({ error: "This game was cancelled by the organizer.", code: "cancelled", cancelled: true }, 403);
   if (cancelled && req.method !== "GET" && !["erase", "forget", "person", "cancel", "reopen", "clone", "leave", "datareq"].includes(action!)) return json({ error: "This game was cancelled by the organizer.", code: "cancelled", cancelled: true }, 409);
+  // a game whose participants' data has been erased takes no new name: it would never be erased (the 20-hour job has already run for this game)
+  if (action === "join" && req.method === "POST" && now >= roundMs(e.start_round) && (await env.DB.prepare("SELECT 1 AS x FROM life WHERE eid=? AND purged_ms IS NOT NULL").bind(eid).first())) return json({ error: "This game is over and the players' details have been deleted. Please ask your organizer.", code: "purged" }, 410);
   if (action === "cancel-preview" && req.method === "GET") { // what cancelling would do, and the refund in numbers: Organizer and Host only
     if (!can(a, e, true)) return deny(a);
     return json(await cancelPreview(env as PayEnv, e, now));
@@ -1916,7 +1918,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     if (now >= roundMs(e.start_round) && now < (await endBoundMs(env as any, e)) && !e.cancelled_ms) return json({ error: "The game is being played right now. You can delete the participants' data as soon as it ends.", code: "game-running" }, 409); // erasing mid-game would wipe every card and the Co-host keys under the players' feet
     const n = await env.DB.prepare("SELECT COUNT(*) AS c FROM participant WHERE eid=?").bind(eid).first<{ c: number }>();
     if (!(await spend(env, now, (n?.c ?? 0) + 1))) return BUSY();
-    await erasePersonal(env, eid!, now, "organizer");
+    await erasePersonal(env, eid!, now, "organizer", now >= roundMs(e.start_round) || !!e.cancelled_ms); // before the start nothing is "done for good": guests who join later are still erased 20 hours after the end
     return json({ ok: true, erased: n?.c ?? 0 });
   }
   if (action === "discard" && req.method === "POST") { // an unpublished draft the organizer no longer wants: gone at once, so the 10-draft limit can never trap anyone. A published, paid, cancelled or started game is never touched here.
