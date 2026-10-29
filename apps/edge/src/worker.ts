@@ -1902,7 +1902,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     const st = await env.DB.prepare("SELECT v FROM kv WHERE k=?").bind(`rpt/${eid}`).first<{ v: string }>();
     const stage = st ? (JSON.parse(st.v).stage as string) : null;
     const ready = stage === "send" || stage === "done";
-    if (a.kind === "ai") return json({ ready, sent: !!life?.report_ms, url: null, note: "The report holds every participant's name and number, so its address goes only to the organizer (it is e-mailed to them). Tell them to open their e-mail or their console." }); // the address is a key to personal data: it never travels through an outside AI
+    if (a.kind === "ai" || a.viaLink) return json({ ready, sent: !!life?.report_ms, url: null, note: "The report holds every participant's name and number, so its address goes only to the organizer (it is e-mailed to them). Tell them to open their e-mail or their console." }); // the address is a key to personal data: it never travels through an outside AI
     return json({ ready, sent: !!life?.report_ms, url: ready ? await reportLink(env as any, eid!) : null });
   }
   if (action === "vote" && req.method === "POST") return acceptVotes(env as any, e, eid!, await body(req, 65_536), now, json, spend);
