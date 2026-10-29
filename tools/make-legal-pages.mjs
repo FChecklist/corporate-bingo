@@ -104,7 +104,7 @@ const PAGES = {
     ["Google", "Optional &ldquo;Continue with Google&rdquo; sign-in for organizers and Hosts (only if you press the button)", "United States, as published by Google."],
     ["Razorpay", "Organizer payments (never players)", "India, as published by Razorpay."],
     ["The IT Services payment service (itservices-rajat-agarwal.pages.dev)", "Records each payment for the organizer&rsquo;s invoice and our accounts (never players)", "Cloudflare, as above."],
-    ["GitHub", "Runs our scheduled jobs and holds a private copy of the payment records (never players)", "United States, as published by GitHub."],
+    ["GitHub", "Runs our scheduled jobs and holds a protected copy of the payment records (never players)", "United States, as published by GitHub."],
   ], sections: [
     ["notes", "Also used", [
       "drand: public random numbers. Your phone contacts it; we send it no personal data.",
@@ -135,7 +135,7 @@ const PAGES = {
     ["data", "Your details", ["We use your mobile number to run your partner account. See the <a href=\"/legal.html#privacy\">Privacy &amp; Data Policy</a>.", "You may stop at any time."]],
   ] },
   "organizer-guide.html": { title: "Organizer guide", h1: "Organizer guide", lead: "Short notes for a safe, simple game.", sections: [
-    ["rules", "Keep it a private game", [
+    ["rules", "Keep it a close group game", [
       "Invite people you know: colleagues, families, customers, partners.",
       "Never ask for a fee, a purchase or a donation to take part.",
       "Taking part must be voluntary.",
