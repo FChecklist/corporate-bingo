@@ -84,7 +84,7 @@
     if (personal) return "";
     if (vm === "id") return emp("Your employee ID", eo ? "This game is for employees only." : "") + (eo ? "" : phone("No employee ID? Type your mobile number instead", "Vendors, customers and families use their mobile number."));
     if (vm === "both") return phone("Your mobile number", "") + emp(eo ? "Your employee ID" : "Your employee ID (employees only)", eo ? "This game is for employees only." : "Not an employee? Leave this empty.");
-    return needPhone ? phone("Your mobile number", "") : "";
+    return needPhone || eo ? phone("Your mobile number", eo ? "This game is for employees only." : "") : ""; // employees only: the server refuses a join without a mobile number, so the box is always there
   };
   const BUSY_TRIES = 15;
   const joinView = (msg) => {
@@ -235,6 +235,7 @@
       : `<h2>You are in. See you at ${esc(when)}</h2><div class="zsmall" style="margin:0">Starting in</div><div class="zcount" aria-live="off" id="cd">${clock(toFirst - GRACE_SECS)}</div><p class="zsmall" style="margin-top:0">hours : minutes : seconds. Keep this page open: the numbers appear on their own.</p>`;
     return `<div class="zcard zwait">${top}
       <div class="zdo"><b>What to do:</b> nothing yet. Keep this page open. ${TAP() ? "When a number is called, tap it on your card." : "Your card marks every number for you."}</div>
+      <p class="zsmall" id="dnd">Tip: switch on Do Not Disturb so calls and chats do not interrupt your game.</p>
       ${prizes ? `<h3>What you can win</h3><ul class="zlist">${prizes}</ul>` : ""}
       <h3>How it works</h3><ol class="zlist"><li>Your card is below: 5 x 5 with the letters B I N G O, and FREE in the middle. Numbers are called one by one as a letter and a number, like G 52.</li><li>When your card completes a prize pattern you will see it. The software checks every card, so you do not need to shout Bingo.</li><li>The organizer hands over the rewards.</li></ol>
       <button class="zbtn s alt" id="soundtest">Check my sound</button><a class="zbtn s alt" id="addcal" download="engagement.ics" href="${icsFor(v)}">Add to my calendar</a></div>`;
@@ -288,7 +289,7 @@
     try {
       if (v.phase === "ended" && !store.get(overKey) && !overPending) {
         overPending = true; // spread over a little time so a big crowd does not ask at the same second
-        setTimeout(async () => { try { await api("POST", `/api/z/${EID}/over`, { pid: v.pid, device: myDevice() }); store.set(overKey, "1"); } catch { /* tried again later */ } overPending = false; }, Math.floor(Math.random() * 45000));
+        setTimeout(async () => { try { const r = await api("POST", `/api/z/${EID}/over`, { pid: v.pid, device: myDevice() }); if (!r || r.counted !== false) store.set(overKey, "1"); /* counted:false = too early to count (a game whose prizes ran out before number 20): asked again */ } catch { /* tried again later */ } overPending = false; }, Math.floor(Math.random() * 45000));
       }
     } catch { /* never in the way of the game */ }
   }
@@ -612,7 +613,7 @@
     const chip = v.phase === "ended" ? "Game over" : v.paused ? "Paused" : v.locked ? "Waiting to start" : !v.log.length ? "Get ready" : running && secs !== null ? "Next number in " + secs + "s" : "Numbers coming";
     const what = v.phase === "ended" ? "" : TAP() ? "Tap a number on your card when it is called." : "Your card marks every number for you. Just watch.";
     const total = v.late ? "since you joined" : "of 75";
-    return `<div class="zcard zcall"><div class="zchiprow"><span class="zchip2 ${tone}">${esc(chip)}</span><span class="zchip2 plain"><b data-count="${v.log.length}" data-ck="called">${v.log.length}</b>&nbsp;${total} called</span></div>
+    return `<div class="zcard zcall"><div class="zchiprow"><span class="zchip2 ${tone}">${esc(chip)}</span><span class="zchip2 plain"><b data-count="${v.log.length}" data-ck="called">${v.log.length}</b>&nbsp;${total} called${v.late ? "" : " &middot; " + Math.max(0, 75 - v.log.length) + " left"}</span></div>
         <div class="zball"><div class="zbig ${last ? "l" + colOf(last) : "none"}${NEWCALL && NEWCALL === last ? " pop" : ""}" id="big" role="status" aria-live="assertive" aria-label="${last ? "Number " + lblOf(last) : "No number yet"}">${last ? `<small>${LET[colOf(last)]}</small><span>${last}</span>` : "–"}</div></div>
         <div class="zsub">${sub}</div>${what ? `<p class="zsmall zwhat">${esc(what)}</p>` : ""}
         <div class="zlast" aria-label="Last numbers called">${recent.map((n, i) => `<span class="l${colOf(n)}${NEWCALL && i === 0 ? " pop" : ""}" aria-label="${lblOf(n)}"><i>${LET[colOf(n)]}</i>${n}</span>`).join("")}</div></div>`;
@@ -627,6 +628,7 @@
     else if (v.paused) banners.push(`<div class="zbanner info">Paused by the organizer. It will carry on shortly.</div>`);
     else if (v.mode === "hold" && v.nowRound !== null) banners.push(`<div class="zbanner warn">Checking with the organizer… numbers will continue in a moment.</div>`);
     else if (v.mode === "blind") banners.push(`<div class="zbanner warn">Cannot reach the organizer's controls right now. Play continues; a pause may appear late.</div>`);
+    if (AWAY && v.phase === "play") banners.push(`<div class="zbanner info" role="status">Welcome back. You missed ${v.log.length - AWAY.from} number${v.log.length - AWAY.from === 1 ? "" : "s"}. ${TAP() ? "They are shown as called on your card: tap them to mark." : "They are marked as called."}</div>`);
     if (v.phase === "ended" && !v.stopped && !v.endedByPrizes) banners.push(`<div class="zbanner ok">${v.rounds > 1 ? "All " + v.rounds + " rounds are finished." : "All 75 numbers have been called."} Thank you for taking part.</div>`);
     const sub = v.phase === "ended" || v.locked || v.brk || v.intermission || (DEMO && !DEMO.running) ? "" : v.late && v.late.secondsUntil > 0 ? "Your numbers start in " + clock(v.late.secondsUntil) : v.log.length === 0 ? (v.nextCallInSec !== null ? (v.nextCallInSec > GRACE_SECS ? "Starting in " + clock(v.nextCallInSec - GRACE_SECS) : "First number in " + clock(v.nextCallInSec)) : "Getting ready…") : v.paused || v.mode === "hold" ? "" : v.nextCallInSec !== null ? "Next number in " + v.nextCallInSec + "s" : "";
     const still = v.tickets.length ? stillToWinRows(v) : "";
@@ -654,6 +656,20 @@
       <div class="zcard"><h2>${v.rounds > 1 ? "Round " + v.round + " of " + v.rounds + " · " : ""}${v.late ? "Numbers since you joined · " + v.log.length : "Call board · " + v.log.length + " of 75"} called</h2><div class="zboard" role="group" aria-label="Call board, 75 numbers">${LET.map((l, c) => `<div class="bl l${c}" aria-hidden="true">${l}</div>` + Array.from({ length: 15 }, (_, i) => { const n = c * 15 + i + 1; return `<div class="${called.has(n) ? "c" : ""}" aria-label="${lblOf(n)}${called.has(n) ? ", called" : ""}">${n}</div>`; }).join("")).join("")}</div></div>`;
   }
 
+  // ---------- a finger on the screen: no redraw. The page redraws itself every second; a redraw between touch-down and touch-up replaces the button under the finger and the tap is lost (Corporate Tambola 1.4.4). ----------
+  let fingerAt = null; // performance.now() when a finger went down; null when none is down
+  const fingerDown = () => fingerAt !== null && performance.now() - fingerAt < 2500; // an "up" that never arrives cannot freeze the screen for more than 2.5 seconds
+  for (const ev of ["pointerdown", "touchstart"]) document.addEventListener(ev, () => { fingerAt = performance.now(); }, true);
+  for (const ev of ["pointerup", "pointercancel", "touchend", "touchcancel"]) document.addEventListener(ev, () => { fingerAt = null; }, true);
+  // ---------- away and back (docs/boss/RULES_bingo.md section 6): numbers called while the phone was away stay called; a player back after 15 seconds or more is told once how many they missed ----------
+  const AWAY_MIN_MS = 15000, AWAY_SHOW_MS = 10000;
+  let awayAt = null, awayFrom = 0, awayWatch = null, AWAY = null;
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden" || document.hidden) { awayAt = performance.now(); awayFrom = lastLen; return; }
+    if (awayAt !== null && performance.now() - awayAt >= AWAY_MIN_MS) awayWatch = { from: awayFrom, until: performance.now() + AWAY_SHOW_MS }; // the numbers are fetched in the next seconds; the note waits for them
+    awayAt = null;
+  });
+  let lastTap = { key: "", at: -1e9 }; // a tap counts once: the same number tapped again within 0.45 s (a double tap, a bounce) is the same tap
   function paint() {
     const v = rt.view();
     if (window.ctzView) window.ctzView(v); // the flight recorder (blackbox.js) learns which stage the game is in
@@ -663,14 +679,17 @@
     if (INFO.cancelled) { if (timer) { clearInterval(timer); timer = null; } clearInterval(J.timer); mediaHost.style.display = "none"; $app.innerHTML = cancelledView(); paintBrand(); return; } // a cancelled game: one calm screen, nothing else
     if (v.phase === "join") { const f = document.getElementById("ph") || document.getElementById("nm"); if (f && document.activeElement === f) return; $app.innerHTML = joinView(J.mode ? null : v.error); paintBrand(); bindJoin(); return; }
     if (ME.removed) { if (timer) { clearInterval(timer); timer = null; } mediaHost.style.display = "none"; $app.innerHTML = removedView(); paintBrand(); return; } // taken off the list: the phone stops
+    if (fingerDown()) return; // a finger is down: the next second's redraw (or the lift of the finger) brings the screen up to date. Before syncPrizes: a win found now must still be celebrated on the redraw that follows (the game itself never waits for the screen)
     const fresh = syncPrizes(v); reportToStore(v); loadCf(v); pollMe(v);
     { const af = document.activeElement; if (af && (af.id === "cfnm" || af.id === "cfph" || af.id === "mi-name" || af.id === "mi-phone")) return; } // never wipe a form someone is typing in
+    if (awayWatch) { if (v.log.length > awayWatch.from && !v.late) { AWAY = { from: awayWatch.from, until: performance.now() + AWAY_SHOW_MS }; awayWatch = null; } else if (performance.now() > awayWatch.until) awayWatch = null; }
+    if (AWAY && performance.now() > AWAY.until) AWAY = null;
     NEWCALL = v.log.length > lastLen && !firstPaint && MOTION() ? v.log[v.log.length - 1] : 0;
     $app.innerHTML = playView(v);
     countUps();
     paintBrand(); syncMedia(v); bindShare(); bindDemo(); bindConfirm(v); loadInvites(v); bindInvite(v); loadMine(v); bindMine(v);
     if (fresh.length) showHurray(fresh);
-    document.querySelectorAll("button[data-dn]").forEach((b) => (b.onclick = () => { const n = Number(b.dataset.dn), r = Number(b.dataset.dr), ci = Number(b.dataset.dc), d = daubs(r, ci); if (!v.log.includes(n)) return; if (d.has(n)) d.delete(n); else d.add(n); store.set(daubKey(r, ci), JSON.stringify([...d])); paint(); }));
+    document.querySelectorAll("button[data-dn]").forEach((b) => (b.onclick = () => { const n = Number(b.dataset.dn), r = Number(b.dataset.dr), ci = Number(b.dataset.dc), d = daubs(r, ci); if (!v.log.includes(n)) return; const tk = r + ":" + ci + ":" + n, tn = performance.now(); if (lastTap.key === tk && tn - lastTap.at < 450) return; lastTap = { key: tk, at: tn }; if (d.has(n)) d.delete(n); else d.add(n); store.set(daubKey(r, ci), JSON.stringify([...d])); paint(); }));
     const s = document.getElementById("snd");
     if (s) s.onclick = async () => { sound = !sound; store.set("cbz-sound", sound ? "on" : "off"); if (window.TBAudio) { TBAudio.enabled = sound; if (sound) await TBAudio.unlock(); } paint(); };
     if (v.log.length > lastLen) { if (!firstPaint && v.log.length === lastLen + 1 && sound && window.TBAudio) TBAudio.play(v.log[v.log.length - 1]); lastLen = v.log.length; }

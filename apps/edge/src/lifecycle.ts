@@ -1,6 +1,6 @@
 // The life of an engagement's personal data. When a game ends (as seen from the public schedule, or sooner when enough phones say so):
 //   1. the organizer's report is built from the sealed records and e-mailed as PDF(s), in small steps because a free Worker has ~10 ms of CPU per call;
-//   2. the report link stops working 22 hours after the end; 23 hours after the end (we promise 24) every participant's name, number, seat, invite record and card link is deleted, the report's working copies too,
+//   2. the report link stops working 19 hours after the end; 20 hours after the end (we promise 24) every participant's name, number, seat, invite record and card link is deleted, the report's working copies too,
 //      and the participants' personal part of the audit log is crypto-shredded (audit.ts `shredParticipantAudit`: its per-engagement key is destroyed, the hash chain still verifies);
 //   3. only the organizer / host / co-host details and the winners record (seat, prize, round, time) remain, until 00:00 IST at the end of the 365th day, then everything goes.
 // Called by the scheduled job (and, as a fallback, by any outside timer with the platform key). Every call does a bounded amount of work and can be repeated safely.
@@ -49,7 +49,7 @@ export const personalDeleteAt = (endMs: number) => endMs + PURGE_AFTER_MS;
 export const reportLinkUntil = (endMs: number) => endMs + REPORT_LINK_MS;
 
 export function cfgOfRow(e: { tickets?: number; config?: string | null }): EngagementCfg {
-  try { const j = e.config ? JSON.parse(e.config) : {}; const v = validateCfg({ tickets: e.tickets ?? 1, rewards: j.rewards, breaks: j.breaks, rounds: j.rounds, invites: j.invites, mark: j.mark, join: j.join, tz: j.tz, verify: j.verify, employeesOnly: j.employeesOnly }, undefined, { stored: true }); if (v.ok) return v.cfg; } catch { /* plain defaults */ }
+  try { const j = e.config ? JSON.parse(e.config) : {}; const v = validateCfg({ tickets: e.tickets ?? 1, rewards: j.rewards, breaks: j.breaks, rounds: j.rounds, invites: j.invites, opening: j.opening, closing: j.closing, name: j.name, brand: j.brand, mark: j.mark, join: j.join, tz: j.tz, verify: j.verify, employeesOnly: j.employeesOnly }, undefined, { stored: true }); if (v.ok) return v.cfg; } catch { /* plain defaults */ }
   return (validateCfg({}) as { ok: true; cfg: EngagementCfg }).cfg;
 }
 
@@ -63,6 +63,15 @@ async function callTimeMs(env: Env, e: any, round: number, idx: number, sch?: Aw
   const s = sch ?? (await schedule(env, e));
   const r = callRoundR(s.st, s.start, s.stride, s.cfg.breaks, round, idx);
   return r === null ? null : roundMs(r);
+}
+/** How many numbers had been called in the last round that began, by `endMs` (the organizer's pauses and stop applied), and which round that was. */
+function callsMadeBy(sch: Awaited<ReturnType<typeof schedule>>, endMs: number): { round: number; n: number } {
+  for (let round = sch.cfg.rounds; round >= 1; round--) {
+    let n = 0;
+    for (let idx = 0; idx < 75; idx++) { const r = callRoundR(sch.st, sch.start, sch.stride, sch.cfg.breaks, round, idx); if (r === null || roundMs(r) > endMs) break; n = idx + 1; }
+    if (n > 0) return { round, n };
+  }
+  return { round: 1, n: 0 };
 }
 /** When the game will have ended if nobody ends it sooner: the last call of the last round, or the organizer's stop. */
 export async function endBoundMs(env: Env, e: any): Promise<number> {
@@ -118,7 +127,7 @@ export async function acceptOver(env: Env, e: any, eid: string, b: any, now: num
   if (!(await deviceMatches(env, eid, b.pid, b.device))) return jsonFn({ error: "This card belongs to another phone.", code: "other-phone" }, 403); // the participant id is public: only the phone that holds the card can say the game is over
   const earliest = roundMs(e.start_round + GRACE_ROUNDS) + 20 * e.call_seconds * 1000; // no game ends before 20 numbers
   if (now < earliest) return jsonFn({ ok: true, counted: false });
-  if (!(await spend(env, now, 1))) return jsonFn({ error: "Busy day. Please try again after midnight UTC." }, 503);
+  if (!(await spend(env, now, 1))) return jsonFn({ error: "Busy day. Please try again after 6 am India time." }, 503);
   await env.DB.prepare("INSERT OR IGNORE INTO overvote(eid,seat,at_ms) VALUES(?,?,?)").bind(eid, seat, now).run();
   const votes = (await env.DB.prepare("SELECT COUNT(*) AS c FROM overvote WHERE eid=?").bind(eid).first<{ c: number }>())?.c ?? 0;
   const people = (await env.DB.prepare("SELECT COUNT(*) AS c FROM participant WHERE eid=?").bind(eid).first<{ c: number }>())?.c ?? 1;
@@ -132,14 +141,14 @@ export async function acceptOver(env: Env, e: any, eid: string, b: any, now: num
 
 // ------------------------------------------------------------------------------------------------ deletion
 /** Deletes every participant's name, number, seat, invite record, card link and working copy of the report, and crypto-shreds the participants' personal part of the audit log (unless the owner set a legal hold). The winners record, the prize hand-over record, the organizer's details and the engagement itself stay. */
-export async function erasePersonal(env: Env, eid: string, now: number, by: string): Promise<void> {
+export async function erasePersonal(env: Env, eid: string, now: number, by: string, markPurged = true): Promise<void> {
   await env.DB.batch([
     env.DB.prepare("DELETE FROM claim WHERE eid=?").bind(eid), env.DB.prepare("DELETE FROM settled WHERE eid=?").bind(eid), env.DB.prepare("DELETE FROM rvote WHERE eid=?").bind(eid), env.DB.prepare("DELETE FROM rcand WHERE eid=?").bind(eid),
     env.DB.prepare("DELETE FROM participant WHERE eid=?").bind(eid), env.DB.prepare("DELETE FROM consent_log WHERE kind='K4' AND ref=?").bind(eid), env.DB.prepare("DELETE FROM seat WHERE eid=?").bind(eid), env.DB.prepare("DELETE FROM person WHERE eid=?").bind(eid), env.DB.prepare("DELETE FROM waiting WHERE eid=?").bind(eid), env.DB.prepare("DELETE FROM overvote WHERE eid=?").bind(eid), env.DB.prepare("DELETE FROM data_request WHERE eid=?").bind(eid), // players' data requests (rights.ts) go with the people they are about
     env.DB.prepare("DELETE FROM kv WHERE k=? OR k=? OR k=? OR k=? OR (k >= ? AND k < ?) OR k=?").bind(`seats-base/${eid}`, `rpt/${eid}`, `rptopen/${eid}`, `rptremind/${eid}`, `rptc/${eid}/`, prefixEnd(`rptc/${eid}/`), `seats-blk/${eid}`),
     env.DB.prepare("DELETE FROM kv WHERE (k >= ? AND k < ?) OR (k >= ? AND k < ?) OR (k >= ? AND k < ?)").bind(`present/${eid}/`, prefixEnd(`present/${eid}/`), `ckfail/${eid}/`, prefixEnd(`ckfail/${eid}/`), `idx/${eid}/`, prefixEnd(`idx/${eid}/`)), // the check-in records of every participant go with their data (the winners' evidence, wev/, stays with the winners record for 365 days)
     env.DB.prepare(eraseCohostsSql).bind(eid), // the game's Co-hosts: name, mobile number and key go with the participants' data
-    env.DB.prepare("INSERT INTO life(eid,end_ms,end_src,purged_ms,report_state) VALUES(?,?, 'organizer', ?, ?) ON CONFLICT(eid) DO UPDATE SET purged_ms=?, report_state=COALESCE(life.report_state, ?)").bind(eid, now, now, by, now, by),
+    ...(markPurged ? [env.DB.prepare("INSERT INTO life(eid,end_ms,end_src,purged_ms,report_state) VALUES(?,?, 'organizer', ?, ?) ON CONFLICT(eid) DO UPDATE SET purged_ms=?, report_state=COALESCE(life.report_state, ?)").bind(eid, now, now, by, now, by)] : []),
   ]);
   await shredParticipantAudit(env as any, eid, now); // best effort inside: a held engagement keeps its log until the hold is lifted, then the tick shreds it
 }
@@ -298,12 +307,15 @@ async function baseData(env: LifeEnv, e: any, cfg: EngagementCfg, sch: Awaited<R
   for (let round = 1; round <= cfg.rounds; round++) for (const key of keysInPlay(cfg.rewards)) for (const line of linesFor(cfg.rewards, key)) prizes.push({ round, label: lineLabel(cfg, key, line.ordinal), text: line.text, winners: wrows.filter((w: any) => w.round === round && w.pattern === key && w.ordinal === line.ordinal).map(winnerOf) });
   const lucky = cfg.breaks.filter((b) => b.kind === "lucky").map((b, i) => ({ title: b.title, winners: wrows.filter((w: any) => w.pattern === "lucky" && w.ordinal === i + 1).map(winnerOf) }));
   const held = e.pack === 0;
-  const early = !held && endMs < (await endBoundMs(env, e)) - 5 * 60_000;
+  const made = held ? { round: 1, n: 0 } : callsMadeBy(sch, endMs); // counted from the clock (a stop and the pauses applied): a game can end with no winner recorded, or in round 2
+  const allWon = prizes.length > 0 && prizes.every((p) => p.winners.length > 0);
+  const lastWin = Math.max(0, ...wrows.filter((w: any) => w.round === made.round && w.pattern !== "lucky").map((w: any) => (w.idx ?? -1) + 1)); // the phones record the end a few seconds after the call that won the last prize, so when every prize was won the number of that call is the figure
+  const called = made.n < 75 && sch.st?.stopRound == null && allWon && lastWin > 0 ? Math.min(made.n, lastWin) : made.n;
   return {
     engagementId: eid, organizerEmail: email, sentAtMs: sentAt, scheduledMs: roundMs(e.start_round), firstNumberMs: first, endMs, wasHeld: held,
-    endReason: held ? "The game did not start." : early ? "Every prize was awarded, so the game ended early." : "All numbers were called (or the organizer ended the game).",
-    rounds: cfg.rounds, callSeconds: e.call_seconds, ticketsPerPerson: cfg.tickets, cap: e.cap, inviteOnly: !!e.closed, numbersCalled: early ? Math.max(1, ...wrows.map((w: any) => (w.idx ?? 0) + 1)) : 75,
-    agg: st.agg, people: [], prizes, lucky, timeline: st.tl, breaks: cfg.breaks.map((b) => ({ after: b.after, kind: b.kind, title: b.title })),
+    endReason: held ? "The game did not start." : called >= 75 ? "All numbers were called." : sch.st?.stopRound != null ? "The organizer ended the game." : allWon ? "Every prize was awarded, so the game ended early." : "The game ended early.",
+    rounds: cfg.rounds, callSeconds: e.call_seconds, ticketsPerPerson: cfg.tickets, cap: e.cap, inviteOnly: !!e.closed, numbersCalled: called,
+    agg: st.agg, people: [], prizes, lucky, timeline: (st.tl ?? []).filter((t) => t.atMs > 0 && t.atMs <= endMs).map((t) => ({ ...t, callNo: t.callNo + 1 })), /* only the numbers that were called, counted from 1 */ breaks: cfg.breaks.map((b) => ({ after: b.after, kind: b.kind, title: b.title })),
     personalDeleteAtMs: personalDeleteAt(endMs), fullDeleteAtMs: fullDeleteAt(endMs), tz: cfg.tz,
     ...(cfg.brand ? { brand: { name: cfg.brand.name, ...(cfg.brand.logo ? { logo: cfg.brand.logo } : {}) } } : {}),
   };

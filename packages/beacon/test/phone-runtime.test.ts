@@ -134,6 +134,27 @@ describe("a phone from first open to full house", () => {
     expect(a.rt.phase).toBe("join");
     expect(await a.rt.join(a.phone)).toBe(true);
   });
+  test("the phone shows the server's own words when a join is refused (QA 2026-10-29): a missing name is not a mobile number problem, a second card on one phone is not 'full'", async () => {
+    const a = mkPhone(6); await a.rt.boot();
+    expect(await a.rt.join("", "A")).toBe(false); // the common link asks for a name only; one letter is not a name
+    expect(a.rt.error).toBe("Please type your name."); // it said "Enter a valid mobile number."
+    expect(await a.rt.join("", "Asha")).toBe(true);
+    const again = new PhoneRuntime(EID, { ...a.rt.deps }); await again.boot(); // the same phone, joining as someone else
+    expect(await again.join("", "Ben")).toBe(true); // it is let back in as the same person (same device)
+    const b = mkPhone(7); b.mem.set("cbz:device", a.mem.get("cbz:device")!); await b.rt.boot(); // another page on the same device with no card yet
+    expect(await b.rt.join(b.phone, "Chitra")).toBe(false);
+    expect(b.rt.error).toMatch(/already holds a card|one phone/i); expect(b.rt.error).not.toMatch(/is full/i); // it said "This engagement is full."
+  });
+});
+
+describe("a game whose participants' data has been erased", () => {
+  test("a phone that opens the link then is told so in the server's words, and nothing is stored", async () => {
+    await env.DB.prepare("INSERT INTO life(eid,end_ms,end_src,purged_ms,report_state) VALUES(?,?, 'organizer', ?, 'organizer')").bind(EID, T0, T0).run();
+    const a = mkPhone(8); await a.rt.boot();
+    expect(await a.rt.join(a.phone, "Late")).toBe(false);
+    expect(a.rt.error).toMatch(/game is over/i); expect(a.rt.error).not.toMatch(/connection/i); // it said "Could not join. Check your connection and try again."
+    expect(((await env.DB.prepare("SELECT COUNT(*) AS c FROM participant WHERE eid=?").bind(EID).first()) as any).c).toBe(0);
+  });
 });
 
 describe("a crowd and the awkward cases", () => {
