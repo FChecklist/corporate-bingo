@@ -118,7 +118,7 @@ export async function acceptOver(env: Env, e: any, eid: string, b: any, now: num
   if (!(await deviceMatches(env, eid, b.pid, b.device))) return jsonFn({ error: "This card belongs to another phone.", code: "other-phone" }, 403); // the participant id is public: only the phone that holds the card can say the game is over
   const earliest = roundMs(e.start_round + GRACE_ROUNDS) + 20 * e.call_seconds * 1000; // no game ends before 20 numbers
   if (now < earliest) return jsonFn({ ok: true, counted: false });
-  if (!(await spend(env, now, 1))) return jsonFn({ error: "Busy day. Please try again after midnight UTC." }, 503);
+  if (!(await spend(env, now, 1))) return jsonFn({ error: "Busy day. Please try again after 6 am India time." }, 503);
   await env.DB.prepare("INSERT OR IGNORE INTO overvote(eid,seat,at_ms) VALUES(?,?,?)").bind(eid, seat, now).run();
   const votes = (await env.DB.prepare("SELECT COUNT(*) AS c FROM overvote WHERE eid=?").bind(eid).first<{ c: number }>())?.c ?? 0;
   const people = (await env.DB.prepare("SELECT COUNT(*) AS c FROM participant WHERE eid=?").bind(eid).first<{ c: number }>())?.c ?? 1;

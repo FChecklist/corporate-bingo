@@ -89,7 +89,7 @@ export async function confirmPrize(env: Env & PiiEnv, eid: string, b: any, now: 
   if (typed && !typed.ok) return json({ error: typed.why }, 400); // from any country: the page sends +<country code><number>
   // a mobile number is optional (a guest who joined with a name only has none): the prize is handed over by name and seat
   if (false) return json({ error: "Please enter your mobile number." }, 400); // a winner who came in by employee ID may be found by the ID: the number is then welcome, not needed
-  if (!(await spend(env, now, rows.length + 1))) return json({ error: "Busy day. Please try again after midnight UTC." }, 503);
+  if (!(await spend(env, now, rows.length + 1))) return json({ error: "Busy day. Please try again after 6 am India time." }, 503);
   const phone = typed && typed.ok ? keptFromClean(typed.digits) : cur?.phone ?? "";
   const changed = !cur || keptPhone(cur.phone ?? "") !== phone || (cur.name ?? "") !== name;
   const sealed = await sealPii(env, { phone, name, ...(cur?.empId ? { empId: cur.empId } : {}) }); // the employee ID stays with the record
@@ -137,7 +137,7 @@ export async function listPrizes(env: Env & PiiEnv, eid: string, json: Json, out
 export async function markGiven(env: Env, eid: string, b: any, kind: string | null, now: number, json: Json, spend: Spend): Promise<Response> {
   if (!b || !Number.isInteger(b.round) || !Number.isInteger(b.ordinal) || !Number.isInteger(b.seat) || typeof b.pattern !== "string" || typeof b.given !== "boolean") return json({ error: "Bad request." }, 400);
   if (b.given && (await env.DB.prepare("SELECT 1 AS x FROM seat WHERE eid=? AND seq=? AND blocked=1").bind(eid, b.seat).first())) return json({ error: "Not given: this person was removed from the game.", code: "removed" }, 409);
-  if (!(await spend(env, now))) return json({ error: "Busy day. Please try again after midnight UTC." }, 503);
+  if (!(await spend(env, now))) return json({ error: "Busy day. Please try again after 6 am India time." }, 503);
   const r = await env.DB.prepare("UPDATE prize SET given_ms=?, given_by=? WHERE eid=? AND round=? AND pattern=? AND ordinal=? AND seat=?").bind(b.given ? now : null, b.given ? (kind === "host" ? "co-host" : kind === "ai" ? "organizer's AI" : "organizer") : null, eid, b.round, b.pattern, b.ordinal, b.seat).run();
   return (r.meta?.changes ?? 0) > 0 ? json({ ok: true, givenMs: b.given ? now : null }) : json({ error: "No such reward." }, 404);
 }
@@ -170,7 +170,7 @@ export async function overridePrize(env: Env & PiiEnv, eid: string, b: any, kind
     if (!pid) return json({ error: "Only a card that claimed this prize can be given it.", code: "not-a-claimant" }, 409);
     if (await env.DB.prepare("SELECT 1 AS x FROM seat WHERE eid=? AND seq=? AND blocked=1").bind(eid, b.seat).first()) return json({ error: "That person was removed from the game.", code: "removed" }, 409);
   }
-  if (!(await spend(env, now, 4))) return json({ error: "Busy day. Please try again after midnight UTC." }, 503);
+  if (!(await spend(env, now, 4))) return json({ error: "Busy day. Please try again after 6 am India time." }, 503);
   await env.DB.prepare("DELETE FROM prize WHERE eid=? AND round=? AND pattern=? AND ordinal=?").bind(eid, b.round, b.pattern, b.ordinal).run();
   if (pid) await makePrizeRows(env, eid, b.round, b.pattern, b.ordinal, [pid]);
   try { await env.DB.prepare("INSERT OR REPLACE INTO kv(k,v) VALUES(?,?)").bind(`override/${eid}/${b.round}/${b.pattern}/${b.ordinal}/${now}`, JSON.stringify({ by: kind, at: now, from: had.map((h) => h.seat), to: b.seat })).run(); } catch { /* the change itself stands */ }
