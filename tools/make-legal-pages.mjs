@@ -159,7 +159,7 @@ const PAGES = {
     ]],
     ["data", "Your players&rsquo; data", [
       "Tell your players what you do with their details.",
-      "Names and numbers are deleted within 24 hours after the game. Your report link works for 22 hours, so open it before then.",
+      "Names and numbers are deleted within 24 hours after the game. Your report link works for 19 hours, so open it before then.",
       "To delete earlier, use your console.",
     ]],
     ["pay", "Payment", ["Build and publish for free. The game does not begin until it is paid for.", "You can pay at any time until the guest data is erased. A late payment starts the game 2 minutes after it is confirmed.", "To cancel, tap Cancel this game in your console.", "We do not give refunds. If you cancel a paid game before it starts, your payment stays as credit for your next game for 365 days. Unused credit lapses at the end of day 365.", "Once the start time has passed, a paid game cannot be cancelled.", "Want another game like this one? Tap Create a new game like this one. Your credit is offered first on the Pay step."]],
