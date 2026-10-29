@@ -53,3 +53,14 @@ describe("S10: the organizer's AI key cannot put a game live, even when a bought
     expect(raw.prepare("SELECT 1 FROM kv WHERE k='contact/SEC-AI'").get()).not.toBeNull(); // the report goes to this address
   });
 });
+
+describe("S15: a Co-host can open the small game header of a free 10-person game (it crashed with a 500)", () => {
+  test("the header answers 200 with a price of 0 for a 10-person game, drafted or published", async () => {
+    const master = await start("boss@acme.com");
+    expect((await call("POST", "/api/z", { id: "SEC-10", startRound: FAR_START, callSeconds: 12, cap: 10 }, master)).status).toBe(200);
+    const cohost = (await j(await call("POST", "/api/org/cohost", { label: "Ravi", phone: "9876500001", e: "SEC-10" }, master))).cohostKey as string;
+    const draft = await call("GET", "/api/z/SEC-10/cohost", undefined, cohost); expect(draft.status).toBe(200); expect((await j(draft)).price).toBe(0); // old code: Rs 2,399, the 100-person price
+    expect((await call("POST", "/api/z/SEC-10/publish", { email: "boss@acme.com", phone: "98765 43210" }, master)).status).toBe(200);
+    const live = await call("GET", "/api/z/SEC-10/cohost", undefined, cohost); expect(live.status).toBe(200); expect((await j(live)).price).toBe(0); // old code: 500
+  });
+});
