@@ -64,6 +64,15 @@ async function callTimeMs(env: Env, e: any, round: number, idx: number, sch?: Aw
   const r = callRoundR(s.st, s.start, s.stride, s.cfg.breaks, round, idx);
   return r === null ? null : roundMs(r);
 }
+/** How many numbers had been called in the last round that began, by `endMs` (the organizer's pauses and stop applied), and which round that was. */
+function callsMadeBy(sch: Awaited<ReturnType<typeof schedule>>, endMs: number): { round: number; n: number } {
+  for (let round = sch.cfg.rounds; round >= 1; round--) {
+    let n = 0;
+    for (let idx = 0; idx < 75; idx++) { const r = callRoundR(sch.st, sch.start, sch.stride, sch.cfg.breaks, round, idx); if (r === null || roundMs(r) > endMs) break; n = idx + 1; }
+    if (n > 0) return { round, n };
+  }
+  return { round: 1, n: 0 };
+}
 /** When the game will have ended if nobody ends it sooner: the last call of the last round, or the organizer's stop. */
 export async function endBoundMs(env: Env, e: any): Promise<number> {
   const s = await schedule(env, e);
@@ -298,12 +307,15 @@ async function baseData(env: LifeEnv, e: any, cfg: EngagementCfg, sch: Awaited<R
   for (let round = 1; round <= cfg.rounds; round++) for (const key of keysInPlay(cfg.rewards)) for (const line of linesFor(cfg.rewards, key)) prizes.push({ round, label: lineLabel(cfg, key, line.ordinal), text: line.text, winners: wrows.filter((w: any) => w.round === round && w.pattern === key && w.ordinal === line.ordinal).map(winnerOf) });
   const lucky = cfg.breaks.filter((b) => b.kind === "lucky").map((b, i) => ({ title: b.title, winners: wrows.filter((w: any) => w.pattern === "lucky" && w.ordinal === i + 1).map(winnerOf) }));
   const held = e.pack === 0;
-  const early = !held && endMs < (await endBoundMs(env, e)) - 60_000 - 2 * e.call_seconds * 1000; // the phones record the end a few seconds after the call that won the last prize; the bound is the last call plus a 60 s margin. More than two gaps short of the last call = the prizes ran out first
+  const made = held ? { round: 1, n: 0 } : callsMadeBy(sch, endMs); // counted from the clock (a stop and the pauses applied): a game can end with no winner recorded, or in round 2
+  const allWon = prizes.length > 0 && prizes.every((p) => p.winners.length > 0);
+  const lastWin = Math.max(0, ...wrows.filter((w: any) => w.round === made.round && w.pattern !== "lucky").map((w: any) => (w.idx ?? -1) + 1)); // the phones record the end a few seconds after the call that won the last prize, so when every prize was won the number of that call is the figure
+  const called = made.n < 75 && sch.st?.stopRound == null && allWon && lastWin > 0 ? Math.min(made.n, lastWin) : made.n;
   return {
     engagementId: eid, organizerEmail: email, sentAtMs: sentAt, scheduledMs: roundMs(e.start_round), firstNumberMs: first, endMs, wasHeld: held,
-    endReason: held ? "The game did not start." : early ? "Every prize was awarded, so the game ended early." : "All numbers were called (or the organizer ended the game).",
-    rounds: cfg.rounds, callSeconds: e.call_seconds, ticketsPerPerson: cfg.tickets, cap: e.cap, inviteOnly: !!e.closed, numbersCalled: early ? Math.max(1, ...wrows.map((w: any) => (w.idx ?? 0) + 1)) : 75,
-    agg: st.agg, people: [], prizes, lucky, timeline: st.tl, breaks: cfg.breaks.map((b) => ({ after: b.after, kind: b.kind, title: b.title })),
+    endReason: held ? "The game did not start." : called >= 75 ? "All numbers were called." : sch.st?.stopRound != null ? "The organizer ended the game." : allWon ? "Every prize was awarded, so the game ended early." : "The game ended early.",
+    rounds: cfg.rounds, callSeconds: e.call_seconds, ticketsPerPerson: cfg.tickets, cap: e.cap, inviteOnly: !!e.closed, numbersCalled: called,
+    agg: st.agg, people: [], prizes, lucky, timeline: (st.tl ?? []).filter((t) => t.atMs > 0 && t.atMs <= endMs).map((t) => ({ ...t, callNo: t.callNo + 1 })), /* only the numbers that were called, counted from 1 */ breaks: cfg.breaks.map((b) => ({ after: b.after, kind: b.kind, title: b.title })),
     personalDeleteAtMs: personalDeleteAt(endMs), fullDeleteAtMs: fullDeleteAt(endMs), tz: cfg.tz,
     ...(cfg.brand ? { brand: { name: cfg.brand.name, ...(cfg.brand.logo ? { logo: cfg.brand.logo } : {}) } } : {}),
   };

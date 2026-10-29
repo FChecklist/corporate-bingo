@@ -4,6 +4,8 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { endBoundMs, lifecycleTick, cfgOfRow, roundMs } from "../src/lifecycle";
 import { GRACE_ROUNDS } from "../../../packages/beacon/src/config";
+import { callRoundR } from "../../../packages/beacon/src/game";
+import { publicKeyFromSecret, signControlWithSecret } from "../../../packages/beacon/src/control";
 import { lazyTickReset } from "../src/worker";
 import { sentReports } from "../src/pay";
 import { HOUR, MIN, T, W, call, create, j, join, one, reset, restore, startIn, uid } from "./param-harness";
@@ -69,8 +71,50 @@ describe("the report says how the game really ended", () => {
     const { base } = await endedAtCall(75);
     expect(base.endReason).toMatch(/All numbers were called/); expect(base.numbersCalled).toBe(75);
   });
-  test("won at number 74, one number short: the game ran to its end for practical purposes, not 'early'", async () => {
+  test("won at number 74, one number short: it did end early, and the report says 74", async () => {
     const { base } = await endedAtCall(74);
-    expect(base.endReason).toMatch(/All numbers were called/);
+    expect(base.endReason).toMatch(/Every prize was awarded/); expect(base.numbersCalled).toBe(74);
+  });
+});
+
+describe("the report counts the numbers that were really called (correctness audit C1)", () => {
+  const playedLong = async (over: Record<string, unknown>) => { // began 5 hours before T so that two rounds fit
+    const id = uid("RPT");
+    expect((await create(undefined, id, { startRound: startIn(-5 * HOUR), callSeconds: 12, cap: 100, ...over })).status).toBe(200);
+    await W.env.DB.prepare("INSERT INTO kv(k,v) VALUES(?,?)").bind(`contact/${id}`, JSON.stringify({ email: "boss@acme.com", phone: "9811122233" })).run();
+    for (let i = 1; i <= 3; i++) expect((await join(id, i, {}, T - 6 * HOUR)).status).toBe(200);
+    return { id, e: one("SELECT * FROM engagement WHERE id=?", id) };
+  };
+  test("the organizer stopped the game at number 30: it says so, 30 numbers, and the timeline has no row after the stop", async () => {
+    const { id, e } = await playedLong({ rewards: [{ pattern: "line", ordinal: 1, text: "Hamper" }] });
+    const first = e.start_round + GRACE_ROUNDS, stride = 4, stopAt = first + 30 * stride, secret = "11".repeat(32), lead = 20;
+    const msg = signControlWithSecret(secret, { engagementId: id, seq: 1, action: "stop", atBeaconRound: stopAt, signedAtRound: stopAt - lead });
+    await W.env.DB.prepare("INSERT INTO kv(k,v) VALUES(?,?)").bind(`control/${id}.json`, JSON.stringify({ v: 1, engagementId: id, pubKey: publicKeyFromSecret(secret), maxPauseRounds: 600, leadRounds: lead, messages: [msg] })).run();
+    const stopMs = roundMs(stopAt);
+    W.raw.prepare("INSERT OR REPLACE INTO life(eid,end_ms,end_src) VALUES(?,?, 'phones')").run(id, stopMs + 5000);
+    const base = await openReport(id, stopMs + 5000);
+    expect(base.endReason).toMatch(/organizer ended the game/i); expect(base.numbersCalled).toBe(30);
+    expect(base.timeline.length).toBeGreaterThan(0); for (const t of base.timeline) { expect(t.atMs).toBeGreaterThan(Date.UTC(2020, 0, 1)); expect(t.callNo).toBeLessThanOrEqual(30); } // old code: six rows dated 1970
+  });
+  test("two rounds, the second ended at number 41: 41 numbers in the last round (not the highest number of either round)", async () => {
+    const { id, e } = await playedLong({ rounds: 2, rewards: [{ pattern: "line", ordinal: 1, text: "Hamper" }] });
+    const start = e.start_round + GRACE_ROUNDS, at = (round: number, idx: number) => roundMs(callRoundR(null, start, 4, [], round, idx)!);
+    W.raw.prepare("INSERT OR REPLACE INTO life(eid,end_ms,end_src) VALUES(?,?, 'phones')").run(id, at(2, 40) + 5000);
+    W.raw.prepare("INSERT INTO winner(eid,round,pattern,ordinal,seat,idx,at_ms,src) VALUES(?,?,?,?,?,?,?,?)").run(id, 1, "line", 1, 1, 70, at(1, 70), "phones");
+    W.raw.prepare("INSERT INTO winner(eid,round,pattern,ordinal,seat,idx,at_ms,src) VALUES(?,?,?,?,?,?,?,?)").run(id, 2, "line", 1, 2, 40, at(2, 40), "phones");
+    const base = await openReport(id, at(2, 40) + 5000);
+    expect(base.numbersCalled).toBe(41); // old code: 71
+  });
+  test("the phones ended the game at number 40 but no winner was recorded: it does not claim every prize was awarded", async () => {
+    const { id, e } = await playedLong({ rewards: [{ pattern: "line", ordinal: 1, text: "Hamper" }] });
+    const start = e.start_round + GRACE_ROUNDS, at = roundMs(callRoundR(null, start, 4, [], 1, 39)!);
+    W.raw.prepare("INSERT OR REPLACE INTO life(eid,end_ms,end_src) VALUES(?,?, 'phones')").run(id, at + 5000);
+    const base = await openReport(id, at + 5000);
+    expect(base.numbersCalled).toBe(40); expect(base.endReason).not.toMatch(/Every prize was awarded/); expect(base.endReason).toMatch(/ended early/i); // old code: "Every prize was awarded" and 1
+  });
+  test("the people table counts from number 1 to number 75 (it printed 0 to 74)", async () => {
+    const g = await played({});
+    const base = await openReport(g.id, g.bound);
+    expect(base.timeline.map((t: any) => t.callNo)).toEqual([1, 9, 17, 25, 33, 41, 49, 57, 65, 75]);
   });
 });
