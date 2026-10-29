@@ -6,6 +6,7 @@
   const q = new URLSearchParams(location.search);
   const EID = (q.get("e") || "").trim();
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const VOICE = { on: false }; // B14: this screen can say each number out loud (a tap switches it on, because a browser allows sound only after a tap)
   const NAMES = { lucky: "Lucky draw" };
   (ZG.PRIZE_HOUSES || []).forEach((h) => { if (!NAMES[h.id]) NAMES[h.id] = h.label; }); // every house name comes from the shared table
   const ORD = (k) => ["", "1st", "2nd", "3rd"][k] || k + "th";
@@ -52,7 +53,9 @@
     const lostBar = lost ? `<div class="lostbar" role="alert">Connection lost. The numbers on this screen may be late. Reconnecting…</div>` : "";
     const annBar = S.ann ? `<div class="annbar" role="alert">${esc(S.ann.text)}</div>` : "";
     const bd = info.brand && typeof info.brand === "object" ? info.brand : null, bLogo = bd && typeof bd.logo === "string" && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(bd.logo) ? bd.logo : ""; // the organizer's own logo and name, or ours in writing
-    const head = `${lostBar}${annBar}<div class="top"><div class="brand">${bLogo ? `<img class="blogo" alt="" src="${esc(bLogo)}">` : ""}${esc(bd && bd.name ? bd.name : "Corporate Bingo")}</div><div class="meta">${cfg.rounds > 1 ? "Round " + S.round + " of " + cfg.rounds + " · " : ""}${log.length} of 75 numbers called</div></div>`;
+    const quiet = info.quietPhones === true;
+    const voiceBtn = window.TBAudio ? `<button type="button" class="bigvoice${VOICE.on ? " on" : ""}${quiet && !VOICE.on ? " ask" : ""}" id="bigvoice" aria-pressed="${VOICE.on}">${VOICE.on ? "Voice on" : quiet ? "Tap once: this screen will say the numbers" : "Turn on voice"}</button>` : "";
+    const head = `${lostBar}${annBar}<div class="top"><div class="brand">${bLogo ? `<img class="blogo" alt="" src="${esc(bLogo)}">` : ""}${esc(bd && bd.name ? bd.name : "Corporate Bingo")}</div><div class="meta">${cfg.rounds > 1 ? "Round " + S.round + " of " + cfg.rounds + " · " : ""}${log.length} of 75 numbers called</div>${voiceBtn}</div>`;
     const sett = (S.results || []).filter((r) => (r.round === S.round || r.round === undefined) && r.pattern !== "lucky" && r.winners && r.winners.length).map((r) => ({ pattern: r.pattern, ordinal: r.ordinal, idx: r.idx, pids: r.winners, round: S.round, tied: r.tied }));
     const ranked = sett.length ? ZG.rankWinners(ZG.roundEid(EID, S.round), ZG.validateCfg({ tickets: info.tickets, rewards: info.rewards }, undefined, { stored: true }).cfg, sett, 10) : [];
     const wins = ranked.map((x) => `<span><b>${esc(ZG.rankName(x.rank))} ${esc(NAMES[x.pattern] || x.pattern)}</b> · card ${esc(String((/^(\d+)x/.exec(x.pid) || [0, "?"])[1]))}${x.note ? " · same number as another card" : ""}</span>`).join("");
@@ -62,6 +65,7 @@
     }
     const last = log[log.length - 1];
     const fresh = S.lastNum !== null && S.lastNum !== last; S.lastNum = last;
+    if (fresh && VOICE.on && window.TBAudio) { TBAudio.enabled = true; TBAudio.play(last); } // B14: the room hears each new number from this screen
     const called = new Set(log);
     const LET = ["B", "I", "N", "G", "O"], colOf = (n) => Math.floor((n - 1) / 15);
     const board = LET.map((l, c) => `<div class="bl l${c}" aria-hidden="true">${l}</div>` + Array.from({ length: 15 }, (_, i) => c * 15 + i + 1).map((n) => `<div class="${n === last ? "l" : called.has(n) ? "c" : ""}" aria-label="${LET[colOf(n)]} ${n}${called.has(n) ? ", called" : ""}">${n}</div>`).join("")).join("");
@@ -70,6 +74,12 @@
     $app.innerHTML = `${head}${banner}<div class="main"><div class="now"><div class="lbl">Now calling</div><div class="num l${colOf(last)} ${fresh ? "fresh" : ""}" aria-label="${LET[colOf(last)]} ${last}"><small>${LET[colOf(last)]}</small>${last}</div><div class="recent" aria-label="Recent numbers">${recent}</div></div><div class="board" role="group" aria-label="Numbers called, 75 numbers">${board}</div></div><div>${wins ? `<div class="wins">${wins}</div>` : ""}<div class="foot">Join: ${esc(location.host)}/z?e=${esc(EID)}</div></div>`;
   }
 
+  $app.addEventListener("click", async (ev) => { // the screen is redrawn every few seconds, so one listener on the page handles the voice button
+    const t = ev.target && ev.target.closest ? ev.target.closest("#bigvoice") : null; if (!t || !window.TBAudio) return;
+    VOICE.on = !VOICE.on; TBAudio.enabled = VOICE.on;
+    if (VOICE.on) { await TBAudio.unlock(); TBAudio.say("Voice is on. The numbers will be said from this screen.", ""); }
+    draw();
+  });
   if (!EID) { $app.innerHTML = `<p class="msg">No game was chosen.</p>`; return; }
   const loop = async () => { await tick(); draw(); };
   loop(); setInterval(loop, 3000);

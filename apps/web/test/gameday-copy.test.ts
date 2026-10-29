@@ -1,5 +1,6 @@
 // B08, B09, B10, B15, B28, B33 (gap plan 2026-10-29): the words and buttons a player and an organizer meet on game day.
 //   B10  the check-before-publish read-back names the prizes that have no name yet, with a "Name them now" button
+//   B12  the people list says how many were invited and have not joined, with a filter
 //   B09  step 9 (game day) carries the big number board button and the big-screen link
 //   B28  the game-day report never says "all match" when nothing is stored (Bingo has no claim button; phones report their own wins)
 //   B08  the paused text says when and that the card is safe; a slow phone connection is not blamed on the organizer
@@ -90,5 +91,21 @@ describe("B08, B15, B33: the phone page", () => {
     const m = /<ol class="zsmall zrules"[^>]*>((?:<li>[^<]*<\/li>)+)<\/ol>/.exec(z.replace(/\$\{[^}]*\}/g, "X"));
     expect(m).not.toBeNull();
     expect((m![1]!.match(/<li>/g) ?? []).length).toBe(3);
+  });
+});
+
+describe("B12: the organizer learns before the game who has not joined", () => {
+  test("'N invited, not joined yet' on the people list, a Show them filter, and the count follows the people who join", async () => {
+    const o = await organizer(); await make(o, "NJ-1"); await publish(o, "NJ-1");
+    const add = await o.api("POST", "/api/z/NJ-1/people", { people: [{ name: "Asha Rao", phone: "9876500001" }, { name: "Ravi Iyer", phone: "9876500002" }, { name: "Meera Das", phone: "9876500003" }] }, o.token);
+    expect(add.status).toBe(200);
+    const p = await page(o, "/zc?e=NJ-1"); await p.waitFor((x) => /Hello|Last step/.test(x)); p.click('.zc-dot[data-open="6"]');
+    await p.waitFor((x) => /3 invited, not joined yet/.test(x), 12000);
+    const rows = () => p.win.document.querySelectorAll("#mypeople .zc-person, #mypeople .zc-rowl, #mypeople [data-wa]").length;
+    const all = rows(); p.click("#shownot"); await p.waitFor((x) => /Showing only them/.test(x), 5000);
+    expect(rows()).toBeGreaterThan(0); expect(rows()).toBeLessThanOrEqual(all);
+    o.world.raw.prepare("UPDATE person SET status='joined' WHERE rowid=(SELECT MIN(rowid) FROM person WHERE eid='NJ-1')").run();
+    const q = await page(o, "/zc?e=NJ-1"); await q.waitFor((x) => /Hello|Last step/.test(x)); q.click('.zc-dot[data-open="6"]');
+    await q.waitFor((x) => /2 invited, not joined yet/.test(x), 12000);
   });
 });
