@@ -24,6 +24,7 @@ import { LINK_MAIL_TTL_MS, aiLinkMail, coHostLinkMail, hostLinkMail, newUseAlert
 import { cancelGame, cancelPreview, entitlementWindowEndMs, paidWindowEndMs, reopenGame, teamEmails } from "./cancel";
 import { LEGAL_SCHEMA } from "./legal";
 import { GAME_RECORD_SCHEMA, readGameRecords } from "./gamerecord";
+import { GAME_LOG_SCHEMA, gameLogChainHolds, gameLogCsv, readGameLog } from "./gamelog";
 import { RIGHTS_SCHEMA, leaveRoute, requestRoute } from "./rights";
 import { ADMIN_SCHEMA, adminRoute, adminTick, countError, maintenanceGate } from "./admin";
 import { recordServerError } from "./errorbox";
@@ -184,6 +185,8 @@ export const SCHEMA: string[] = [
   `CREATE TABLE IF NOT EXISTS partner_key (key_hash TEXT PRIMARY KEY, code TEXT NOT NULL, created_ms INTEGER NOT NULL)`, // Refer & earn: one key per phone or laptop that signed in by e-mail
   // the permanent settings record of every game, no personal data in it (0028_game_record.sql)
   ...GAME_RECORD_SCHEMA,
+  // the game log (B26): one line per call, pause, prize and the end, card numbers only, kept with the game for 365 days (0029_game_log.sql)
+  ...GAME_LOG_SCHEMA,
 ];
 
 const PATTERNS = new Set<string>([...HOUSE_ORDER, "lucky"]); // houses a phone may claim
@@ -1476,7 +1479,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
       });
     }
   }
-  const m = p.match(/^\/api\/z\/([A-Za-z0-9_-]{4,40})\/(join|claims|settle|results|info|participants|erase|discard|reuse|roster|settings|publish|summary|announce|unbind|seats|names|mark|won|over|invites|life|vote|confirm|prizes|prizegiven|myprizes|reportlink|person|forget|cohost|cancel-preview|cancel|reopen|clone|leave|datareq|checkin|presence|who|override)$/);
+  const m = p.match(/^\/api\/z\/([A-Za-z0-9_-]{4,40})\/(join|claims|settle|results|info|participants|erase|discard|reuse|roster|settings|publish|summary|announce|unbind|seats|names|mark|won|over|invites|life|vote|confirm|prizes|prizegiven|myprizes|reportlink|person|forget|cohost|cancel-preview|cancel|reopen|clone|leave|datareq|checkin|presence|who|override|gamelog)$/);
   if (!m) return json({ error: "Not found", hint: "Read the list of what you can do at /api/z/ai-manifest. Engagement routes look like /api/z/{id}/summary, /settings, /roster, /participants, /results, /publish." }, 404);
   const [, eid, action] = m;
   const e = await env.DB.prepare("SELECT * FROM engagement WHERE id=?").bind(eid).first<any>();
@@ -1877,6 +1880,13 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     await sendMail(env as PayEnv, env.DB, cEmail, paid ? `Your engagement ${eid} is published and paid` : `Your engagement ${eid} is published: payment pending (it starts ${istTime(startMs)})`,
       `Your engagement ${eid} is live.\n\nShare this link: ${shareUrl}\n\n${paid ? "" : `Payment pending: the game does not begin until it is paid for. You can pay at any time until the guest data is erased; if you pay late, the first number comes 2 minutes after the payment is confirmed (about 2 minutes to pay): ${payUrl}\n\n`}Big screen for the room: ${origin}/big.html?e=${eid}`, now);
     return json({ ok: true, published: true, paid, startMs, payUrl, shareUrl, confirmed: { email: cEmail, phone: cPhone.slice(-10) } });
+  }
+  if (action === "gamelog" && req.method === "GET") { // B26: what happened and when (no names, no numbers of people), for the organizer and Hosts; ?format=csv downloads it
+    if (!can(a, e)) return deny(a);
+    const lines = await readGameLog(env, eid!, cfgOf(e).tz);
+    if (url.searchParams.get("format") === "csv") return new Response(gameLogCsv(lines), { headers: { "content-type": "text/csv; charset=utf-8", "content-disposition": `attachment; filename="game-log-${eid}.csv"`, "cache-control": "no-store" } });
+    const l = await env.DB.prepare("SELECT end_ms FROM life WHERE eid=?").bind(eid).first<{ end_ms: number }>();
+    return json({ ready: lines.length > 0, lines, chainHolds: await gameLogChainHolds(eid!, lines), keptUntilMs: l ? fullDeleteAt(l.end_ms) : null });
   }
   if (action === "claims" && req.method === "GET") {
     if (!can(a, e)) return deny(a);

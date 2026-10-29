@@ -109,3 +109,13 @@ describe("B12: the organizer learns before the game who has not joined", () => {
     await q.waitFor((x) => /2 invited, not joined yet/.test(x), 12000);
   });
 });
+
+describe("B26: the organizer can fetch the game log in the last step", () => {
+  test("step 10 offers the game log with the plain promise (saved when the game ends, kept 365 days) and a download button", async () => {
+    const o = await organizer(); await make(o, "GL-1"); await regKey(o, "GL-1"); await publish(o, "GL-1");
+    const p = await page(o, "/zc?e=GL-1"); await p.waitFor((x) => /Hello|Last step/.test(x)); p.click('.zc-dot[data-open="10"]');
+    await p.waitFor((x) => /Game log/.test(x), 8000);
+    expect(p.$("#dlgamelog")).not.toBeNull();
+    expect(p.text()).toMatch(/saved by us when the game ends, whether or not the report e-mail arrives, and kept for 365 days/);
+  });
+});

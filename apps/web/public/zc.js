@@ -814,6 +814,7 @@
       ${rowl("Your details as Organizer and Host, and the winners record", `<b>kept until ${esc(dayIst(l.fullDeleteAtMs))}</b>`)}` : "";
     const rpt = !S.shield && S.life && S.life.reportSent && !S.life.purged ? `<div class="zc-chips zc-gap"><button type="button" class="zc-btn zc-btn-s" id="rptopen">Open the report now</button><button type="button" class="zc-btn zc-btn-s zc-btn-alt" id="rptnew">New report link</button></div>` : "";
     return small("Within 24 hours of the game ending we send you the report, then delete every participant's name and number. Your details as Organizer and Host, and the winners record, are kept for 365 days. Co-host details are erased with the guests.") + when2 + rpt
+      + `<div class="zc-block" id="gamelogblock"><h3>Game log</h3>${small("What happened and when: every call, pause, prize and the end. Card numbers only, no names. It is saved by us when the game ends, whether or not the report e-mail arrives, and kept for 365 days.")}<div class="zc-chips zc-gap"><button type="button" class="zc-btn zc-btn-s" id="dlgamelog">Download the game log</button></div>${S.gameLogNote ? `<p class="zc-small" role="status">${esc(S.gameLogNote)}</p>` : ""}</div>`
       + `<div class="zc-chips zc-gap"><button type="button" class="zc-btn zc-btn-s zc-btn-bad" id="erase">Delete all participant data now</button></div>`
       + small("You tap once to confirm. You can also e-mail us from your registered address and then confirm it here. The report is e-mailed first when the game has already ended.")
       + afterClone() + cont(10, "All done");
@@ -1572,6 +1573,15 @@
     };
     if ($("shownot")) $("shownot").onclick = () => { S.pp.onlyNot = !S.pp.onlyNot; redraw(); };
     if ($("copycommon")) $("copycommon").onclick = async () => { const ok = await copyText(commonLink()); $("copycommon").textContent = ok ? "Copied" : "Select and copy it"; };
+    if ($("dlgamelog")) $("dlgamelog").onclick = async () => {
+      try {
+        const r = await fetch(BASE + `/api/z/${eid}/gamelog?format=csv`, { headers: { "x-organizer": secret } });
+        if (!r.ok) throw new Error("no log");
+        const text = await r.text();
+        if (text.split("\n").length < 3) { S.gameLogNote = "The game log is saved when the game has ended. Please look again after the game."; redraw(); return; }
+        const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: "text/csv" })); a.download = eid + "-game-log.csv"; a.click();
+      } catch { S.gameLogNote = "Could not get the game log just now. Please try again."; redraw(); }
+    };
     if ($("dlpeople")) $("dlpeople").onclick = async () => {
       let text = ""; try { const r = await fetch(BASE + `/api/z/${eid}/people/export`, { headers: { "x-organizer": secret } }); if (!r.ok) throw new Error("no export"); text = await r.text(); } catch { text = localCsv(); }
       try { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: "text/csv" })); a.download = eid + "-my-people.csv"; a.click(); } catch { /* the browser could not save it */ }
