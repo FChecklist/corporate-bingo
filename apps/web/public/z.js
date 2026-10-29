@@ -289,7 +289,7 @@
     try {
       if (v.phase === "ended" && !store.get(overKey) && !overPending) {
         overPending = true; // spread over a little time so a big crowd does not ask at the same second
-        setTimeout(async () => { try { await api("POST", `/api/z/${EID}/over`, { pid: v.pid, device: myDevice() }); store.set(overKey, "1"); } catch { /* tried again later */ } overPending = false; }, Math.floor(Math.random() * 45000));
+        setTimeout(async () => { try { const r = await api("POST", `/api/z/${EID}/over`, { pid: v.pid, device: myDevice() }); if (!r || r.counted !== false) store.set(overKey, "1"); /* counted:false = too early to count (a game whose prizes ran out before number 20): asked again */ } catch { /* tried again later */ } overPending = false; }, Math.floor(Math.random() * 45000));
       }
     } catch { /* never in the way of the game */ }
   }
