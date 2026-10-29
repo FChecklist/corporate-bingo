@@ -325,6 +325,21 @@ describe("console (organizer page)", () => {
     q.click('[data-ph="corners"]'); expect(q.$('[data-ck="hs.corners.pt"][data-v="none"]')!.className).toMatch(/\bon\b/); expect(q.$('[data-ck="hs.corners.n"][data-v="2"]')!.className).toMatch(/\bon\b/);
     expect(q.text()).toMatch(/decide later/); expect(p.errors).toEqual([]);
   });
+  test("Publish step: the note about prizes left on 'decide later' says WHICH prizes (Tambola rule, owner 2026-10-28), never blocks publishing, and disappears when every prize has words", async () => {
+    const o = await organizer(); await make(o, "UI-BLANK");
+    const note = (p: Page) => (p.text().match(/[^.]*say "decide later"\. You can still publish\./) || [""])[0].replace(/^.*Change/, "").trim();
+    let p = await consolePage(o, "UI-BLANK"); await p.waitFor((x) => /Hello/.test(x)); openStep(p, 7);
+    expect(note(p)).toMatch(/Line, Four Corners, X and Blackout say "decide later"\. You can still publish\./); // all four default prizes are blank
+    expect(p.$("#publishopen")).toBeTruthy(); // the Publish button is there: the note never blocks
+    // Line gets words, Four Corners gets two winners with no words: "1st Four Corners and 2nd Four Corners"
+    const r = await o.api("PATCH", "/api/z/UI-BLANK/settings", { rewards: [{ pattern: "line", ordinal: 1, text: "Gift card: 1000" }, { pattern: "corners", ordinal: 1, text: "" }, { pattern: "corners", ordinal: 2, text: "" }, { pattern: "x", ordinal: 1, text: "No prize" }, { pattern: "blackout", ordinal: 1, text: "Hamper" }] }, o.aiKey); expect(r.status).toBe(200);
+    p = await consolePage(o, "UI-BLANK"); await p.waitFor((x) => /Hello/.test(x)); openStep(p, 7);
+    expect(note(p)).toMatch(/^1st Four Corners and 2nd Four Corners say "decide later"\. You can still publish\.$/);
+    expect(p.text()).not.toMatch(/Line.{0,30}say "decide later"/); // a prize with words, and one set to "No prize", are not listed
+    const r2 = await o.api("PATCH", "/api/z/UI-BLANK/settings", { rewards: [{ pattern: "line", ordinal: 1, text: "Gift card: 1000" }, { pattern: "corners", ordinal: 1, text: "Coffee" }] }, o.aiKey); expect(r2.status).toBe(200);
+    p = await consolePage(o, "UI-BLANK"); await p.waitFor((x) => /Hello/.test(x)); openStep(p, 7);
+    expect(p.text()).not.toMatch(/decide later/); expect(p.errors).toEqual([]);
+  });
   test("Brand moments: four kinds (message, YouTube, video file, audio file) with Test it and a link hint; each is saved as the right kind and read back", async () => {
     const o = await organizer(); await make(o, "UI-BM");
     const p = await consolePage(o, "UI-BM"); await p.waitFor((x) => /Hello/.test(x)); openStep(p, 4);

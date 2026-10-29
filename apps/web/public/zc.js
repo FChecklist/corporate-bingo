@@ -387,6 +387,12 @@
     return h + save(4);
   }
 
+  /** The prizes that still have no words, by name, for the note at Publish: "Line, Four Corners and X". A house with several winners names each one ("1st Four Corners and 2nd Four Corners"). */
+  function blankPrizeNames(c) {
+    const ord = (n) => ["", "1st", "2nd", "3rd"][n] || n + "th";
+    const names = (c.rewards || []).filter((r) => !r.text).map((r) => ((c.rewards || []).filter((x) => x.pattern === r.pattern).length > 1 ? ord(r.ordinal) + " " : "") + ZG.houseLabel(r.pattern));
+    return names.length > 1 ? names.slice(0, -1).join(", ") + " and " + names[names.length - 1] : names[0] || "";
+  }
   /** The read-back of steps 1 to 4: what is saved, with a Change button for each. */
   function readBack() {
     const f = S.f, c = S.cfg, inf = S.info; if (!f || !c || !inf) return "";
@@ -396,7 +402,7 @@
     const blankDate = S.cloneNew === eid && S.cloneDated !== eid;
     const rows = [["Game", blankDate ? `${name}, date and time still to pick` : `${name}, ${when(inf.startMs)}`, 1], ["People and play", `Up to ${inf.cap}, ${t} card${t === 1 ? "" : "s"}, a number every ${inf.callSeconds} seconds, ${c.employeesOnly ? "only my employees" : whoNow() === "anyone" ? "anyone with the link" : "only people on a list"}${c.verify === "id" ? ", employee ID" : c.verify === "both" ? ", mobile number and employee ID" : ""}`, 2], ["Prizes", `${prizes} prize${prizes === 1 ? "" : "s"}${wait ? ` (${wait} to decide)` : ""}`, 3], ["Brand moments", `${used} of ${5 * t}`, 4]];
     return rows.map((r) => `<div class="zc-rowl"><span><span class="zc-small zc-nomargin">${r[0]}</span><br>${esc(r[1])}</span>${lockedGame() ? "" : `<button type="button" class="zc-mini" data-open="${r[2]}" aria-label="Change ${esc(r[0])}">Change</button>`}</div>`).join("")
-      + (wait ? `<p class="zc-small zc-warnt">${wait} prize${wait === 1 ? " says" : "s say"} "decide later". You can still publish.</p>` : "");
+      + (wait ? `<p class="zc-small zc-warnt">${esc(blankPrizeNames(c))} ${wait === 1 ? "says" : "say"} "decide later". You can still publish.</p>` : "");
   }
 
   // ---------- step 5: your team ----------
