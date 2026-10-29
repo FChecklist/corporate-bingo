@@ -147,6 +147,16 @@ describe("a phone from first open to full house", () => {
   });
 });
 
+describe("a game whose participants' data has been erased", () => {
+  test("a phone that opens the link then is told so in the server's words, and nothing is stored", async () => {
+    await env.DB.prepare("INSERT INTO life(eid,end_ms,end_src,purged_ms,report_state) VALUES(?,?, 'organizer', ?, 'organizer')").bind(EID, T0, T0).run();
+    const a = mkPhone(8); await a.rt.boot();
+    expect(await a.rt.join(a.phone, "Late")).toBe(false);
+    expect(a.rt.error).toMatch(/game is over/i); expect(a.rt.error).not.toMatch(/connection/i); // it said "Could not join. Check your connection and try again."
+    expect(((await env.DB.prepare("SELECT COUNT(*) AS c FROM participant WHERE eid=?").bind(EID).first()) as any).c).toBe(0);
+  });
+});
+
 describe("a crowd and the awkward cases", () => {
   test("40 phones, some late, some offline for a while, one behind a blocked network for a while: everyone ends with the identical log and the claims match the organizer's settlement", async () => {
     let off = false, blocked = false;

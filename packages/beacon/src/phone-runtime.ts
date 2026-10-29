@@ -175,7 +175,7 @@ export class PhoneRuntime {
       return true;
     } catch (e: any) {
       const said = e?.message && !/^(offline|http \d+)$/.test(String(e.message)) ? String(e.message) : ""; // the server's own plain words, when it gave any (a missing name is not a mobile number problem, a second card on one phone is not "full")
-      this.error = e?.status === 423 || e?.code === "invite-full" ? String(e.message || "This ticket is already on another phone.") : e?.status === 409 ? said || "This engagement is full." : e?.status === 400 ? said || "Enter a valid mobile number." : e?.status === 503 ? "It is a busy day. Please try again in a few minutes." : "Could not join. Check your connection and try again.";
+      this.error = e?.status === 423 || e?.code === "invite-full" ? String(e.message || "This ticket is already on another phone.") : e?.status === 409 ? said || "This engagement is full." : e?.status === 400 ? said || "Enter a valid mobile number." : e?.status === 410 ? said || "This game is over." : e?.status === 503 ? "It is a busy day. Please try again in a few minutes." : "Could not join. Check your connection and try again.";
       return false;
     }
   }
