@@ -84,7 +84,7 @@
     if (personal) return "";
     if (vm === "id") return emp("Your employee ID", eo ? "This game is for employees only." : "") + (eo ? "" : phone("No employee ID? Type your mobile number instead", "Vendors, customers and families use their mobile number."));
     if (vm === "both") return phone("Your mobile number", "") + emp(eo ? "Your employee ID" : "Your employee ID (employees only)", eo ? "This game is for employees only." : "Not an employee? Leave this empty.");
-    return needPhone ? phone("Your mobile number", "") : "";
+    return needPhone || eo ? phone("Your mobile number", eo ? "This game is for employees only." : "") : ""; // employees only: the server refuses a join without a mobile number, so the box is always there
   };
   const BUSY_TRIES = 15;
   const joinView = (msg) => {
