@@ -21,7 +21,7 @@ describe("console step 2", () => {
     expect(p.text()).toMatch(/Every phone says the numbers out loud/);
     p.click('[data-bool="room"]'); expect(p.text()).toMatch(/Phones start with their sound off/);
     p.click('[data-save="2"]'); await p.waitFor((x) => /Saved\./.test(x), 8000);
-    expect((await w.json(await w.api("GET", "/api/z/RM-1/info", undefined, s.aiKey))).quietPhones).toBe(true);
+    expect((await w.json(await w.api("GET", "/api/z/RM-1/info", undefined, s.aiKey))).roomMode).toBe(true);
     const q = await mk(); await q.waitFor((x) => /Hello/.test(x)); q.click('.zc-dot[data-open="2"]'); await q.waitFor((x) => /Phones start with their sound off/.test(x), 8000);
   });
 });
@@ -32,7 +32,7 @@ describe("the big screen and the phone page", () => {
     expect(bigHtml).toMatch(/<script src="\/audio\.js"><\/script><script src="\/zgame\.js">/);
     expect(big).toMatch(/id="bigvoice"/); expect(big).toMatch(/Tap once: this screen will say the numbers/);
     expect(big).toMatch(/if \(fresh && VOICE\.on && window\.TBAudio\)[^;]*;\s*TBAudio\.play\(last\)/);
-    expect(big).toMatch(/info\.quietPhones === true/);
+    expect(big).toMatch(/info\.roomMode === true/);
   });
   test("a room game's phone starts with its sound off (unless the person chose), and says why", () => {
     expect(z).toMatch(/INFO\.quiet && store\.get\("cbz-sound"\) === null\) \{ sound = false/);
