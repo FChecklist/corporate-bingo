@@ -298,7 +298,7 @@ async function baseData(env: LifeEnv, e: any, cfg: EngagementCfg, sch: Awaited<R
   for (let round = 1; round <= cfg.rounds; round++) for (const key of keysInPlay(cfg.rewards)) for (const line of linesFor(cfg.rewards, key)) prizes.push({ round, label: lineLabel(cfg, key, line.ordinal), text: line.text, winners: wrows.filter((w: any) => w.round === round && w.pattern === key && w.ordinal === line.ordinal).map(winnerOf) });
   const lucky = cfg.breaks.filter((b) => b.kind === "lucky").map((b, i) => ({ title: b.title, winners: wrows.filter((w: any) => w.pattern === "lucky" && w.ordinal === i + 1).map(winnerOf) }));
   const held = e.pack === 0;
-  const early = !held && endMs < (await endBoundMs(env, e)) - 5 * 60_000;
+  const early = !held && endMs < (await endBoundMs(env, e)) - 60_000 - 2 * e.call_seconds * 1000; // the phones record the end a few seconds after the call that won the last prize; the bound is the last call plus a 60 s margin. More than two gaps short of the last call = the prizes ran out first
   return {
     engagementId: eid, organizerEmail: email, sentAtMs: sentAt, scheduledMs: roundMs(e.start_round), firstNumberMs: first, endMs, wasHeld: held,
     endReason: held ? "The game did not start." : early ? "Every prize was awarded, so the game ended early." : "All numbers were called (or the organizer ended the game).",

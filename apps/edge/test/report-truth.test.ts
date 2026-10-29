@@ -2,7 +2,8 @@
 //   1. The organizer's company name and logo are printed on the report (owner order 2026-10-09). The report data was built from a copy of the settings that dropped the brand.
 //   2. A game that ended because every prize was won must say so and give the real number of numbers called, not "All numbers were called" and 75.
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { endBoundMs, lifecycleTick, cfgOfRow } from "../src/lifecycle";
+import { endBoundMs, lifecycleTick, cfgOfRow, roundMs } from "../src/lifecycle";
+import { GRACE_ROUNDS } from "../../../packages/beacon/src/config";
 import { lazyTickReset } from "../src/worker";
 import { sentReports } from "../src/pay";
 import { HOUR, MIN, T, W, call, create, j, join, one, reset, restore, startIn, uid } from "./param-harness";
@@ -43,5 +44,33 @@ describe("the report carries the organizer's brand", () => {
     const g = await played({});
     const base = await openReport(g.id, g.bound);
     expect(base.brand).toBeUndefined();
+  });
+});
+
+describe("the report says how the game really ended", () => {
+  /** The phones agreed the game ended with call number `k` (1-based) of 75; one prize was won at that call. */
+  async function endedAtCall(k: number, sec = 5) {
+    const g = await played({ rewards: [{ pattern: "line", ordinal: 1, text: "Hamper" }] });
+    const e = one("SELECT * FROM engagement WHERE id=?", g.id);
+    const callAt = roundMs(e.start_round + GRACE_ROUNDS) + (k - 1) * 12_000; // call k happens (k - 1) gaps after the first number
+    W.raw.prepare("INSERT OR REPLACE INTO life(eid,end_ms,end_src) VALUES(?,?, 'phones')").run(g.id, callAt + sec * 1000);
+    W.raw.prepare("INSERT INTO winner(eid,round,pattern,ordinal,seat,idx,at_ms,src) VALUES(?,?,?,?,?,?,?,?)").run(g.id, 1, "line", 1, 1, k - 1, callAt, "phones");
+    return { g, base: await openReport(g.id, callAt + sec * 1000) };
+  }
+  test("every prize won at number 63 of 75: the report says it ended early and that 63 numbers were called", async () => {
+    const { base } = await endedAtCall(63);
+    expect(base.endReason).toMatch(/Every prize was awarded/); expect(base.numbersCalled).toBe(63);
+  });
+  test("won at number 40: the same (the old five-minute margin missed games that ended up to 24 numbers early at 12 s)", async () => {
+    const { base } = await endedAtCall(40);
+    expect(base.endReason).toMatch(/Every prize was awarded/); expect(base.numbersCalled).toBe(40);
+  });
+  test("the last prize won at the last number: all 75 were called, no 'ended early'", async () => {
+    const { base } = await endedAtCall(75);
+    expect(base.endReason).toMatch(/All numbers were called/); expect(base.numbersCalled).toBe(75);
+  });
+  test("won at number 74, one number short: the game ran to its end for practical purposes, not 'early'", async () => {
+    const { base } = await endedAtCall(74);
+    expect(base.endReason).toMatch(/All numbers were called/);
   });
 });
