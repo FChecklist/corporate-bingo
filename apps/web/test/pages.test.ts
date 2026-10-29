@@ -613,8 +613,8 @@ describe("winners, the end, and break media on the phone", () => {
     await p.waitFor((x) => /Your prizes/.test(x)); // it stays after the overlay is gone
     at(o, p, 1000); // every number is out
     const end = await p.waitFor((x) => /Game complete/.test(x), 30000);
-    expect(end).toMatch(/Thank you for joining our extended family of Corporate Bingo/); expect(end).toMatch(/Share with friends and colleagues/); expect(end).toMatch(/Voucher 5000/);
-    expect(doc.getElementById("shr")).toBeTruthy();
+    expect(end).toMatch(/Thank you for joining our extended family of Corporate Bingo/); expect(end).not.toMatch(/Share with friends and colleagues|Refer|Earn 50/); expect(end).toMatch(/Voucher 5000/); // B21: no selling or sharing buttons on a real game's player screen
+    expect(doc.getElementById("shr")).toBeNull();
     expect(rt.view().endedByPrizes).toBe(true); expect(rt.view().log.length).toBeLessThan(90); // it ended on the prizes, not on the last number
     await until(() => (o.world.raw.query("SELECT COUNT(*) c FROM winner WHERE src='phones'").get() as any).c >= 3 && (o.world.raw.query("SELECT COUNT(*) c FROM overvote").get() as any).c >= 1); // the phone told our store about its wins and that the game is over
     expect(o.world.raw.query("SELECT end_src FROM life").get()).toEqual({ end_src: "phones" });
@@ -628,7 +628,7 @@ describe("winners, the end, and break media on the phone", () => {
     expect(list.prizes.length).toBeGreaterThan(0); expect(list.prizes[0]).toMatchObject({ name: "Asha Rao", phone: "919876543210", confirmed: true, changed: true });
     expect(JSON.stringify(o.world.raw.query("SELECT * FROM winner").all())).not.toMatch(/Voucher|9833|Gift/); // seat, prize, round, time: no names or numbers
   }, 90_000);
-  test("a player who joined too late to win anything still gets the thank-you and the share button when the game ends, and no prizes are listed", async () => {
+  test("a player who joined too late to win anything still gets the thank-you (and no share or refer button) when the game ends, and no prizes are listed", async () => {
     const o = await organizer({ FREE_LAUNCH: "1" }); await make(o, "UI-WIN2"); await o.api("PATCH", "/api/z/UI-WIN2/settings", prizes, o.aiKey); await publish(o, "UI-WIN2");
     expect((await o.api("POST", "/api/z/UI-WIN2/join", { phone: "9877777777", device: "9".repeat(32) })).status).toBe(200); // the one player who joined in time
     o.world.now = roundMs(START + 40) + 1_000_000; // the whole game has been played: the one player won everything

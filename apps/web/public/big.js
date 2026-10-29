@@ -1,5 +1,5 @@
-/* Corporate Bingo big screen: shows the engagement to a room on a projector or TV. No sign-in and no personal data: it only reads the public
-   numbers (the same ones every phone uses) and the public count of winners. It never joins the engagement. */
+/* Corporate Bingo big screen: shows the game to a room on a projector or TV. No sign-in and no personal data: it only reads the public
+   numbers (the same ones every phone uses) and the public count of winners. It never joins the game. */
 (function () {
   const ZG = window.ZG;
   const $app = document.getElementById("app");
@@ -36,7 +36,7 @@
       S.round = Math.max(1, ...Object.keys(S.logs).filter((r) => S.logs[r].length > 0).map(Number));
       try { S.results = (await j(`/api/z/${EID}/results`)).results || []; } catch {}
       S.err = "";
-    } catch (e) { S.err = e.status === 403 ? "This game is not published yet. Publish it first (step 7 in your console). This screen then starts by itself: you do not need to refresh." : e.status === 404 ? "That engagement was not found." : "Connecting…"; }
+    } catch (e) { S.err = e.status === 403 ? "This game is not published yet. Publish it first (step 7 in your console). This screen then starts by itself: you do not need to refresh." : e.status === 404 ? "That game was not found." : "Connecting…"; }
   }
 
   function draw() {
@@ -55,10 +55,10 @@
     const head = `${lostBar}${annBar}<div class="top"><div class="brand">${bLogo ? `<img class="blogo" alt="" src="${esc(bLogo)}">` : ""}${esc(bd && bd.name ? bd.name : "Corporate Bingo")}</div><div class="meta">${cfg.rounds > 1 ? "Round " + S.round + " of " + cfg.rounds + " · " : ""}${log.length} of 75 numbers called</div></div>`;
     const sett = (S.results || []).filter((r) => (r.round === S.round || r.round === undefined) && r.pattern !== "lucky" && r.winners && r.winners.length).map((r) => ({ pattern: r.pattern, ordinal: r.ordinal, idx: r.idx, pids: r.winners, round: S.round, tied: r.tied }));
     const ranked = sett.length ? ZG.rankWinners(ZG.roundEid(EID, S.round), ZG.validateCfg({ tickets: info.tickets, rewards: info.rewards }, undefined, { stored: true }).cfg, sett, 10) : [];
-    const wins = ranked.map((x) => `<span><b>${esc(ZG.rankName(x.rank))} ${esc(NAMES[x.pattern] || x.pattern)}</b> · card ${esc(String((/^(\d+)x/.exec(x.pid) || [0, "?"])[1]))}${x.note ? " · decided by fate" : ""}</span>`).join("");
+    const wins = ranked.map((x) => `<span><b>${esc(ZG.rankName(x.rank))} ${esc(NAMES[x.pattern] || x.pattern)}</b> · card ${esc(String((/^(\d+)x/.exec(x.pid) || [0, "?"])[1]))}${x.note ? " · same number as another card" : ""}</span>`).join("");
     if (!log.length) {
       const sec = secsToStart;
-      return ($app.innerHTML = `${head}<div class="big">${sec !== null && sec > 120 ? `<p>The engagement starts in</p><div class="cd">${hms(sec - 120)}</div><p>Open the link on your phone and get your card.</p>` : sec !== null && sec > 0 ? `<h1>Your game is setting up</h1><p>We are waiting 2 minutes more for everyone to join.</p><div class="cd">${mmss(sec)}</div><p>Open the link on your phone and get your card.</p>` : `<h1>Get ready</h1><p>The first number is about to be called…</p>`}</div><div class="foot">${esc(location.host)}</div>`);
+      return ($app.innerHTML = `${head}<div class="big">${sec !== null && sec > 120 ? `<p>The game starts in</p><div class="cd">${hms(sec - 120)}</div><p>Open the link on your phone and get your card.</p>` : sec !== null && sec > 0 ? `<h1>Your game is setting up</h1><p>We are waiting 2 minutes more for everyone to join.</p><div class="cd">${mmss(sec)}</div><p>Open the link on your phone and get your card.</p>` : `<h1>Get ready</h1><p>The first number is about to be called…</p>`}</div><div class="foot">${esc(location.host)}</div>`);
     }
     const last = log[log.length - 1];
     const fresh = S.lastNum !== null && S.lastNum !== last; S.lastNum = last;
@@ -66,11 +66,11 @@
     const LET = ["B", "I", "N", "G", "O"], colOf = (n) => Math.floor((n - 1) / 15);
     const board = LET.map((l, c) => `<div class="bl l${c}" aria-hidden="true">${l}</div>` + Array.from({ length: 15 }, (_, i) => c * 15 + i + 1).map((n) => `<div class="${n === last ? "l" : called.has(n) ? "c" : ""}" aria-label="${LET[colOf(n)]} ${n}${called.has(n) ? ", called" : ""}">${n}</div>`).join("")).join("");
     const recent = log.slice(-6, -1).reverse().map((n) => `<span class="l${colOf(n)}" aria-label="${LET[colOf(n)]} ${n}">${LET[colOf(n)]} ${n}</span>`).join("");
-    const banner = paused ? `<div class="big" style="margin-bottom:1vh"><h1>Paused</h1><p>The organizer has paused the engagement. It will resume shortly.</p></div>` : "";
-    $app.innerHTML = `${head}${banner}<div class="main"><div class="now"><div class="lbl">Now calling</div><div class="num l${colOf(last)} ${fresh ? "fresh" : ""}" aria-label="${LET[colOf(last)]} ${last}"><small>${LET[colOf(last)]}</small>${last}</div><div class="recent" aria-label="Recent numbers">${recent}</div></div><div class="board" role="group" aria-label="Call board, 75 numbers">${board}</div></div><div>${wins ? `<div class="wins">${wins}</div>` : ""}<div class="foot">Join: ${esc(location.host)}/z?e=${esc(EID)}</div></div>`;
+    const banner = paused ? `<div class="big" style="margin-bottom:1vh"><h1>Paused</h1><p>The organizer has paused the game. It will resume shortly.</p></div>` : "";
+    $app.innerHTML = `${head}${banner}<div class="main"><div class="now"><div class="lbl">Now calling</div><div class="num l${colOf(last)} ${fresh ? "fresh" : ""}" aria-label="${LET[colOf(last)]} ${last}"><small>${LET[colOf(last)]}</small>${last}</div><div class="recent" aria-label="Recent numbers">${recent}</div></div><div class="board" role="group" aria-label="Numbers called, 75 numbers">${board}</div></div><div>${wins ? `<div class="wins">${wins}</div>` : ""}<div class="foot">Join: ${esc(location.host)}/z?e=${esc(EID)}</div></div>`;
   }
 
-  if (!EID) { $app.innerHTML = `<p class="msg">No engagement was chosen.</p>`; return; }
+  if (!EID) { $app.innerHTML = `<p class="msg">No game was chosen.</p>`; return; }
   const loop = async () => { await tick(); draw(); };
   loop(); setInterval(loop, 3000);
   setInterval(() => { if (S.info && !(S.logs[S.round] || []).length) draw(); }, 1000); // the countdown ticks every second

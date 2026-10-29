@@ -1,4 +1,4 @@
-/* Corporate Bingo, phone page for zero-server engagements. All game logic lives in zgame.js (window.ZG); this file only draws it. */
+/* Corporate Bingo, phone page for zero-server games. All game logic lives in zgame.js (window.ZG); this file only draws it. */
 (function () {
   const ZG = window.ZG;
   const $app = document.getElementById("app");
@@ -20,7 +20,7 @@
   };
   // ---------- what the game's public settings say besides the plan: the brand strip, a cancelled game; and a personal invite link's token ----------
   const TOKEN = (q.get("t") || "").trim().slice(0, 80); // a personal link: sent as `token` when joining, so no mobile number is needed
-  const INFO = { brand: null, cancelled: null, dns: false, joinPhone: false }; // dns = "this game did not start": nobody paid, the time and 23 hours passed, the guest data was erased
+  const INFO = { brand: null, cancelled: null, dns: false, joinPhone: false }; // dns = "this game did not start": nobody paid, the time passed, the guest data was erased
   const cleanBrand = (b) => {
     if (!b || typeof b !== "object") return null;
     const name = String(b.name == null ? "" : b.name).replace(/\s+/g, " ").trim().slice(0, 60);
@@ -219,7 +219,7 @@
   }
   function icsFor(v) {
     const ms = (1692803367 + (v.scheduledRound - 1) * 3) * 1000, f = (d) => new Date(d).toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
-    const text = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Corporate Bingo//EN", "BEGIN:VEVENT", "UID:" + EID + "@corporate-bingo", "DTSTAMP:" + f(Date.now()), "DTSTART:" + f(ms), "DTEND:" + f(ms + 45 * 60000), "SUMMARY:Corporate Bingo engagement", "DESCRIPTION:Open " + location.origin + "/z?e=" + EID + " a few minutes early.", "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+    const text = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Corporate Bingo//EN", "BEGIN:VEVENT", "UID:" + EID + "@corporate-bingo", "DTSTAMP:" + f(Date.now()), "DTSTART:" + f(ms), "DTEND:" + f(ms + 45 * 60000), "SUMMARY:Corporate Bingo game", "DESCRIPTION:Open " + location.origin + "/z?e=" + EID + " a few minutes early.", "END:VEVENT", "END:VCALENDAR"].join("\r\n");
     return "data:text/calendar;charset=utf-8," + encodeURIComponent(text);
   }
   /** Before the first number: what to expect, what can be won, a sound check and a calendar entry. Everything here is known at boot, so it costs no extra requests. */
@@ -237,7 +237,7 @@
       <div class="zdo"><b>What to do:</b> nothing yet. Keep this page open. ${TAP() ? "When a number is called, tap it on your card." : "Your card marks every number for you."}</div>
       ${prizes ? `<h3>What you can win</h3><ul class="zlist">${prizes}</ul>` : ""}
       <h3>How it works</h3><ol class="zlist"><li>Your card is below: 5 x 5 with the letters B I N G O, and FREE in the middle. Numbers are called one by one as a letter and a number, like G 52.</li><li>When your card completes a prize pattern you will see it. The software checks every card, so you do not need to shout Bingo.</li><li>The organizer hands over the rewards.</li></ol>
-      <button class="zbtn s alt" id="soundtest">Check my sound</button><a class="zbtn s alt" id="addcal" download="engagement.ics" href="${icsFor(v)}">Add to my calendar</a></div>`;
+      <button class="zbtn s alt" id="soundtest">Check my sound</button><a class="zbtn s alt" id="addcal" download="game.ics" href="${icsFor(v)}">Add to my calendar</a></div>`;
   }
 
   // ---------- winners: a prize record that stays on this phone, the hurray, the final thank-you ----------
@@ -352,9 +352,7 @@
       <div class="zfbig">${n ? "You won " + n + (n === 1 ? " prize!" : " prizes!") : "Well played!"}</div>
       <p class="zsmall zthanks">Thank you for joining our extended family of Corporate Bingo.</p>
       <p class="zsmall" style="font-size:15px;margin:6px 0 10px">${n ? "Your prizes are listed below and stay on this phone. Show them to your organizer to collect." : "No prize this time. Every game is a good game, and the next one is another chance."}</p>
-      <button class="zbtn" id="shr">Share with friends and colleagues</button>
-      <a class="zbtn s alt" style="display:inline-flex;align-items:center;text-decoration:none;margin-top:8px" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent("I just played Corporate Bingo with my team. Bring it to your company: " + shareLink)}">WhatsApp</a>
-      <p class="zsmall" style="margin:10px 0 0"><a href="/partner.html?from=card">Earn 50% by sharing: Refer &amp; earn</a></p></div>`;
+</div>`;
   }
   function bindShare() {
     const b = document.getElementById("shr"); if (!b) return;
@@ -567,7 +565,7 @@
         const name = (total > 1 ? ordinalName(line.ordinal) + " " : "") + KEYNAME(key);
         const res = v.results.find((r) => r.pattern === key && r.ordinal === line.ordinal);
         let right;
-        if (res) right = (res.winners || []).includes(v.pid) ? `<em>Yours${res.tied > 1 ? " · decided by fate" : ""}</em>` : `<i>Awarded</i>`;
+        if (res) right = (res.winners || []).includes(v.pid) ? `<em>Yours${res.tied > 1 ? " · same number as another card" : ""}</em>` : `<i>Awarded</i>`;
         else if (line.ordinal === 1) right = mine >= 0 ? `<em>Complete</em>` : n >= 99 ? `<i>not possible on your card</i>` : `<i>${n} to go</i>`;
         else right = `<i>after the ${ordinalName(line.ordinal - 1)}</i>`;
         return `<div class="zrow"><span>${esc(name)}${line.text ? `<br><small class="zsmall" style="margin:0">${esc(line.text)}</small>` : ""}<br>${howLine(key)}</span>${right}</div>`;
@@ -623,7 +621,7 @@
     const banners = [];
     if (v.error) banners.push(`<div class="zbanner warn" role="alert">${esc(v.error)}</div>`);
     if (v.locked) banners.push(ME.role === "organizer" || ME.role === "host" ? `<div class="zbanner warn" role="status"><b>Payment pending for this game.</b> The game starts 2 minutes after the payment is confirmed. Open your console to pay. Your card is safe. Keep this page open.</div>` : `<div class="zbanner warn" role="status"><b>Waiting for the Organizer or Host to start the game.</b> Your card is safe. Keep this page open: it begins as soon as they are done.</div>`);
-    else if (v.stopped) banners.push(`<div class="zbanner info">The organizer has ended this engagement.</div>`);
+    else if (v.stopped) banners.push(`<div class="zbanner info">The organizer has ended this game.</div>`);
     else if (v.paused) banners.push(`<div class="zbanner info">Paused by the organizer. It will carry on shortly.</div>`);
     else if (v.mode === "hold" && v.nowRound !== null) banners.push(`<div class="zbanner warn">Checking with the organizer… numbers will continue in a moment.</div>`);
     else if (v.mode === "blind") banners.push(`<div class="zbanner warn">Cannot reach the organizer's controls right now. Play continues; a pause may appear late.</div>`);
@@ -646,12 +644,12 @@
       ${v.brk ? breakCard(v.brk) : ""}
       ${rankCard(v)}
       ${callCard(v, last, recent, sub)}
-      <div class="zcard${curWins.length ? " zwon" : ""}"><h2>${DEMO ? 'Video card <span class="zdemotag">VIDEO</span>' : v.tickets.length > 1 ? "Your cards" : "Your card"}${TAP() ? ' <span class="zmode">tap to mark</span>' : ""}</h2>${ribbon}${nudge}${tix}<a class="zref" href="/partner.html?from=card">Refer &amp; earn</a></div>
+      <div class="zcard${curWins.length ? " zwon" : ""}"><h2>${DEMO ? 'Video card <span class="zdemotag">VIDEO</span>' : v.tickets.length > 1 ? "Your cards" : "Your card"}${TAP() ? ' <span class="zmode">tap to mark</span>' : ""}</h2>${ribbon}${nudge}${tix}</div>
       ${v.phase === "ended" ? "" : prizesCard()}
       ${mineCard(v)}${inviteCard(v)}
       <div class="zcard"><h2>Still to win</h2>${still}${chk}</div>
       ${luckyCard(v)}
-      <div class="zcard"><h2>${v.rounds > 1 ? "Round " + v.round + " of " + v.rounds + " · " : ""}${v.late ? "Numbers since you joined · " + v.log.length : "Call board · " + v.log.length + " of 75"} called</h2><div class="zboard" role="group" aria-label="Call board, 75 numbers">${LET.map((l, c) => `<div class="bl l${c}" aria-hidden="true">${l}</div>` + Array.from({ length: 15 }, (_, i) => { const n = c * 15 + i + 1; return `<div class="${called.has(n) ? "c" : ""}" aria-label="${lblOf(n)}${called.has(n) ? ", called" : ""}">${n}</div>`; }).join("")).join("")}</div></div>`;
+      <div class="zcard"><h2>${v.rounds > 1 ? "Round " + v.round + " of " + v.rounds + " · " : ""}${v.late ? "Numbers since you joined · " + v.log.length : "Numbers called · " + v.log.length + " of 75"} called</h2><div class="zboard" role="group" aria-label="Numbers called, 75 numbers">${LET.map((l, c) => `<div class="bl l${c}" aria-hidden="true">${l}</div>` + Array.from({ length: 15 }, (_, i) => { const n = c * 15 + i + 1; return `<div class="${called.has(n) ? "c" : ""}" aria-label="${lblOf(n)}${called.has(n) ? ", called" : ""}">${n}</div>`; }).join("")).join("")}</div></div>`;
   }
 
   function paint() {
@@ -698,7 +696,7 @@
   async function loop() { try { await rt.tick(); } catch { /* the loop must never die */ } paint(); }
   function start() { if (timer) return; loop(); timer = setInterval(loop, 1000); }
 
-  if (!EID) { $app.innerHTML = `<p class="zmsg">This link is incomplete. Please ask your organizer for the engagement link.</p>`; return; }
+  if (!EID) { $app.innerHTML = `<p class="zmsg">This link is incomplete. Please ask your organizer for the game link.</p>`; return; }
   rt.boot().then(() => { if (rt.phase === "play") clearWait(); else restoreWait(); paint(); if (rt.phase === "play") start(); });
   window.__rt = rt;
 })();
