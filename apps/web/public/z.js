@@ -679,11 +679,11 @@
     if (INFO.cancelled) { if (timer) { clearInterval(timer); timer = null; } clearInterval(J.timer); mediaHost.style.display = "none"; $app.innerHTML = cancelledView(); paintBrand(); return; } // a cancelled game: one calm screen, nothing else
     if (v.phase === "join") { const f = document.getElementById("ph") || document.getElementById("nm"); if (f && document.activeElement === f) return; $app.innerHTML = joinView(J.mode ? null : v.error); paintBrand(); bindJoin(); return; }
     if (ME.removed) { if (timer) { clearInterval(timer); timer = null; } mediaHost.style.display = "none"; $app.innerHTML = removedView(); paintBrand(); return; } // taken off the list: the phone stops
+    if (fingerDown()) return; // a finger is down: the next second's redraw (or the lift of the finger) brings the screen up to date. Before syncPrizes: a win found now must still be celebrated on the redraw that follows (the game itself never waits for the screen)
     const fresh = syncPrizes(v); reportToStore(v); loadCf(v); pollMe(v);
     { const af = document.activeElement; if (af && (af.id === "cfnm" || af.id === "cfph" || af.id === "mi-name" || af.id === "mi-phone")) return; } // never wipe a form someone is typing in
     if (awayWatch) { if (v.log.length > awayWatch.from && !v.late) { AWAY = { k: v.log.length - awayWatch.from, until: performance.now() + AWAY_SHOW_MS }; awayWatch = null; } else if (performance.now() > awayWatch.until) awayWatch = null; }
     if (AWAY && performance.now() > AWAY.until) AWAY = null;
-    if (fingerDown()) return; // the next second's redraw (or the lift of the finger) brings the screen up to date; the game itself never waits for the screen
     NEWCALL = v.log.length > lastLen && !firstPaint && MOTION() ? v.log[v.log.length - 1] : 0;
     $app.innerHTML = playView(v);
     countUps();
