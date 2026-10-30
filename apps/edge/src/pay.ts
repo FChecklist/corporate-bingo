@@ -6,6 +6,7 @@
 // An entitlement is what lets an organizer create one engagement of up to `pack` participants; without one, creating is refused.
 // Needs the `nodejs_compat` flag (billing uses node:crypto HMAC). Test mode (env.TEST_MODE = "1", never in production) fulfils without Razorpay.
 import { recordFunnelForOrg } from "./visits";
+import { emailKey } from "./emailkey";
 import { plainToHtml, tagSubject, withFooter } from "./brand";
 import {
   BRANDS, DEFAULT_COMPANY, companyGaps, createOrder, fetchPayment, capturePayment, paymentInfo, financialYear, formatInvoiceNumber, renderInvoiceHtml, renderInvoiceText, splitGst, toMinor,
@@ -202,7 +203,7 @@ async function fulfilInner(env: PayEnv, paymentId: string, now: number, spend: (
   if (!(await spend(6))) return { error: "Busy day. Your payment is safe; this will complete shortly.", status: 503 };
   const meta = JSON.parse(p.meta);
   if (meta.paytest) return fulfilPaytest(env, p, meta, now);
-  const eh = await sha("email|" + p.email.toLowerCase());
+  const eh = await sha("email|" + emailKey(p.email));
   let org: string | null = meta.orgId ?? (await db.prepare("SELECT org FROM organizer_email WHERE email_hash=?").bind(eh).first<{ org: string }>())?.org ?? null;
   let organizerKey: string | null = null;
   const test = p.is_test ? 1 : 0; // a payment made in TEST mode (mode.ts): everything it creates is flagged too

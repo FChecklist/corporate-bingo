@@ -9,6 +9,7 @@
 // A Host is identified by `host_id` = the hash of the key row the Organizer created (the "identity row"); device keys are extra organizer_key rows whose host_id points at it.
 // Only the Organizer and Hosts have e-mail addresses; nothing here is available to an AI key (the setup routes need a Host key, the new-link route the Organizer's own key).
 import { openPii, openText, sealPii, sealText } from "./pii";
+import { emailKey } from "./emailkey";
 import { consentMissing, recordConsent } from "./consent";
 import type { D1, Env } from "./worker";
 
@@ -24,7 +25,7 @@ export const HOST_SCHEMA: string[] = [
 const encoder = new TextEncoder();
 const sha = async (s: string) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(s))), (b) => b.toString(16).padStart(2, "0")).join("");
 export const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
-export const emailHashOf = (email: string) => sha("email|" + email.trim().toLowerCase());
+export const emailHashOf = (email: string) => sha("email|" + emailKey(email));
 /** "a***@acme.com": enough for the Host to recognise their own address, not enough to learn it. */
 export const maskEmail = (e: string): string => { const [l = "", d = ""] = e.split("@"); return `${l.slice(0, 1)}***@${d}`; };
 export const maskMobile = (digits: string): string => "******" + digits.slice(-4);
@@ -114,12 +115,12 @@ export async function hostSetupRoute(c: HostCtx): Promise<Response | null> {
   }
   if (p === "/api/host/setup/email") {
     const b = await c.body(req);
-    const email = typeof b?.email === "string" ? b.email.trim().toLowerCase() : "";
+    const email = typeof b?.email === "string" ? emailKey(b.email) : "";
     if (!EMAIL_RE.test(email)) return c.json({ error: "Please enter a valid e-mail address." }, 400);
     const st = await hostStateRow(db, c.hid);
     if (st?.verified_ms) return c.json({ error: "Your e-mail is already confirmed. Sign in with it on other devices.", code: "already-verified" }, 409);
     const row = await identityRow(db, c.hid), onFile = row?.email_sealed ? await openText(env as any, row.email_sealed) : null;
-    if (onFile && onFile.toLowerCase() !== email) return c.json({ error: `This link is for ${maskEmail(onFile)}`, code: "email-mismatch" }, 409);
+    if (onFile && emailKey(onFile) !== email) return c.json({ error: `This link is for ${maskEmail(onFile)}`, code: "email-mismatch" }, 409);
     { const cm = consentMissing(b, "K5"); if (cm) return cm; } // K5: the Host accepts the role ("I will not charge any player...") before the first open goes on
     const eh = await emailHashOf(email);
     const lc = await db.prepare("SELECT win_start, sent FROM login_code WHERE email_hash=?").bind(eh).first<{ win_start: number; sent: number }>();
