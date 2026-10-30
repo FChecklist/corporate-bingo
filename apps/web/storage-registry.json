@@ -172,6 +172,14 @@
       "keys": [
         "ctz-return"
       ]
+    },
+    {
+      "id": "console-screens",
+      "store": "localStorage",
+      "say": "On the organizer's computer: which console screens were chosen (the new screens or the previous screens).",
+      "keys": [
+        "cbz-zcflow"
+      ]
     }
   ],
   "cookies": [

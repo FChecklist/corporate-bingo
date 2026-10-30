@@ -6,9 +6,9 @@
 (function () {
   var DEFAULT_NEW = false;
   try {
-    var q = new URLSearchParams(location.search), f = q.get("flow"), KEY = "cbz-zcflow", s = null;
-    try { s = localStorage.getItem(KEY); } catch (e) {}
-    if (f === "new" || f === "old") { try { localStorage.setItem(KEY, f); } catch (e) {} }
+    var q = new URLSearchParams(location.search), f = q.get("flow"), s = null;
+    try { s = localStorage.getItem("cbz-zcflow"); } catch (e) {}
+    if (f === "new" || f === "old") { try { localStorage.setItem("cbz-zcflow", f); } catch (e) {} }
     else {
       var OLD = ["demo", "pass", "quick", "quickform", "new", "cap", "do", "k", "api"], forced = false;
       for (var i = 0; i < OLD.length; i++) if (q.has(OLD[i])) forced = true;
