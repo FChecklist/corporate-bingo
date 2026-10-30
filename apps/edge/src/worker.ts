@@ -1117,6 +1117,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     const hb = await body(req);
     const hEmail = typeof hb?.email === "string" ? accountEmail(hb.email) : "";
     const rawMob = hb?.mobile ?? hb?.phone, hasMob = rawMob !== undefined && rawMob !== null && String(rawMob).trim() !== "";
+    if (hb?.email !== undefined && hb?.email !== null && typeof hb.email !== "string") return json({ error: "That e-mail address does not look right. Please check it." }, 400); // a wrong e-mail is never replaced by the mobile number
     if (!hEmail && !hasMob) return json({ error: "Please give the Host's e-mail address or mobile number (at least one). Their own link is sent there." }, 400);
     if (hEmail && !EMAIL_RE.test(hEmail)) return json({ error: "That e-mail address does not look right. Please check it." }, 400);
     const hMob = hasMob ? cleanPhone(rawMob) : null;

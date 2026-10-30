@@ -549,16 +549,16 @@
     if (!raw.length) { P.sum = "Add a name and a number first."; return redraw(); }
     if (!CBConsent.all($app, "K6")) { P.sum = "Please tick the box to continue."; return redraw(); }
     const consent = CBConsent.payload($app, "K6");
-    const { good, dups, wrong, same } = cleanBatch(raw); let added = good.length, serverDup = 0, sameId = same.slice(), got = 0, counted = false; const bad = wrong.slice();
+    const { good, dups, wrong, same } = cleanBatch(raw); let added = good.length, serverDup = 0, sameId = same.slice(), dupNames = [], got = 0, counted = false; const bad = wrong.slice();
     try {
       for (let i = 0; i < good.length; i += 200) {
         const r = await call("POST", `/api/z/${eid}/people`, { consent, people: good.slice(i, i + 200).map((p) => ({ name: p.name, ...(p.phone ? { phone: "+" + p.phone } : {}), ...(p.empId ? { empId: p.empId } : {}) })) });
-        serverDup += Number(r.duplicates) || 0; for (const x of r.sameAfterCleaning || []) sameId.push(String(x.raw) + " (read as " + String(x.as) + ")"); if (typeof r.added === "number") { got += r.added; counted = true; }
+        serverDup += Number(r.duplicates) || 0; for (const x of r.duplicateRows || []) dupNames.push((x.name ? x.name + " " : "") + "(" + String(x.raw) + ")"); for (const x of r.sameAfterCleaning || []) sameId.push(String(x.raw) + " (read as " + String(x.as) + ")"); if (typeof r.added === "number") { got += r.added; counted = true; }
         for (const x of r.invalid || []) { const q = parseList(String(typeof x === "string" ? x : x.raw || ""))[0] || { name: "", phone: "" }; bad.push({ name: typeof x === "string" ? q.name : (x.name || q.name), raw: typeof x === "string" ? q.phone : (x.id || q.phone), why: typeof x === "string" ? "" : x.why || "" }); }
       }
       if (counted) added = got;
       const d = dups + serverDup;
-      P.sum = (sameId.length ? (idKindNow() === "email" ? "Same Email ID after cleaning: " : "Same employee ID after cleaning: ") + sameId.slice(0, 10).join(", ") + (sameId.length > 10 ? " and more" : "") + ". " : "") + `${added} good, ${d === 1 ? "1 duplicate" : d + " duplicates"} removed, ${bad.length === 1 ? "1 looks wrong" : bad.length + " look wrong"}`;
+      P.sum = (dupNames.length ? "Already on the list: " + dupNames.slice(0, 10).join(", ") + (dupNames.length > 10 ? " and more" : "") + ". " : "") + (sameId.length ? (idKindNow() === "email" ? "Same Email ID after cleaning: " : "Same employee ID after cleaning: ") + sameId.slice(0, 10).join(", ") + (sameId.length > 10 ? " and more" : "") + ". " : "") + `${added} good, ${d === 1 ? "1 duplicate" : d + " duplicates"} removed, ${bad.length === 1 ? "1 looks wrong" : bad.length + " look wrong"}`;
       P.wrong = keep ? P.wrong.concat(bad) : bad;
     } catch (e) { P.sum = friendly(e); }
     await loadPeople(); redraw();
