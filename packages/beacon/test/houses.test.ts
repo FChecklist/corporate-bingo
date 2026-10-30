@@ -156,7 +156,7 @@ describe("BG-04 / BG-18 no shared prize: one winner per ordinal, ties decided by
     const vi = (x: { pattern: string; ordinal: number }) => cfg.rewards.findIndex((l) => l.pattern === x.pattern && l.ordinal === x.ordinal);
     for (let i = 1; i < rows.length; i++) expect(vi(rows[i]!) > vi(rows[i - 1]!) || (vi(rows[i]!) === vi(rows[i - 1]!))).toBe(true);
     const tied = rankWinners("T", { ...defaultCfg() }, assignOrdinals("T", "line", [[5, ["1x00000000aaaa", "2x00000000bbbb"]]], [1], 1), 10);
-    expect(tied[0]!.note).toMatch(/decided by fate/);
+    expect(tied[0]!.note).toMatch(/same number.*fixed public rule/); expect(tied[0]!.note).not.toMatch(/fate|lottery/i); // B04: plain words, no "fate"
   });
 });
 

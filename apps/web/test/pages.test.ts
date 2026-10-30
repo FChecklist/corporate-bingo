@@ -285,7 +285,7 @@ describe("console (organizer page)", () => {
     const p = await consolePage(o, "UI-TEAM"); await p.waitFor((x) => /Hello/.test(x)); openStep(p, 5);
     const t = await p.waitFor((x) => /Your Hosts: 0 of 5/.test(x) && /Your Co-hosts: 0 \(no limit\)/.test(x));
     const doc = p.win.document; expect(Array.from(doc.querySelectorAll(".zc-role b")).map((e: any) => e.textContent)).toEqual(["Organizer", "Host", "Co-host"]);
-    expect(doc.querySelectorAll(".zc-role .zc-no").length).toBe(5); expect(doc.querySelectorAll(".zc-role .zc-yes").length).toBeGreaterThanOrEqual(10); expect(t).toMatch(/Sign-in keys, e-mail, AI link, close account/);
+    expect(doc.querySelectorAll(".zc-role .zc-no").length).toBe(5); expect(doc.querySelectorAll(".zc-role .zc-yes").length).toBeGreaterThanOrEqual(10); expect(t).toMatch(/Sign-in keys, e-mail, close account/); // B03: the AI link is hidden in the console, so the role cards do not list it
     for (let i = 1; i <= 5; i++) { setField(p, "#hostlabel", "Anita " + i); setField(p, "#hostphone", "987650000" + i); setField(p, "#hostemail", `anita${i}@acme.com`); p.click("#hostadd"); await p.waitFor((x) => new RegExp(`Your Hosts: ${i} of 5`).test(x)); }
     expect((p.$("#hostadd") as any).disabled).toBe(true); expect(p.text()).toMatch(/most Hosts allowed/); expect(p.text()).toMatch(/Anita 3/);
     expect(p.text()).toMatch(/Send it to that one person only/); expect(p.$(".zc-person .zlink")!.textContent).toMatch(/\/zc\.html\?e=UI-TEAM#host=cbh_[0-9a-f]{48}$/);
@@ -408,7 +408,7 @@ describe("console (organizer page)", () => {
     const t = p.text(); expect(t).toMatch(/Open it on a laptop or phone connected to the big screen\. It shows numbers and winners only\./); expect((p.$('a[href="http://localhost/big.html?e=UI-SHARE"]') as any).textContent).toMatch(/Open the big screen/);
     expect(Array.from(doc.querySelectorAll("[data-mode]")).map((e: any) => e.textContent)).toEqual(["Upload a PDF", "Add a name and number", "Paste from Excel", "Upload a CSV"]); // no contacts button where the browser has no contact picker
     p.click('[data-mode="file"]'); expect(p.$("#gfile")).toBeTruthy(); expect((p.$("#gfile") as any).type).toBe("file");
-    expect(t).not.toMatch(/By e-mail|Send by e-mail|Send invites/); expect(t).toMatch(/Invite only people who would like to play/); expect(t).toMatch(/Names and numbers stay here: your AI never sees them\./); expect(t).toMatch(/Download my list/);
+    expect(t).not.toMatch(/By e-mail|Send by e-mail|Send invites/); expect(t).toMatch(/Invite only people who would like to play/); expect(t).toMatch(/Names and numbers stay here, on your console\./); expect(t).toMatch(/Download my list/);
     expect(p.errors).toEqual([]);
   });
   test("Help: pre-answered questions (including Who can do what? and the big-screen link), Back to your steps, Back to top; and the progress bar moves as steps are saved", async () => {
@@ -475,7 +475,7 @@ describe("big screen", () => {
   test("UC-56 before the start it counts down; a held engagement says it is waiting; an announcement is shown big", async () => {
     const o = await organizer(); await make(o, "UI-BIG"); await regKey(o, "UI-BIG"); await publish(o, "UI-BIG");
     let p = await big(o, "UI-BIG");
-    expect(await p.waitFor((x) => /The engagement starts in/.test(x))).toMatch(/0 of 75 numbers called/);
+    expect(await p.waitFor((x) => /The game starts in/.test(x))).toMatch(/0 of 75 numbers called/);
     await o.api("POST", "/api/z/UI-BIG/announce", { text: "Dinner is served" }, o.token);
     await p.close(); p = await big(o, "UI-BIG");
     await p.waitFor((x) => /Dinner is served/.test(x));
@@ -613,8 +613,8 @@ describe("winners, the end, and break media on the phone", () => {
     await p.waitFor((x) => /Your prizes/.test(x)); // it stays after the overlay is gone
     at(o, p, 1000); // every number is out
     const end = await p.waitFor((x) => /Game complete/.test(x), 30000);
-    expect(end).toMatch(/Thank you for joining our extended family of Corporate Bingo/); expect(end).toMatch(/Share with friends and colleagues/); expect(end).toMatch(/Voucher 5000/);
-    expect(doc.getElementById("shr")).toBeTruthy();
+    expect(end).toMatch(/Thank you for joining our extended family of Corporate Bingo/); expect(end).not.toMatch(/Share with friends and colleagues|Refer|Earn 50/); expect(end).toMatch(/Voucher 5000/); // B21: no selling or sharing buttons on a real game's player screen
+    expect(doc.getElementById("shr")).toBeNull();
     expect(rt.view().endedByPrizes).toBe(true); expect(rt.view().log.length).toBeLessThan(90); // it ended on the prizes, not on the last number
     await until(() => (o.world.raw.query("SELECT COUNT(*) c FROM winner WHERE src='phones'").get() as any).c >= 3 && (o.world.raw.query("SELECT COUNT(*) c FROM overvote").get() as any).c >= 1); // the phone told our store about its wins and that the game is over
     expect(o.world.raw.query("SELECT end_src FROM life").get()).toEqual({ end_src: "phones" });
@@ -628,7 +628,7 @@ describe("winners, the end, and break media on the phone", () => {
     expect(list.prizes.length).toBeGreaterThan(0); expect(list.prizes[0]).toMatchObject({ name: "Asha Rao", phone: "919876543210", confirmed: true, changed: true });
     expect(JSON.stringify(o.world.raw.query("SELECT * FROM winner").all())).not.toMatch(/Voucher|9833|Gift/); // seat, prize, round, time: no names or numbers
   }, 90_000);
-  test("a player who joined too late to win anything still gets the thank-you and the share button when the game ends, and no prizes are listed", async () => {
+  test("a player who joined too late to win anything still gets the thank-you (and no share or refer button) when the game ends, and no prizes are listed", async () => {
     const o = await organizer({ FREE_LAUNCH: "1" }); await make(o, "UI-WIN2"); await o.api("PATCH", "/api/z/UI-WIN2/settings", prizes, o.aiKey); await publish(o, "UI-WIN2");
     expect((await o.api("POST", "/api/z/UI-WIN2/join", { phone: "9877777777", device: "9".repeat(32) })).status).toBe(200); // the one player who joined in time
     o.world.now = roundMs(START + 40) + 1_000_000; // the whole game has been played: the one player won everything
@@ -733,8 +733,8 @@ describe("Refer & Earn page", () => {
     p.click("#payBtn"); await new Promise((r) => setTimeout(r, 200));
     const t = (p.$("#sheet") as any).textContent as string; expect(t).toMatch(/Create your game/);
     expect(t).toContain("Build it and publish it free."); expect(t).not.toMatch(/Pay (only )?before it starts/); expect(t).toMatch(/For the organizer or host/);
-    for (const b of ["Add a message, video or lucky draw between calls", "Pick your prizes: Line, Four Corners, X, Blackout", "A closed-group Bingo for your company", "Every card is unique: no two can ever match", "Each guest gets their own card on their phone", "A free AI assistant sets it up for you", "Players never pay. You provide the prizes", "Guest names are erased within 24 hours of the game ending", "Designed to follow DPDP Act, GDPR and CCPA"]) expect(t).toContain(b);
-    expect(p.win.document.querySelectorAll(".bgrid li").length).toBe(9); expect(p.win.document.querySelectorAll(".bgrid .bico svg").length).toBe(9); for (const li of p.win.document.querySelectorAll(".bgrid li")) expect(li.textContent.trim().split(/s+/).length).toBeLessThanOrEqual(13); // one short line each
+    for (const b of ["Add a message, video or lucky draw between calls", "Pick your prizes: Line, Four Corners, X, Blackout", "A closed-group Bingo for your company", "Every card is unique: no two can ever match", "Each guest gets their own card on their phone", "Players never pay. You provide the prizes", "Guest names are erased within 24 hours of the game ending", "Designed to follow DPDP Act, GDPR and CCPA"]) expect(t).toContain(b);
+    expect(p.win.document.querySelectorAll(".bgrid li").length).toBe(8); expect(p.win.document.querySelectorAll(".bgrid .bico svg").length).toBe(8); expect(t).not.toMatch(/AI assistant/); /* B03: no AI promise while the console hides the AI link */ for (const li of p.win.document.querySelectorAll(".bgrid li")) expect(li.textContent.trim().split(/s+/).length).toBeLessThanOrEqual(13); // one short line each
     expect(t).toContain("Free to build and publish. No password."); expect(t).toContain("Your console opens at once. We use your email for your invoice and to sign you in later.");
     expect(t).not.toMatch(/work email/i); expect(t.split(/s+/).length).toBeLessThan(150);
     const f = p.$("#fMail") as any; expect(p.win.document.querySelector('label[for="fMail"]').textContent).toBe("Your e-mail");
@@ -1565,7 +1565,7 @@ describe("console: ten steps, Pay is its own step, and the price is shown only t
   });
   test("step 2 reads clearly: four small sub-headings", async () => {
     const o = await organizer(); await make(o, "UI-SUB"); const p = await consolePage(o, "UI-SUB"); await p.waitFor((x) => /Hello/.test(x)); openStep(p, 2);
-    expect(Array.from(p.win.document.querySelectorAll("#sec2 .zc-sub")).map((e: any) => e.textContent)).toEqual(["How many players", "How the game runs", "Who is this game for?", "Who can join", "Guests bringing their own people"]);
+    expect(Array.from(p.win.document.querySelectorAll("#sec2 .zc-sub")).map((e: any) => e.textContent)).toEqual(["How many players", "How the game runs", "Who is this game for?", "Who can join", "Guests bringing their own people", "Where do your people play?"]); // B14 added the last one
   });
 });
 
@@ -1739,10 +1739,11 @@ describe("simpler console (owner order 2026-10-27: hide, never disable, the rare
   test("step 2: the 'How many rounds' choice is hidden (one game is one round), still in the page, and the rest of the step is shown", async () => {
     const o = await organizer(); await make(o, "UI-SIMP");
     const p = await consolePage(o, "UI-SIMP"); await p.waitFor((x) => /Hello/.test(x)); openStep(p, 2);
-    const hidden = p.$("#sec2 .zc-hide[data-hidden='1']"); expect(hidden).not.toBeNull();
-    expect(hidden!.textContent).toMatch(/How many rounds/); expect(p.$("#sec2")!.textContent).toMatch(/Cards for each person/);
+    const hiddenAll = Array.from(p.win.document.querySelectorAll("#sec2 .zc-hide[data-hidden='1']")); expect(hiddenAll.length).toBeGreaterThan(0);
+    expect(hiddenAll.some((h: any) => /How many rounds/.test(h.textContent))).toBe(true); expect(p.$("#sec2")!.textContent).toMatch(/Cards for each person/);
     const visible = Array.from(p.win.document.querySelectorAll("#sec2 .zc-lbl")).filter((e: any) => !e.closest(".zc-hide")).map((e: any) => e.textContent).join("|");
-    expect(visible).not.toMatch(/How many rounds/);
+    expect(visible).not.toMatch(/How many rounds/); expect(visible).not.toMatch(/Cards for each person|How the card marks/); // B01: a game with the usual choices (1 card, automatic) does not show them either
+    expect(visible).toMatch(/Duration \(gap\) between two numbers/); // this older game runs at 9 seconds, so its speed stays visible (B02)
   });
   test("a demo link kept in this browser is used once the organizer is taken straight into a game (not only on the home screen)", async () => {
     const o = await organizer(); await make(o, "UI-PASS");

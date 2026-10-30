@@ -1,6 +1,6 @@
 // The life of an engagement's personal data. When a game ends (as seen from the public schedule, or sooner when enough phones say so):
 //   1. the organizer's report is built from the sealed records and e-mailed as PDF(s), in small steps because a free Worker has ~10 ms of CPU per call;
-//   2. the report link stops working 22 hours after the end; 23 hours after the end (we promise 24) every participant's name, number, seat, invite record and card link is deleted, the report's working copies too,
+//   2. the report link stops working REPORT_LINK_MS (19 hours) after the end; PURGE_AFTER_MS (20 hours) after the end (we promise 24) every participant's name, number, seat, invite record and card link is deleted, the report's working copies too,
 //      and the participants' personal part of the audit log is crypto-shredded (audit.ts `shredParticipantAudit`: its per-engagement key is destroyed, the hash chain still verifies);
 //   3. only the organizer / host / co-host details and the winners record (seat, prize, round, time) remain, until 00:00 IST at the end of the 365th day, then everything goes.
 // Called by the scheduled job (and, as a fallback, by any outside timer with the platform key). Every call does a bounded amount of work and can be repeated safely.
@@ -9,6 +9,7 @@ import { checkinRequired, deviceMatches, keepWinnerEvidence, prefixEnd } from ".
 import { restoreCreditUses } from "./credit";
 import { keepLegalParty } from "./legal";
 import { ensureGameRecordTable, keepGameRecord } from "./gamerecord";
+import { ensureGameLog, writeGameLog } from "./gamelog";
 import { sweepVisits } from "./visits";
 import { closeAuditFor, isHeld, shredParticipantAudit } from "./audit";
 import { GRACE_ROUNDS, INVITE_CATEGORIES, PRIZE_HOUSES, validateCfg, keysInPlay, linesFor, type EngagementCfg, type PatternKey } from "../../../packages/beacon/src/config";
@@ -63,6 +64,15 @@ async function callTimeMs(env: Env, e: any, round: number, idx: number, sch?: Aw
   const s = sch ?? (await schedule(env, e));
   const r = callRoundR(s.st, s.start, s.stride, s.cfg.breaks, round, idx);
   return r === null ? null : roundMs(r);
+}
+/** B26: the finished game's log (gamelog.ts), written once. Best effort: it never stops the lifecycle. */
+async function keepGameLog(env: Env, e: any, life: any, now: number): Promise<void> {
+  try {
+    const sch = await schedule(env, e);
+    const w = (await env.DB.prepare("SELECT round, pattern, ordinal, seat, idx FROM winner WHERE eid=? AND pattern<>'lucky' ORDER BY round, idx, ordinal, seat").bind(e.id).all<any>()).results ?? [];
+    const lines: Record<string, number> = {}; for (const r of sch.cfg.rewards) lines[r.pattern] = (lines[r.pattern] ?? 0) + 1;
+    await writeGameLog(env, { id: e.id, tz: sch.cfg.tz, startRound: e.start_round, callSeconds: e.call_seconds, rounds: sch.cfg.rounds, st: sch.st, breaks: sch.cfg.breaks, endMs: life.end_ms, endSrc: life.end_src, winners: w, lines }, now);
+  } catch { /* the log is a help, never a reason to stop the lifecycle */ }
 }
 /** When the game will have ended if nobody ends it sooner: the last call of the last round, or the organizer's stop. */
 export async function endBoundMs(env: Env, e: any): Promise<number> {
@@ -157,12 +167,14 @@ export async function purgeTestEngagement(env: Env, id: string, now = Date.now()
   try { await env.DB.prepare("DELETE FROM game_record WHERE eid=?").bind(id).run(); } catch { /* no record table yet */ } // a purged TEST game leaves no settings record (real games keep theirs for ever)
 }
 async function deleteEngagementRows(env: Env, id: string): Promise<void> {
+  try { await ensureGameLog(env.DB); } catch { /* the table is made on first use; a failure here only means there is nothing to delete */ }
   { const eg = await env.DB.prepare("SELECT * FROM engagement WHERE id=?").bind(id).first<any>(); if (eg) await keepGameRecord(env.DB, eg, Date.now()); } // the settings of the game are kept for ever (no personal data in them): written one last time before the game's own rows go
   await keepLegalParty(env.DB, id, Date.now()); // the law keeps payments, invoices, the organizer's invoice details and who paid, for ever: copy them out before the game's own rows go
   await env.DB.batch([
     env.DB.prepare("DELETE FROM winner WHERE eid=?").bind(id), env.DB.prepare("DELETE FROM kv WHERE k >= ? AND k < ?").bind(`wev/${id}/`, prefixEnd(`wev/${id}/`)), env.DB.prepare("DELETE FROM prize WHERE eid=?").bind(id), env.DB.prepare("DELETE FROM life WHERE eid=?").bind(id), env.DB.prepare("DELETE FROM data_request WHERE eid=?").bind(id), env.DB.prepare("DELETE FROM cbl_request WHERE eid=?").bind(id),
     env.DB.prepare("DELETE FROM kv WHERE k=?").bind(`control/${id}.json`), env.DB.prepare("DELETE FROM kv WHERE k=?").bind(`rptsalt/${id}`), env.DB.prepare("DELETE FROM kv WHERE k=?").bind(`contact/${id}`), env.DB.prepare("DELETE FROM kv WHERE k IN (?,?,?,?,?)").bind(`pub/${id}`, `lockmail/${id}`, `remind/${id}`, `ann/${id}`, `paidby/${id}`),
     env.DB.prepare("DELETE FROM organizer_key WHERE eid=? AND kind='cohost'").bind(id), env.DB.prepare("DELETE FROM shred WHERE eid=?").bind(id), env.DB.prepare("DELETE FROM eng_key WHERE eid=?").bind(id), env.DB.prepare("DELETE FROM audit_pii WHERE eid=?").bind(id), // erasePersonal above wrote a fresh shred marker
+    env.DB.prepare("DELETE FROM game_log WHERE eid=?").bind(id), // B26: the game log goes with the game, at the end of the 365th day
     env.DB.prepare("DELETE FROM engagement WHERE id=?").bind(id),
   ]);
 }
@@ -381,6 +393,7 @@ export async function lifecycleTick(env: LifeEnv, now: number): Promise<{ checke
         life = await env.DB.prepare("SELECT * FROM life WHERE eid=?").bind(e.id).first<any>();
       }
       if (!life || now < life.end_ms + REPORT_AFTER_MS) continue; // still being played
+      await keepGameLog(env, e, life, now); // B26: the game log is saved the moment the game is over, before and apart from the report e-mail
       if (!e.npart) { // a game that was played with nobody joined (only a people list): no report to make; the list goes 23 hours after the end like everyone's data
         if (now >= personalDeleteAt(life.end_ms) && !(await isHeld(env.DB, e.id))) { await erasePersonal(env, e.id, now, "auto"); out.purged++; await mailDataDeleted(env as any, e, now); }
         continue;

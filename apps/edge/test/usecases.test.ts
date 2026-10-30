@@ -312,14 +312,15 @@ describe("C. publish and pay", () => {
     raw.prepare("UPDATE engagement SET pack=100 WHERE id='MOVE-1'").run(); // now paid
     expect((await call("PATCH", "/api/z/MOVE-1/settings", { startRound: roundAt(after) + 900 }, o.h, roundMs(roundAt(after) + 700))).status).toBe(409); // paid and started: fixed
   });
-  test("UC-26 one reminder, only for unpaid published engagements starting within 36 hours", async () => {
+  test("UC-26 reminders (B11: 24 h, 2 h and 30 min before the start): a payment reminder only for unpaid published games, a draft reminder only for drafts that are near, nothing for paid or far-away games", async () => {
     const o = await organizer();
     const mk = async (id: string, startMs: number, publish = true) => { await call("POST", "/api/z", eng(id, { startRound: roundAt(startMs) }), o.h); if (publish) await call("POST", "/api/z/" + id + "/publish", contact, o.h); };
     await mk("REM-NEAR", T + 30 * HOUR); await mk("REM-FAR", T + 200 * HOUR); await mk("REM-DRAFT", T + 30 * HOUR, false); await mk("REM-PAID", T + 30 * HOUR);
     raw.prepare("UPDATE engagement SET pack=100 WHERE id='REM-PAID'").run();
-    await housekeeping(env as Env, T + DAY); await housekeeping(env as Env, T + 2 * DAY); await housekeeping(env as Env, T + 3 * DAY); // only REM-NEAR is ever inside the 36 hours
+    await housekeeping(env as Env, T + DAY); await housekeeping(env as Env, T + 2 * DAY); await housekeeping(env as Env, T + 3 * DAY); // only REM-NEAR (and the draft REM-DRAFT) is ever inside the 24 hours, and the day after they have started
     const reminders = outbox("%Payment pending for your game%");
     expect(reminders.length).toBe(1); expect(reminders[0]!.body).toContain("REM-NEAR");
+    const drafts = outbox("%is still a draft%"); expect(drafts.length).toBe(1); expect(drafts[0]!.body).toContain("REM-DRAFT"); // the unpublished one gets the draft wording, once
   });
   test("UC-27 with a credit in hand, publishing is paid at once", async () => {
     const o = await organizer();
