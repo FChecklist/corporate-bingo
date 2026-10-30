@@ -554,7 +554,7 @@
       for (let i = 0; i < good.length; i += 200) {
         const r = await call("POST", `/api/z/${eid}/people`, { consent, people: good.slice(i, i + 200).map((p) => ({ name: p.name, ...(p.phone ? { phone: "+" + p.phone } : {}), ...(p.empId ? { empId: p.empId } : {}) })) });
         serverDup += Number(r.duplicates) || 0; for (const x of r.sameAfterCleaning || []) sameId.push(String(x.raw) + " (read as " + String(x.as) + ")"); if (typeof r.added === "number") { got += r.added; counted = true; }
-        for (const x of r.invalid || []) { const q = parseList(String(typeof x === "string" ? x : x.raw || ""))[0] || { name: "", phone: "" }; bad.push({ name: q.name, raw: q.phone, why: typeof x === "string" ? "" : x.why || "" }); }
+        for (const x of r.invalid || []) { const q = parseList(String(typeof x === "string" ? x : x.raw || ""))[0] || { name: "", phone: "" }; bad.push({ name: typeof x === "string" ? q.name : (x.name || q.name), raw: typeof x === "string" ? q.phone : (x.id || q.phone), why: typeof x === "string" ? "" : x.why || "" }); }
       }
       if (counted) added = got;
       const d = dups + serverDup;
@@ -1369,7 +1369,7 @@
   const parseList = (text) => {
     const lines = String(text).split(/\r?\n/).map((l) => l.replace(/"/g, "").trim()).filter(Boolean);
     let map = null;
-    if (lines.length && /name|mobile|phone|employee|emp/i.test(lines[0]) && !/\d{8,}/.test(lines[0])) {
+    if (lines.length && /name|mobile|phone|employee|emp/i.test(lines[0]) && !/\d{8,}/.test(lines[0]) && lines[0].indexOf("@") < 0) {
       const h = lines.shift().split(/[,;\t]/).map((c) => c.trim().toLowerCase());
       map = { n: h.findIndex((c) => /name/.test(c) && !/employee|emp/.test(c)), p: h.findIndex((c) => /mobile|phone|number/.test(c) && !/employee|emp/.test(c)), e: h.findIndex((c) => /employee|emp|staff|\bid\b/.test(c)) };
     }
@@ -1379,6 +1379,7 @@
       if (c.length >= 3) return looksPhone(c[1]) || !looksPhone(c[2]) ? { name: c[0], phone: c[1], empId: c[2] } : { name: c[0], phone: c[2], empId: c[1] };
       if (c.length === 2) return looksPhone(c[1]) ? { name: c[0], phone: c[1] } : vmode() !== "mobile" ? { name: c[0], phone: "", empId: c[1] } : { name: c[0], phone: c[1] };
       const m = l.match(/^(.*?)[,;\t ]+([+()\d][\d ()+-]{4,})$/) || l.match(/^()([+()\d][\d ()+-]{8,})$/);
+      if (vmode() !== "mobile" && idKindNow() === "email" && /^[^\s,;]+@[^\s,;]+$/.test(l)) return { name: "", phone: "", empId: l }; // a line with only an Email ID
       return m ? { name: m[1].trim(), phone: m[2].trim() } : vmode() !== "mobile" && /^[A-Za-z0-9][A-Za-z0-9._\-\/]{0,29}$/.test(l) ? { name: "", phone: "", empId: l } : { name: l, phone: "" };
     });
   };

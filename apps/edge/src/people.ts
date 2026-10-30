@@ -295,25 +295,25 @@ async function addPeople(c: Ctx, who: Caller, b: any): Promise<Response> {
   { const cm = consentMissing(b, "K6"); if (cm) return cm; } // K6: "I am allowed to use these names and numbers for this game. The people have been told."
   if (b.people.length > MAX_ADD_BATCH) return c.json({ error: `Send up to ${MAX_ADD_BATCH} people at a time; the console sends a bigger list in several parts.`, code: "too-many" }, 413);
   if (c.now >= await c.endBound()) return c.json({ error: "The game has ended, so no one can be added." }, 409);
-  const invalid: { raw: string; why: string }[] = []; let duplicates = 0; const sameAfterCleaning: { raw: string; as: string }[] = []; // the same employee ID typed two ways in one list: named, never dropped silently
+  const invalid: { raw: string; why: string; name?: string; id?: string }[] = []; let duplicates = 0; const sameAfterCleaning: { raw: string; as: string }[] = []; // the same employee ID typed two ways in one list: named, never dropped silently
   const seen = new Set<string>(); const todo: { name: string; digits: string; ph: string; empId?: string; idHash?: string }[] = [];
   const vf = verifyOf(c.e);
   for (const x of b.people) {
     const raw = `${cleanName(x?.name)} ${String(x?.phone ?? "")}`.trim().slice(0, 100);
     const empRaw = x?.empId ?? x?.employeeId, emp = normId(empRaw, vf.idKind, c.e?.created_ms);
-    if (emp === null) { invalid.push({ raw, why: badIdMessage(empRaw, vf.idKind, c.e?.created_ms) }); continue; }
+    if (emp === null) { invalid.push({ raw, name: cleanName(x?.name), id: String(x?.empId ?? x?.employeeId ?? "").slice(0, 120), why: badIdMessage(empRaw, vf.idKind, c.e?.created_ms) }); continue; }
     const phoneTyped = String(x?.phone ?? "").trim() !== "";
-    if (vf.mode === "either" && !emp && !phoneTyped) { invalid.push({ raw, why: "Give a mobile number or an employee ID." }); continue; }
-    if (vf.employeesOnly && vf.mode !== "mobile" && vf.mode !== "either" && !emp) { invalid.push({ raw, why: "This game is for employees: the employee ID is missing." }); continue; }
+    if (vf.mode === "either" && !emp && !phoneTyped) { invalid.push({ raw, name: cleanName(x?.name), id: String(x?.empId ?? x?.employeeId ?? "").slice(0, 120), why: "Give a mobile number or an employee ID." }); continue; }
+    if (vf.employeesOnly && vf.mode !== "mobile" && vf.mode !== "either" && !emp) { invalid.push({ raw, name: cleanName(x?.name), id: String(x?.empId ?? x?.employeeId ?? "").slice(0, 120), why: "This game is for employees: the employee ID is missing." }); continue; }
     if ((vf.mode === "id" || (vf.mode === "either" && !phoneTyped)) && emp) { // known by ID alone: a mobile number is welcome but not needed
       let digits = "";
-      if (phoneTyped) { const cl = cleanPhone(x?.phone); if (!cl.ok) { invalid.push({ raw, why: cl.why }); continue; } digits = keptFromClean(cl.digits); }
+      if (phoneTyped) { const cl = cleanPhone(x?.phone); if (!cl.ok) { invalid.push({ raw, name: cleanName(x?.name), id: String(x?.empId ?? x?.employeeId ?? "").slice(0, 120), why: cl.why }); continue; } digits = keptFromClean(cl.digits); }
       const ph = await empHashOf(c.env, emp);
       if (seen.has(ph)) { duplicates++; sameAfterCleaning.push({ raw: String(x?.empId ?? x?.employeeId ?? ""), as: emp }); continue; }
       seen.add(ph); todo.push({ name: cleanName(x?.name), digits, ph, empId: emp }); continue;
     }
     const cl = cleanPhone(x?.phone);
-    if (!cl.ok) { invalid.push({ raw, why: cl.why }); continue; }
+    if (!cl.ok) { invalid.push({ raw, name: cleanName(x?.name), id: String(x?.empId ?? x?.employeeId ?? "").slice(0, 120), why: cl.why }); continue; }
     const ph = await phoneHashOf(c.env, cl.digits);
     if (seen.has(ph)) { duplicates++; continue; }
     const idHash = vf.mode === "either" && emp ? await empHashOf(c.env, emp) : undefined; // "mobile number or employee ID": a listed person with both can come in with either, so the ID points to the mobile-number identity
