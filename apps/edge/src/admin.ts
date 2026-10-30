@@ -39,7 +39,7 @@ const enc = new TextEncoder();
 const sha = async (s: string) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(s))), (b) => b.toString(16).padStart(2, "0")).join("");
 const jsonRes = (o: unknown, status = 200, extra: Record<string, string> = {}) => new Response(JSON.stringify(o), { status, headers: { "content-type": "application/json", "cache-control": "no-store", ...extra } });
 const normMail = (e: string): string => { const v = emailKey(e); const i = v.lastIndexOf("@"); return i < 1 ? v : v.slice(0, i).split("+")[0] + v.slice(i); };
-export const maskMail = (e: string): string => { const v = String(e ?? "").trim().toLowerCase(), i = v.lastIndexOf("@"); return i < 1 ? "***" : v.slice(0, 1) + "***" + v.slice(i); };
+export const maskMail = (e: string): string => { const v = emailKey(e ?? ""), i = v.lastIndexOf("@"); return i < 1 ? "***" : v.slice(0, 1) + "***" + v.slice(i); };
 
 // ------------------------------------------------------------------------------------------------ A5: the site switch
 const OFF_TTL_MS = 3000;

@@ -52,7 +52,7 @@ export async function mintDeviceKey(env: Env, hid: string, key: string, now: num
 
 /** The e-mail is confirmed (by code or by Google): remember it, let this Host sign in by e-mail from now on, end the one-time link, and hand over a key for this device. */
 export async function confirmHostEmail(env: Env, hid: string, org: string, email: string, key: string, now: number): Promise<{ token: string; ready: boolean; needMobile: boolean }> {
-  const eh = await emailHashOf(email), sealed = await sealText(env as any, email.trim().toLowerCase());
+  const eh = await emailHashOf(email), sealed = await sealText(env as any, emailKey(email));
   await env.DB.batch([
     env.DB.prepare("UPDATE organizer_key SET email_sealed=? WHERE hash=? OR host_id=?").bind(sealed, hid, hid),
     env.DB.prepare("INSERT INTO host_state(host_id,org,email_hash,verified_ms,pend_hash,link_exp_ms,spent,mobile_ok) VALUES(?,?,?,?,NULL,?,1,COALESCE((SELECT CASE WHEN pii IS NOT NULL THEN 1 ELSE 0 END FROM organizer_key WHERE hash=?),0)) ON CONFLICT(host_id) DO UPDATE SET email_hash=excluded.email_hash, verified_ms=excluded.verified_ms, pend_hash=NULL, pend_sealed=NULL, spent=1").bind(hid, org, eh, now, now, hid),
