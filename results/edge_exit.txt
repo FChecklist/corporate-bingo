@@ -1,0 +1,5 @@
+part1 exit 0
+part2 exit 0
+part3 exit 1
+part4 exit 1
+done

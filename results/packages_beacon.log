@@ -1,0 +1,9 @@
+bun test v1.4.4 (38afee6c8)
+
+packages/beacon/test/houses.test.ts:
+10,000 seats x 2 cards, every house: build 720 ms in total, 75 calls 87 ms (1.2 ms per call)
+
+ 218 pass
+ 0 fail
+ 61913 expect() calls
+Ran 218 tests across 12 files. [15.08s]
