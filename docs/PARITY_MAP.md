@@ -16,7 +16,7 @@ Bingo differences that drive the ADAPTED / NOT APPLICABLE rows: card patterns (L
 | 10 | Host and Co-host sign-in, roles, limits | ADAPTED (partial) | Host/Co-host keys exist; zc-flow-roles.js rules ported; approvals.ts port TODO | Bingo has Host/Co-host keys today (hostsetup.ts); screens TODO |
 | 11 | Family Passes | TODO | check Bingo rules (one card per player) |
 | 12 | Open join (Name, Mobile, Email) | TODO | |
-| 13 | Approvals by role | TODO | copy approvals module |
+| 13 | Approvals by role | ADOPTED (untested) | approvals.ts + people.ts, 30-minute lapse, 15-minute family cutoff, new games only (APPROVAL_RULES_FROM_MS placeholder) |
 | 14 | Check-in "I am here" | TODO | |
 | 15 | Links: common / personal / family / Co-host / Host | ADAPTED | common + personal links exist; family and Host links TODO |
 | 16 | Payment lifecycle (Pay now / copy link, pending, paid) | ADOPTED | Bingo has paid games; screens to compare TODO |

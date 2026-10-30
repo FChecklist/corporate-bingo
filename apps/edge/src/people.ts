@@ -12,6 +12,7 @@ import { emailKey } from "./emailkey";
 import { consentMissing, recordConsent } from "./consent";
 import { deviceMatches } from "./checkin";
 import type { D1, Env } from "./worker";
+import { waitingLapsed, familyCutoffPassed, roundStartMs, approvalRulesOn, waitSince, LAPSED_MESSAGE, FAMILY_CLOSED_MESSAGE, DECLINED_MESSAGE, WAIT_LIMIT_MS } from "./approvals";
 
 /** 0016_people.sql: who invited whom, the personal links, the waiting room, and the flag that stops a removed person's phone without touching the public seat list. */
 export const PEOPLE_SCHEMA: string[] = [
@@ -497,8 +498,8 @@ async function myOwnSeat(c: Ctx, who: Caller, b: any): Promise<Response> {
 async function waitingRows(c: Ctx, who: Caller, limit: number): Promise<{ id: string; pii: string; via: string; inviter: string; overlimit: number; at_ms: number }[]> {
   const cols = "id, pii, via, inviter, overlimit, at_ms";
   const q = who.all
-    ? c.env.DB.prepare(`SELECT ${cols} FROM waiting WHERE eid=? AND status='waiting' ORDER BY at_ms LIMIT ?`).bind(c.eid, limit)
-    : c.env.DB.prepare(`SELECT ${cols} FROM waiting WHERE eid=? AND status='waiting' AND chain LIKE ? ORDER BY at_ms LIMIT ?`).bind(c.eid, `%,${who.id},%`, limit);
+    ? c.env.DB.prepare(`SELECT ${cols} FROM waiting WHERE eid=? AND status='waiting' AND at_ms>? ORDER BY at_ms LIMIT ?`).bind(c.eid, waitSince(c.e, c.now), limit)
+    : c.env.DB.prepare(`SELECT ${cols} FROM waiting WHERE eid=? AND status='waiting' AND chain LIKE ? AND at_ms>? ORDER BY at_ms LIMIT ?`).bind(c.eid, `%,${who.id},%`, waitSince(c.e, c.now), limit);
   return (await q.all<any>()).results ?? [];
 }
 async function listWaiting(c: Ctx, who: Caller): Promise<Response> {
@@ -521,9 +522,11 @@ async function decideWaiting(c: Ctx, who: Caller, wid: string, b: any): Promise<
   const decision = b?.decision;
   if (decision !== "admit" && decision !== "decline") return c.json({ error: "Say admit or decline." }, 400);
   const db = c.env.DB;
-  const w = await db.prepare("SELECT id, ph, pii, inviter, chain, overlimit, status FROM waiting WHERE eid=? AND id=?").bind(c.eid, wid).first<any>();
+  const w = await db.prepare("SELECT id, ph, pii, inviter, chain, overlimit, status, at_ms FROM waiting WHERE eid=? AND id=?").bind(c.eid, wid).first<any>();
   if (!w || (!who.all && !String(w.chain).includes(`,${who.id},`))) return c.json({ error: "No such request." }, 404);
   if (w.status !== "waiting") return c.json({ ok: true, already: w.status });
+  if (approvalRulesOn(c.e) && waitingLapsed(Number(w.at_ms), c.now)) { await db.prepare("UPDATE waiting SET status='lapsed', decided_ms=? WHERE eid=? AND id=? AND status='waiting'").bind(c.now, c.eid, wid).run(); return c.json({ error: "This request waited more than 30 minutes, so it has lapsed. The person can ask again.", code: "lapsed" }, 409); }
+  if (approvalRulesOn(c.e) && decision === "admit" && !who.all && String(w.inviter).startsWith("s:") && familyCutoffPassed(roundStartMs(c.e.start_round), c.now)) return c.json({ error: FAMILY_CLOSED_MESSAGE, code: "family-closed" }, 409);
   if (c.now >= await c.endBound()) return c.json({ error: "The game has ended, so this request has lapsed." }, 409);
   if (!(await c.spend(3))) return c.busy();
   if (decision === "decline") { await db.prepare("UPDATE waiting SET status='declined', decided_by=?, decided_ms=? WHERE eid=? AND id=? AND status='waiting'").bind(who.id, c.now, c.eid, wid).run(); return c.json({ ok: true, declined: true }); }
@@ -552,9 +555,10 @@ async function decideAll(c: Ctx, who: Caller, b: any): Promise<Response> {
   const db = c.env.DB;
   if (c.now >= await c.endBound()) return c.json({ error: "The game has ended, so these requests have lapsed." }, 409);
   const cols = "id, ph, pii, inviter, overlimit";
+  const familyClosed = approvalRulesOn(c.e) && !who.all && familyCutoffPassed(roundStartMs(c.e.start_round), c.now);
   const rows = await (who.all
-    ? db.prepare(`SELECT ${cols} FROM waiting WHERE eid=? AND status='waiting' ORDER BY at_ms, id LIMIT ?`).bind(c.eid, WAITING_MAX)
-    : db.prepare(`SELECT ${cols} FROM waiting WHERE eid=? AND status='waiting' AND chain LIKE ? ORDER BY at_ms, id LIMIT ?`).bind(c.eid, `%,${who.id},%`, WAITING_MAX)).all<any>();
+    ? db.prepare(`SELECT ${cols} FROM waiting WHERE eid=? AND status='waiting' AND at_ms>? ORDER BY at_ms, id LIMIT ?`).bind(c.eid, waitSince(c.e, c.now), WAITING_MAX)
+    : db.prepare(`SELECT ${cols} FROM waiting WHERE eid=? AND status='waiting' AND chain LIKE ? AND at_ms>? ORDER BY at_ms, id LIMIT ?`).bind(c.eid, `%,${who.id},%`, waitSince(c.e, c.now), WAITING_MAX)).all<any>();
   const list = rows.results ?? [];
   if (!list.length) return c.json({ admitted: 0, declined: 0, stillWaiting: 0 });
   if (!(await c.spend(list.length * 3))) return c.busy();
@@ -566,7 +570,9 @@ async function decideAll(c: Ctx, who: Caller, b: any): Promise<Response> {
   }
   let total = await totalCount(db, c.eid), admitted = 0, notAdmitted = 0, skippedFull = false;
   const counts = new Map<string, number>(), limits = new Map<string, number | null>();
+  let familySkipped = false;
   for (const w of list) {
+    if (familyClosed && String(w.inviter).startsWith("s:")) { familySkipped = true; notAdmitted++; continue; } // family approvals closed 15 minutes before the start
     let inviter: string = w.overlimit ? who.id : w.inviter;
     const existing = await db.prepare("SELECT id, status FROM person WHERE eid=? AND ph=?").bind(c.eid, w.ph).first<{ id: string; status: string }>();
     if (!existing || existing.status === "removed") {
@@ -583,7 +589,7 @@ async function decideAll(c: Ctx, who: Caller, b: any): Promise<Response> {
     admitted++;
   }
   await batched(db, stmts);
-  return c.json({ admitted, declined: 0, stillWaiting: notAdmitted, ...(skippedFull ? { message: `The game is full (${c.e.cap} places). The rest are still waiting.` } : notAdmitted ? { message: "Some lists are full, so those requests are still waiting." } : {}) });
+  return c.json({ admitted, declined: 0, stillWaiting: notAdmitted, ...(familySkipped ? { code: "family-closed", message: FAMILY_CLOSED_MESSAGE } : skippedFull ? { message: `The game is full (${c.e.cap} places). The rest are still waiting.` } : notAdmitted ? { message: "Some lists are full, so those requests are still waiting." } : {}) });
 }
 
 // ------------------------------------------------------------------------------------------------------------------------------- the phone's own status (public)
@@ -598,12 +604,12 @@ async function meRoute(c: Ctx): Promise<Response> {
     return c.json({ state: s.blocked ? "removed" : "playing", removed: !!s.blocked, role: s.role ?? null, seat: s.seq, canInvite: !s.blocked && ownList && c.invites.on, per: c.invites.per, used: ownList ? await listCount(db, c.eid, "s:" + s.seq) : 0, whoCanJoin: c.e.closed ? "list" : "anyone", ...(p ? { listed: true } : {}) });
   }
   if (wid && /^[0-9a-f]{12}$/.test(wid)) {
-    const w = await db.prepare("SELECT status, inviter, overlimit FROM waiting WHERE eid=? AND id=?").bind(c.eid, wid).first<{ status: string; inviter: string; overlimit: number }>();
+    const w = await db.prepare("SELECT status, inviter, overlimit, at_ms FROM waiting WHERE eid=? AND id=?").bind(c.eid, wid).first<{ status: string; inviter: string; overlimit: number; at_ms: number }>();
     if (!w) return c.json({ state: "gone", error: "That request is not here any more." }, 404);
     const ended = c.now >= await c.endBound();
-    const state = w.status === "waiting" && ended ? "lapsed" : w.status;
+    const state = w.status === "waiting" && (ended || (approvalRulesOn(c.e) && waitingLapsed(Number(w.at_ms), c.now))) ? "lapsed" : w.status;
     const who = await waitingWho(c, w.overlimit ? "o" : w.inviter);
-    return c.json({ state, with: who, message: state === "waiting" ? `Your request is with ${who}. You can come in as soon as they say yes.` : state === "admitted" ? "You are in. Open your card again to join." : state === "declined" ? "This game could not add you. Please talk to whoever invited you." : "This game has ended." });
+    return c.json({ state, with: who, message: state === "waiting" ? `Your request is with ${who}. You can come in as soon as they say yes.` : state === "admitted" ? "You are in. Open your card again to join." : state === "declined" ? DECLINED_MESSAGE : state === "lapsed" && !ended ? LAPSED_MESSAGE : "This game has ended." });
   }
   return c.json({ error: "Say which: ?pid=<your card id> or ?wid=<your request id>." }, 400);
 }
@@ -618,10 +624,18 @@ export async function waitingWho(c: { env: Env; e: any; eid: string }, inviter: 
 /** Joins a person's request to wait. Used by the Worker's `join`. Returns the existing request when the number already asked. */
 export async function addWaiting(c: { env: Env; eid: string; e: any; now: number }, o: { ph: string; digits: string; name: string | null; empId?: string | null; via: "personal-link" | "common-link" | "direct"; inviter: string; overlimit: boolean }): Promise<{ id: string; status: string } | { full: true }> {
   const db = c.env.DB;
-  const have = await db.prepare("SELECT id, status FROM waiting WHERE eid=? AND ph=?").bind(c.eid, o.ph).first<{ id: string; status: string }>();
-  if (have) return have;
-  const n = (await db.prepare("SELECT COUNT(*) AS c FROM waiting WHERE eid=? AND status='waiting'").bind(c.eid).first<{ c: number }>())?.c ?? 0;
+  const have = await db.prepare("SELECT id, status, at_ms FROM waiting WHERE eid=? AND ph=?").bind(c.eid, o.ph).first<{ id: string; status: string; at_ms: number }>();
+  const rules = approvalRulesOn(c.e);
+  const stale = !!have && rules && (have.status === "lapsed" || (have.status === "waiting" && waitingLapsed(Number(have.at_ms), c.now)));
+  if (have && !stale) return { id: have.id, status: have.status };
+  const n = (await db.prepare("SELECT COUNT(*) AS c FROM waiting WHERE eid=? AND status='waiting' AND at_ms>?").bind(c.eid, waitSince(c.e, c.now)).first<{ c: number }>())?.c ?? 0;
   if (n >= WAITING_MAX) return { full: true };
+  if (have && stale) { // asking again after 30 minutes: the same request starts a new wait
+    const chain2 = o.overlimit ? ",o," : await chainOf(db, c.eid, o.inviter);
+    await db.prepare("UPDATE waiting SET status='waiting', at_ms=?, decided_by=NULL, decided_ms=NULL, via=?, inviter=?, chain=?, overlimit=?, pii=? WHERE eid=? AND id=? AND status IN ('waiting','lapsed')")
+      .bind(c.now, o.via, o.inviter, chain2, o.overlimit ? 1 : 0, await sealPii(c.env as any, { phone: o.digits, name: o.name, empId: o.empId }), c.eid, have.id).run();
+    return { id: have.id, status: "waiting" };
+  }
   const id = randHex(6), chain = o.overlimit ? ",o," : await chainOf(db, c.eid, o.inviter);
   await db.prepare("INSERT OR IGNORE INTO waiting(eid,id,ph,pii,via,inviter,chain,overlimit,status,at_ms) VALUES(?,?,?,?,?,?,?,?,'waiting',?)")
     .bind(c.eid, id, o.ph, await sealPii(c.env as any, { phone: o.digits, name: o.name, empId: o.empId }), o.via, o.inviter, chain, o.overlimit ? 1 : 0, c.now).run();
