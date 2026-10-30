@@ -498,7 +498,7 @@
   // the ID the server will keep, worked out the same way (so the console can find two spellings of one person): an Email ID is NFKC, no spaces, lower case; an employee ID is NFKC, capitals, A-Z 0-9 only (games made before the new rule: capitals, no spaces)
   const idCleanOn = () => !!((S.sum && S.sum.idClean) || (S.cfg && S.cfg.idClean));
   const idKeyOf = (raw) => { const v = String(raw == null ? "" : raw).normalize("NFKC"); return idKindNow() === "email" ? v.replace(/[\s\u0085\u200B-\u200D\u2028\u2029\u2060\uFEFF]/g, "").toLowerCase() : idCleanOn() ? v.toUpperCase().replace(/[^A-Z0-9]/g, "") : v.replace(/\s+/g, "").toUpperCase(); };
-  const idProblem = (raw) => { const v = String(raw == null ? "" : raw).normalize("NFKC").trim(); if (!v) return ""; if (idKindNow() === "email") return /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/.test(idKeyOf(v)) ? "" : "Please check your Email ID. It looks incomplete."; return idCleanOn() && v.indexOf("@") >= 0 ? "This looks like an Email ID. This game asks for an employee ID: letters and numbers only." : ""; };
+  const idProblem = (raw) => { const v = String(raw == null ? "" : raw).normalize("NFKC").trim(); if (!v) return ""; if (idKindNow() === "email") return /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/.test(idKeyOf(v)) ? "" : "Please check your Email ID. It looks incomplete."; if (idCleanOn() && v.indexOf("@") >= 0) return "This looks like an Email ID. This game asks for an employee ID: letters and numbers only."; return idCleanOn() && idKeyOf(v).length > 30 ? "This ID is too long. An employee ID may be up to 30 characters once cleaned." : ""; };
   function cleanBatch(rows) {
     const seen = new Set(), good = [], wrong = [], same = []; let dups = 0;
     for (const r of rows) {

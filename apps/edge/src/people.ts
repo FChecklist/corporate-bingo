@@ -71,7 +71,8 @@ export const normId = (raw: unknown, kind: "emp" | "email", createdMs?: number |
   if ((createdMs == null || createdMs >= EMP_CLEAN_FROM_MS) && looksLikeEmail(raw)) return null; // an Email ID typed where an employee ID is asked is refused, never mangled
   return normEmp(raw, createdMs);
 };
-export const badIdMessage = (raw: unknown, kind: "emp" | "email", createdMs?: number | null): string => kind === "email" ? "Please check your Email ID. It looks incomplete." : (createdMs == null || createdMs >= EMP_CLEAN_FROM_MS) && looksLikeEmail(raw) ? EMP_LOOKS_LIKE_EMAIL : "An employee ID has letters and numbers only (up to 30).";
+export const EMP_TOO_LONG = "This ID is too long. An employee ID may be up to 30 characters once cleaned.";
+export const badIdMessage = (raw: unknown, kind: "emp" | "email", createdMs?: number | null): string => kind === "email" ? "Please check your Email ID. It looks incomplete." : (createdMs == null || createdMs >= EMP_CLEAN_FROM_MS) && looksLikeEmail(raw) ? EMP_LOOKS_LIKE_EMAIL : (createdMs == null || createdMs >= EMP_CLEAN_FROM_MS) && empClean(raw).length > 30 ? EMP_TOO_LONG : "An employee ID has letters and numbers only (up to 30).";
 /** Does anybody in this game hold an identity made from an ID (an employee ID or an Email ID)? A listed person or a joined person with an ID, in pages of 100. A name-only or mobile-only guest does not count:
  *  only a stored ID hash is orphaned when "what a person must give" changes, so only that locks the setting. */
 export async function anyoneHoldsIdHash(env: Env, eid: string): Promise<boolean> {
