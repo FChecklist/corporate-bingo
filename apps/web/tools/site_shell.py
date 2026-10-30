@@ -99,6 +99,14 @@ def header(current="", img_badge=False):
             '<nav class="ck-nav" id="ck-nav" aria-label="Main">' + "".join(links) + dots + '</nav>\n</div></header>')
 
 
+def version_line():
+    """'Version 1.4.0 | 29 Oct 2026, 18:30 IST' from the newest row of apps/edge/src/releases.json (the time shows once the row has one)."""
+    import json, datetime
+    r = json.load(open(os.path.join(PUB, "..", "..", "edge", "src", "releases.json"), encoding="utf8"))[0]
+    d = datetime.date.fromisoformat(r["date"]); t = (", " + r["time"] + " IST") if r.get("time") else " (IST)"
+    return "Version %s | %s%s" % (r["version"], d.strftime("%d %b %Y").lstrip("0"), t)
+
+
 def footer():
     return ('<footer class="ck-foot"><div class="ck-wrap"><div class="ck-foot-grid">\n'
             '<div><p class="ck-brandline">Corporate Bingo</p><p>Online games for company events, for the people you invite.</p><p>A product of IT Services by Rajat Agarwal.</p>'
@@ -114,7 +122,8 @@ def footer():
             '<li><a href="/pricing">Price list</a></li><li><a href="/about">About</a></li><li><a href="/contact">Contact</a></li></ul></div>\n'
             '</div>\n'
             '<div class="ck-legal"><p><a href="https://itservices-rajat-agarwal.pages.dev" target="_blank" rel="noopener">IT Services by Rajat Agarwal</a> is the trade name of Rajat Agarwal, an individual running a sole proprietorship in India. B-1105, Shipra Krishna Vista, Indirapuram, Ghaziabad, Uttar Pradesh, 201014, India. GST is not charged. Payments are collected by IT Services by Rajat Agarwal.</p>'
-            '<p>&copy; 2026 Rajat Agarwal. All rights reserved.</p></div>\n'
+            '<p>&copy; 2026 Rajat Agarwal. All rights reserved.</p>'
+            '<p class="ck-version" id="siteVersion">' + version_line() + '</p></div>\n'
             '</div></footer>')
 
 
