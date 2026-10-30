@@ -6,9 +6,10 @@ export const EMPLOYEE_ID_MAX = 30; // letters and numbers, counted AFTER the cle
 export function cleanEmployeeId(raw) { return String(raw == null ? "" : raw).normalize("NFKC").toUpperCase().replace(/[^A-Z0-9]/g, ""); }
 
 /** what to say about a typed ID: { ok, id, hint } or { ok:false, error } in plain words (empty after cleaning, or longer than 30 after cleaning, is refused: an ID is never cut short) */
-export function checkEmployeeId(raw) {
+export function checkEmployeeId(raw, opts) {
+  if (String(raw == null ? "" : raw).normalize("NFKC").indexOf("@") >= 0) return { ok: false, error: "This looks like an Email ID. This game asks for an employee ID: letters and numbers only." };
   const id = cleanEmployeeId(raw);
   if (!id) return { ok: false, error: "Please type an employee ID. It needs at least one letter or number." };
-  if (id.length > EMPLOYEE_ID_MAX) return { ok: false, error: "An employee ID can have at most " + EMPLOYEE_ID_MAX + " letters and numbers." };
-  return { ok: true, id, hint: "The system will read this as " + id };
+  if (id.length > EMPLOYEE_ID_MAX) return { ok: false, error: "This ID is too long. An employee ID may be up to " + EMPLOYEE_ID_MAX + " characters once cleaned." };
+  return { ok: true, id, hint: opts && opts.clean === false ? "" : "The system will read this as " + id };
 }

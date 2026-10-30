@@ -302,7 +302,7 @@ async function addPeople(c: Ctx, who: Caller, b: any): Promise<Response> {
   for (const x of b.people) {
     const raw = `${cleanName(x?.name)} ${String(x?.phone ?? "")}`.trim().slice(0, 100);
     const empRaw = x?.empId ?? x?.employeeId, emp = normId(empRaw, vf.idKind, c.e?.created_ms);
-    if (emp === null) { invalid.push({ raw, name: cleanName(x?.name), id: String(x?.empId ?? x?.employeeId ?? "").slice(0, 120), why: badIdMessage(empRaw, vf.idKind, c.e?.created_ms) }); continue; }
+    if (emp === null && vf.mode !== "mobile") { invalid.push({ raw, name: cleanName(x?.name), id: String(x?.empId ?? x?.employeeId ?? "").slice(0, 120), why: badIdMessage(empRaw, vf.idKind, c.e?.created_ms) }); continue; }
     const phoneTyped = String(x?.phone ?? "").trim() !== "";
     if (vf.mode === "either" && !emp && !phoneTyped) { invalid.push({ raw, name: cleanName(x?.name), id: String(x?.empId ?? x?.employeeId ?? "").slice(0, 120), why: "Give a mobile number or an employee ID." }); continue; }
     if (vf.employeesOnly && vf.mode !== "mobile" && vf.mode !== "either" && !emp) { invalid.push({ raw, name: cleanName(x?.name), id: String(x?.empId ?? x?.employeeId ?? "").slice(0, 120), why: "This game is for employees: the employee ID is missing." }); continue; }
@@ -320,7 +320,7 @@ async function addPeople(c: Ctx, who: Caller, b: any): Promise<Response> {
     const idHash = vf.mode === "either" && emp ? await empHashOf(c.env, emp) : undefined; // "mobile number or employee ID": a listed person with both can come in with either, so the ID points to the mobile-number identity
     if (idHash) { // the same employee ID on two people of one list would let the second take over the first's ID: the second is a duplicate
       const al = await c.env.DB.prepare("SELECT v FROM kv WHERE k=?").bind(`idx/${c.eid}/${idHash}`).first<{ v: string }>();
-      if ((al && al.v !== ph && (await c.env.DB.prepare("SELECT 1 AS x FROM person WHERE eid=? AND ph=? AND status<>'removed'").bind(c.eid, al.v).first())) || seen.has("I" + idHash)) { duplicates++; continue; }
+      if ((al && al.v !== ph && (await c.env.DB.prepare("SELECT 1 AS x FROM person WHERE eid=? AND ph=? AND status<>'removed'").bind(c.eid, al.v).first())) || seen.has("I" + idHash)) { duplicates++; duplicateRows.push({ raw: typedOf(x), name: cleanName(x?.name), why: DUP_WHY }); sameAfterCleaning.push({ raw: String(x?.empId ?? x?.employeeId ?? ""), as: emp! }); continue; }
       seen.add("I" + idHash);
     }
     seen.add(ph); todo.push({ typed: typedOf(x), name: cleanName(x?.name), digits: keptFromClean(cl.digits), ph, ...(emp && vf.mode !== "mobile" ? { empId: emp } : {}), ...(idHash ? { idHash } : {}) });

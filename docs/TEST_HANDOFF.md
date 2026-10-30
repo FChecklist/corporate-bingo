@@ -124,3 +124,7 @@ Not changed: the shared pack's `.zf-ready.todo` class (see Run 4 answers).
 ## 1.4.1 round 6 (tester v3 defects)
 - D1: new-rule employee ID over 30 cleaned characters now says "This ID is too long. An employee ID may be up to 30 characters once cleaned." on join, list add, /who, the join-page hint (z.js) and console hint/row reason (zc.js). Old-rule games and e-mail-shaped input keep their old sentences. Guide card added.
 - D2: `endedAtMs` added (worker.ts `endedAtOf`), returned by GET /api/z/:id/life and /info: phones-confirmed end at any clock; scheduled end recomputed (+60 s) and returned only once now >= bound; absent while live, when cancelled; an erase is not an end.
+
+## 1.4.1 round 7 (skeptic audit)
+- Payment, publish/confirm and test-mail allow-list addresses go through `refusedMail` (emailkey.ts): inner spaces/invisible characters refused, cleaned value used everywhere incl. Razorpay prefill and invoice mail.
+- approvals.ts dead `cleanEmail` removed. pack/employee-id.js aligned (too-long sentence, e-mail refused, optional hint off). Upload: `either` duplicate IDs named; verify=mobile ignores a bad ID.

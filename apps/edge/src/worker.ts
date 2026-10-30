@@ -13,7 +13,7 @@
 //   nobody        - phones: join, send claims, read results counts, read the engagement info and the signed control file.
 
 import { zoneTime, tzOfRow } from "./tz";
-import { accountEmail } from "./emailkey";
+import { accountEmail, refusedMail } from "./emailkey";
 import { DEMO_CAP, GRACE_ROUNDS, HOUSE_ORDER, isTimeZone, PRIZE_HOUSES, brandMomentsFor, defaultCfg, validateCfg, type EngagementCfg } from "../../../packages/beacon/src/config";
 import { openPii, openText, sealPii, sealText } from "./pii";
 import { TEST_LOGINS, TEST_LOGIN_CODE, TEST_LOGINS_PER_IP_DAY, testLoginsOpen } from "./testlogins";
@@ -1873,7 +1873,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
       : unpaid ? "It is published. The game does not begin until it is paid for (any time until the guest data is erased; a late payment starts it 2 minutes after confirmation). Give the organizer this link to pay: they do it themself." : "Already published and paid." });
     if (!can(a, e, true)) return deny(a);
     if (!isDraft) { // already published (for example the game was paid for first): the organizer's confirmed e-mail and mobile number are still kept if they have none on file, because the end-of-game report is sent to that e-mail
-      const pb0 = await body(req); const ce = typeof pb0?.email === "string" ? pb0.email.trim() : "", cp = String(pb0?.phone ?? "").replace(/\D/g, "");
+      const pb0 = await body(req); const ce = typeof pb0?.email === "string" ? refusedMail(pb0.email) ?? "" : "", cp = String(pb0?.phone ?? "").replace(/\D/g, "");
       if (pb0 && !consentMissing(pb0, "K1") && /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/.test(ce) && cp.length >= 10 && cp.length <= 15 && cleanPhone(pb0.phone).ok && !(await env.DB.prepare("SELECT 1 AS x FROM kv WHERE k=?").bind(`contact/${eid}`).first())) {
         await env.DB.prepare("INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO NOTHING").bind(`contact/${eid}`, JSON.stringify({ email: ce, phone: cp.slice(-10) })).run();
       }
@@ -1882,7 +1882,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     // the organizer confirms (and may correct) their email and mobile number
     const pb = await body(req);
     { const cm = consentMissing(pb, "K1"); if (cm) return cm; } // K1: the Terms box and the organizer's promise, checked here on the server
-    const cEmail = typeof pb?.email === "string" ? pb.email.trim() : "", cPhone = String(pb?.phone ?? "").replace(/\D/g, "");
+    const cEmail = typeof pb?.email === "string" ? refusedMail(pb.email) ?? "" : "", cPhone = String(pb?.phone ?? "").replace(/\D/g, "");
     if (!/^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/.test(cEmail)) return json({ error: "Please confirm a valid email address." }, 400);
     if (cPhone.length < 10 || cPhone.length > 15 || !cleanPhone(pb?.phone).ok) return json({ error: "Please confirm a valid mobile number. " + (cleanPhone(pb?.phone) as any).why }, 400);
     if (roundMs(e.start_round) <= now || (await env.DB.prepare("SELECT 1 AS x FROM kv WHERE k=?").bind(`startpending/${eid}`).first())) return json({ error: "The start time has passed or has not been chosen. Please choose a new start time first.", code: "start-pending" }, 400);

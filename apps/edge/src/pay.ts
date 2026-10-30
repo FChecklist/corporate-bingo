@@ -6,7 +6,7 @@
 // An entitlement is what lets an organizer create one engagement of up to `pack` participants; without one, creating is refused.
 // Needs the `nodejs_compat` flag (billing uses node:crypto HMAC). Test mode (env.TEST_MODE = "1", never in production) fulfils without Razorpay.
 import { recordFunnelForOrg } from "./visits";
-import { accountEmail } from "./emailkey";
+import { accountEmail, refusedMail } from "./emailkey";
 import { plainToHtml, tagSubject, withFooter } from "./brand";
 import {
   BRANDS, DEFAULT_COMPANY, companyGaps, createOrder, fetchPayment, capturePayment, paymentInfo, financialYear, formatInvoiceNumber, renderInvoiceHtml, renderInvoiceText, splitGst, toMinor,
@@ -361,7 +361,7 @@ export async function payRoute(req: Request, env: PayEnv, now: number, spend: (n
     const pack = boundPack ?? Number(b?.pack); const cur = b?.currency === "USD" ? "USD" : "INR";
     if (!b || !PACKS.some((x) => x[0] === pack)) return json({ error: "Choose a pack." }, 400);
     { const cm = consentMissing(b, "K3"); if (cm) return cm; } // K3: "I agree to the Terms and the Refund Policy. I understand there is no refund": checked here on the server, for the payment page and the pay link alike
-    if (typeof b.email !== "string" || !EMAIL.test(b.email.trim())) return json({ error: "Enter a valid e-mail address." }, 400);
+    if (typeof b.email !== "string" || refusedMail(b.email) === null) return json({ error: "Enter a valid e-mail address." }, 400);
     // minimum to pay: a name and an e-mail. Organisation, mobile, country and GSTIN are optional (an older caller that sends only `org` still works: it is used as the name).
     const payerName = (typeof b.name === "string" && b.name.trim() ? b.name : typeof b.org === "string" ? b.org : "").trim();
     if (payerName.length < 2) return json({ error: "Enter your name." }, 400);
@@ -390,7 +390,7 @@ export async function payRoute(req: Request, env: PayEnv, now: number, spend: (n
     const lf = ledgerFields(siteOf(meta.origin), "game_pack", `pack_${pack}`, boundOrg ?? null);
     await db.prepare("INSERT INTO payment(id,org,email,pack,currency,amount,tax,rzp_order_id,status,created_ms,meta,ref,buyer_phone_hash,is_test,eid,site,product,product_type,product_ref,payer_user,txn_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id, null, accountEmail(b.email), pack, cur, pr.total, pr.tax, order?.id ?? null, "created", now, JSON.stringify(meta), ref, bph ? await phoneHashFor(env, bph) : null, siteTest ? 1 : 0, boundEid, lf.site, lf.product, lf.productType, lf.productRef, lf.payerUser, txnIdOf(id)).run();
     if (!rzp) { const f = await fulfil(env, id, now, spend); return "result" in f ? json({ mode: "test", paymentId: id, result: f.result, ...(siteTest ? { testPayment: true, label: "TEST payment: nothing was charged." } : {}) }) : json({ error: f.error }, f.status); }
-    return json({ mode: "razorpay", paymentId: id, ...hopOf(env), razorpay: { keyId: rzp.keyId, orderId: order.id, amount: toMinor(pr.total), currency: cur, name: brand.name, description: "(closed-group bingo software) | owned and made by IT Services by Rajat Agarwal", prefill: { email: b.email.trim(), name: payerName.slice(0, 80), ...(contact ? { contact } : {}) }, notes: { brand: brand.name, participants: String(pack) }, theme: { color: brand.theme }, ...(cur === "INR" ? { config: UPI_FIRST } : {}) } });
+    return json({ mode: "razorpay", paymentId: id, ...hopOf(env), razorpay: { keyId: rzp.keyId, orderId: order.id, amount: toMinor(pr.total), currency: cur, name: brand.name, description: "(closed-group bingo software) | owned and made by IT Services by Rajat Agarwal", prefill: { email: refusedMail(b.email)!, name: payerName.slice(0, 80), ...(contact ? { contact } : {}) }, notes: { brand: brand.name, participants: String(pack) }, theme: { color: brand.theme }, ...(cur === "INR" ? { config: UPI_FIRST } : {}) } });
   }
 
   const ptm = p.match(/^\/api\/payments\/paytest\/(pay_[0-9a-f]{16})$/); // the test page asks while Razorpay is still confirming
@@ -403,7 +403,7 @@ export async function payRoute(req: Request, env: PayEnv, now: number, spend: (n
   if (req.method === "POST" && p === "/api/payments/paytest") { // Payment Testing: Rs 1 from India, US$ 1 from abroad; buys nothing; anyone, any number of times
     if (!rzp || (await getMode(env)) === "TEST") return json({ error: "Online payments are not switched on." }, 503);
     const b = await body(req);
-    if (!b || typeof b.email !== "string" || !EMAIL.test(b.email.trim())) return json({ error: "Enter a valid e-mail address." }, 400);
+    if (!b || typeof b.email !== "string" || refusedMail(b.email) === null) return json({ error: "Enter a valid e-mail address." }, 400);
     { const cm = consentMissing(b, "K3"); if (cm) return cm; } // K3: also before the Rs 1 test payment
     const nm = typeof b.name === "string" ? b.name.trim() : ""; if (nm.length < 2) return json({ error: "Enter your name." }, 400);
     const cty = typeof b.country === "string" && /^[A-Z]{2}$/.test(b.country) ? b.country : "IN", cur = cty === "IN" ? "INR" : "USD";
@@ -421,7 +421,7 @@ export async function payRoute(req: Request, env: PayEnv, now: number, spend: (n
     const meta = { paytest: true, name: nm.slice(0, 120), ...(typeof b.org === "string" && b.org.trim() ? { org: b.org.trim().slice(0, 120) } : {}), ...(taxId ? { taxId } : {}), ...(contact ? { phone: contact } : {}), country: cty, origin: env.PUBLIC_ORIGIN ?? url.origin };
     const lf = ledgerFields(siteOf(meta.origin), "payment_test", "payment_test", null);
     await db.prepare("INSERT INTO payment(id,org,email,pack,currency,amount,tax,rzp_order_id,status,created_ms,meta,is_test,site,product,product_type,product_ref,payer_user,txn_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,?)").bind(id, null, accountEmail(b.email), 0, cur, 1, 0, order.id, "created", now, JSON.stringify(meta), lf.site, lf.product, lf.productType, lf.productRef, lf.payerUser, txnIdOf(id)).run();
-    return json({ mode: "razorpay", paymentId: id, ...hopOf(env), razorpay: { keyId: rzp.keyId, orderId: order.id, amount: 100, currency: cur, name: brand.name, description: "(closed-group bingo software) | owned and made by IT Services by Rajat Agarwal", prefill: { email: b.email.trim(), name: nm.slice(0, 80), ...(contact ? { contact } : {}) }, notes: { brand: brand.name }, theme: { color: brand.theme }, ...(cur === "INR" ? { config: UPI_FIRST } : {}) } });
+    return json({ mode: "razorpay", paymentId: id, ...hopOf(env), razorpay: { keyId: rzp.keyId, orderId: order.id, amount: 100, currency: cur, name: brand.name, description: "(closed-group bingo software) | owned and made by IT Services by Rajat Agarwal", prefill: { email: refusedMail(b.email)!, name: nm.slice(0, 80), ...(contact ? { contact } : {}) }, notes: { brand: brand.name }, theme: { color: brand.theme }, ...(cur === "INR" ? { config: UPI_FIRST } : {}) } });
   }
 
   if (req.method === "POST" && p === "/api/payments/verify") {
@@ -551,7 +551,7 @@ export async function payRoute(req: Request, env: PayEnv, now: number, spend: (n
       return new Response(pdf.build() as unknown as BodyInit, { headers: { "content-type": "application/pdf", "content-disposition": `attachment; filename="invoice-${r.number.replace(/[^A-Za-z0-9._-]/g, "_")}.pdf"`, "cache-control": "no-store", "x-robots-tag": "noindex" } });
     }
     if (req.method === "POST" && ix[2] === "/email") {
-      const b = await body(req); const to = b && typeof b.to === "string" ? b.to.trim().toLowerCase() : "";
+      const b = await body(req); const to = b && typeof b.to === "string" ? refusedMail(b.to) ?? "" : "";
       if (!EMAIL.test(to)) return json({ error: "Enter a valid e-mail address." }, 400);
       const k = `invmail/${ix[1]}`, used = Number((await db.prepare("SELECT v FROM kv WHERE k=?").bind(k).first<{ v: string }>())?.v ?? 0);
       if (used >= 5) return json({ error: "This invoice has already been e-mailed 5 times." }, 429);
