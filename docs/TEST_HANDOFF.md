@@ -44,3 +44,8 @@ Not done in 2a: default-on switch with the remembered choice (Tambola's zc-mode.
 8. idKind "emp" game, new (created at or after EMP_CLEAN_FROM_MS): a typed text containing "@" is refused with "This looks like an Email ID. This game asks for an employee ID: letters and numbers only." and is never turned into letters. Older game: old rule and old wording.
 9. Organizer console step 2 shows "Which ID?" (Employee ID / Email ID) when verify is not mobile; the add-person box placeholder, the Excel/CSV template columns and the downloaded list header follow the kind ("Email ID" or "Employee ID").
 10. Stored identity: the hash of the cleaned ID (empHashOf) is the person's identity; exports and the list viewer show the cleaned ID.
+
+## Milestone 2b (partial): roles rules helper
+Code: apps/web/public/zc-flow-roles.js copied from Corporate Tambola (pure rules window.ZROLES: who may let a person in by the link used, 15-minute family cutoff, 30-minute wait limit, role sentences); loaded after the pack on /zc.html; shipped by pages/build.mjs. It only changes what the new flow says, not what the engine does.
+Expect: with ?flow=new nothing breaks and window.ZROLES exists; approvalText("organizer") = "People who join with the game link wait for you or a Host."; decide({link:"open"}).outcome = "in"; decide({link:"listed", validation:"system", onList:true}).outcome = "in"; a pending payment gives "not_open".
+Engine modules that Tambola has and Bingo does not yet have (M3 port list): approvals.ts, modes.ts, presence.ts, rehearsal.ts, rehearsal-mail.ts, report-email.ts, prospect-links.ts, owner-stats.ts, empid.ts (Bingo has the same rule in people.ts).

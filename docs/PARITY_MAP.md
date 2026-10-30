@@ -13,7 +13,7 @@ Bingo differences that drive the ADAPTED / NOT APPLICABLE rows: card patterns (L
 | 7 | Game log kept 365 days, personal data erased within 24 h | ADOPTED | gamelog.ts (B26) kept on purpose |
 | 8 | 5 organizer steps + Game dashboard | ADAPTED (opt-in, untested) | shared pack vendored from the console repo; Bingo descriptor zc-flow-game.js; ?flow=new |
 | 9 | Game ID always shown; status pills with plain banners | TODO | |
-| 10 | Host and Co-host sign-in, roles, limits | TODO | Bingo has Host/Co-host keys today (hostsetup.ts); screens TODO |
+| 10 | Host and Co-host sign-in, roles, limits | ADAPTED (partial) | Host/Co-host keys exist; zc-flow-roles.js rules ported; approvals.ts port TODO | Bingo has Host/Co-host keys today (hostsetup.ts); screens TODO |
 | 11 | Family Passes | TODO | check Bingo rules (one card per player) |
 | 12 | Open join (Name, Mobile, Email) | TODO | |
 | 13 | Approvals by role | TODO | copy approvals module |
