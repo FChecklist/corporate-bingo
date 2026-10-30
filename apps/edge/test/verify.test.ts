@@ -38,7 +38,7 @@ afterEach(() => { globalThis.fetch = realFetch; });
 
 describe("employee ID", () => {
   test("an ID is trimmed and upper-cased; rubbish is refused; blank is blank", () => {
-    expect(normEmp(" ab 123 ")).toBe("AB123"); expect(normEmp("")).toBe(""); expect(normEmp(undefined)).toBe(""); expect(normEmp("a<b>")).toBeNull(); expect(normEmp("x".repeat(31))).toBeNull();
+    expect(normEmp(" ab 123 ")).toBe("AB123"); expect(normEmp("")).toBe(""); expect(normEmp(undefined)).toBe(""); expect(normEmp("a<b>", 0)).toBeNull(); expect(normEmp("x".repeat(31), 0)).toBeNull();
   });
 });
 

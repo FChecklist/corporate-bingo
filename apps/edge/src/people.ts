@@ -49,7 +49,15 @@ export const tokenHash = async (token: string) => (await sha("pj|" + token.toLow
 export const phoneHashOf = (env: { PHONE_SALT?: string; ORGANIZER_SECRET?: string }, digits: string) => sha(`${env.PHONE_SALT ?? env.ORGANIZER_SECRET ?? "unset"}|${digits.slice(-10)}`);
 
 /** An employee ID as typed: spaces dropped, upper case. "" = nothing typed, null = not a usable ID. */
-export const normEmp = (raw: unknown): string | null => { const s = String(raw ?? "").replace(/\s+/g, "").toUpperCase(); if (!s) return ""; return /^[A-Z0-9][A-Z0-9._\-/]{0,29}$/.test(s) ? s : null; };
+export const EMP_CLEAN_FROM_MS = 1793341800000; // the deploy instant of the uniform employee ID rule (30 Oct 2026, 12:00 IST; set to the real deploy time at release). Games made BEFORE it keep the old rule.
+/** THE one cleaning rule for an employee ID (owner rule 2026-10-30): NFKC, upper case, then keep only A-Z and 0-9. 1B-678, 1b-678, 1B/678 and 1B 678 all become 1B678. */
+export const empClean = (raw: unknown): string => String(raw ?? "").normalize("NFKC").toUpperCase().replace(/[^A-Z0-9]/g, "");
+/** An employee ID as typed. "" = nothing typed, null = not a usable ID (only symbols, or over 30 characters after cleaning). `createdMs` is when the game was made; an older game keeps the old rule. */
+export const normEmp = (raw: unknown, createdMs?: number | null): string | null => {
+  if (createdMs != null && createdMs < EMP_CLEAN_FROM_MS) { const s = String(raw ?? "").replace(/\s+/g, "").toUpperCase(); if (!s) return ""; return /^[A-Z0-9][A-Z0-9._\-/]{0,29}$/.test(s) ? s : null; }
+  if (!String(raw ?? "").replace(/[\s​-‍⁠﻿]/g, "")) return "";
+  const s = empClean(raw); return s && s.length <= 30 ? s : null;
+};
 /** The identity of a person who is known by employee ID alone (no mobile number needed). One hash for the same ID in every game, like the phone hash. */
 export const empHashOf = (env: { PHONE_SALT?: string; ORGANIZER_SECRET?: string }, id: string) => sha(`${env.PHONE_SALT ?? env.ORGANIZER_SECRET ?? "unset"}|emp|${id}`);
 /** What the organizer asked people to give to get in, read from the game's stored settings. */
@@ -266,7 +274,7 @@ async function addPeople(c: Ctx, who: Caller, b: any): Promise<Response> {
   const vf = verifyOf(c.e);
   for (const x of b.people) {
     const raw = `${cleanName(x?.name)} ${String(x?.phone ?? "")}`.trim().slice(0, 100);
-    const emp = normEmp(x?.empId ?? x?.employeeId);
+    const emp = normEmp(x?.empId ?? x?.employeeId, c.e?.created_ms);
     if (emp === null) { invalid.push({ raw, why: "An employee ID has letters and numbers only (up to 30)." }); continue; }
     const phoneTyped = String(x?.phone ?? "").trim() !== "";
     if (vf.mode === "either" && !emp && !phoneTyped) { invalid.push({ raw, why: "Give a mobile number or an employee ID." }); continue; }

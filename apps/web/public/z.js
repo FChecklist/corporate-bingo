@@ -81,12 +81,14 @@
   const joinWho = (personal, needPhone) => {
     const vm = INFO.verify || "mobile", eo = !!INFO.empOnly, pv = esc(J.phone || ""), ev = esc(J.emp || "");
     const phone = (label, hint) => `<label for="ph">${label}</label><input id="ph" inputmode="tel" autocomplete="tel" placeholder="+1 555 010 0100" value="${pv}">${hint ? `<p class="zsmall" style="margin:2px 0 6px">${hint}</p>` : ""}`;
-    const emp = (label, hint) => `<label for="emp">${label}</label><input id="emp" autocomplete="off" autocapitalize="characters" maxlength="30" value="${ev}">${hint ? `<p class="zsmall" style="margin:2px 0 6px">${hint}</p>` : ""}`;
+    const emp = (label, hint) => `<label for="emp">${label}</label><input id="emp" autocomplete="off" autocapitalize="characters" maxlength="60" value="${ev}"><p class="zsmall" id="empHint" aria-live="polite" style="margin:2px 0 0"></p>${hint ? `<p class="zsmall" style="margin:2px 0 6px">${hint}</p>` : ""}`;
     if (personal) return "";
     if (vm === "id") return emp("Your employee ID", eo ? "This game is for employees only." : "") + (eo ? "" : phone("No employee ID? Type your mobile number instead", "Vendors, customers and families use their mobile number."));
     if (vm === "both") return phone("Your mobile number", "") + emp(eo ? "Your employee ID" : "Your employee ID (employees only)", eo ? "This game is for employees only." : "Not an employee? Leave this empty.");
     return needPhone ? phone("Your mobile number", "") : "";
   };
+  // the same cleaning the server does (NFKC, upper case, only A-Z and 0-9), shown while typing
+  document.addEventListener("input", (ev) => { const t = ev.target; if (!t || t.id !== "emp") return; const c = String(t.value || "").normalize("NFKC").toUpperCase().replace(/[^A-Z0-9]/g, ""), h = document.getElementById("empHint"); if (h) h.textContent = c && c !== String(t.value).trim() ? "The system will read this as " + c : ""; });
   const BUSY_TRIES = 15;
   const joinView = (msg) => {
     if (J.mode === "removed") return `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard" role="status"><h2>You are not on this game's list</h2><p class="zsmall" style="margin:0">You were removed from this game, so there is no card for you here. If you think this is a mistake, please ask the person who invited you.</p></div>`;
