@@ -14,6 +14,7 @@
 //                        -> table mail_bounce; GET /api/owner/mail-events shows bounced / complained / delivered, newest first.
 // A recipient is kept as a one-way hash plus a masked form (j***@example.com) so the owner can recognise it; nothing else about the person. Rows are deleted after 90 days.
 import { logAccess } from "./audit";
+import { emailKey } from "./emailkey";
 import { PURGE_AFTER_MS } from "./lifecycle";
 import type { D1, Env } from "./worker";
 
@@ -37,8 +38,8 @@ const MAX_COUNTER_WRITES = 500;
 const enc = new TextEncoder();
 const sha = async (s: string) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", enc.encode(s))), (b) => b.toString(16).padStart(2, "0")).join("");
 const jsonRes = (o: unknown, status = 200, extra: Record<string, string> = {}) => new Response(JSON.stringify(o), { status, headers: { "content-type": "application/json", "cache-control": "no-store", ...extra } });
-const normMail = (e: string): string => { const v = String(e ?? "").trim().toLowerCase(); const i = v.lastIndexOf("@"); return i < 1 ? v : v.slice(0, i).split("+")[0] + v.slice(i); };
-export const maskMail = (e: string): string => { const v = String(e ?? "").trim().toLowerCase(), i = v.lastIndexOf("@"); return i < 1 ? "***" : v.slice(0, 1) + "***" + v.slice(i); };
+const normMail = (e: string): string => { const v = emailKey(e); const i = v.lastIndexOf("@"); return i < 1 ? v : v.slice(0, i).split("+")[0] + v.slice(i); };
+export const maskMail = (e: string): string => { const v = emailKey(e ?? ""), i = v.lastIndexOf("@"); return i < 1 ? "***" : v.slice(0, 1) + "***" + v.slice(i); };
 
 // ------------------------------------------------------------------------------------------------ A5: the site switch
 const OFF_TTL_MS = 3000;
@@ -171,7 +172,7 @@ const GENESIS_S = 1692803367; // drand quicknet: round r is published at GENESIS
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
 
 async function organizerLookup(env: AdminEnv, email: string, now: number): Promise<Response> {
-  const mail = email.trim().toLowerCase();
+  const mail = emailKey(email);
   if (!EMAIL.test(mail)) return jsonRes({ error: "Give the organizer's e-mail address: ?email=<the organizer's e-mail address>" }, 400);
   const eh = await sha("email|" + mail);
   const acct = await env.DB.prepare("SELECT org, is_test FROM organizer_email WHERE email_hash=?").bind(eh).first<{ org: string; is_test: number }>();

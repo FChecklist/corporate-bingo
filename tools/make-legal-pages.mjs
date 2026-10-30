@@ -1,3 +1,7 @@
+// DISABLED (Bingo 1.4.0): the public pages now wear the Corporate Games look and are kept by hand (text) and by apps/web/tools/make_site.py (head, header, footer). This script would write the older frame over them,
+// and its organizer guide text still says the banned word. Update the fragments in tools/legal from the current pages first, then remove this guard.
+console.error("make-legal-pages.mjs refuses to run: see the comment at the top of this file.");
+process.exit(1);
 // Builds the short document pages (Terms, Data processing terms, Sub-processors, Partner terms, Organizer guide) in the same style as legal.html.
 // Run: node tools/make-legal-pages.mjs   (writes apps/web/public/*.html; commit the result). The pages are plain static files: no new user flow.
 // The Terms page and the Legal position page are the two files in tools/legal/ (their {{TERMS_VERSION}} is replaced by the one constant in apps/edge/src/brand.ts).
@@ -104,7 +108,7 @@ const PAGES = {
     ["Google", "Optional &ldquo;Continue with Google&rdquo; sign-in for organizers and Hosts (only if you press the button)", "United States, as published by Google."],
     ["Razorpay", "Organizer payments (never players)", "India, as published by Razorpay."],
     ["The IT Services payment service (itservices-rajat-agarwal.pages.dev)", "Records each payment for the organizer&rsquo;s invoice and our accounts (never players)", "Cloudflare, as above."],
-    ["GitHub", "Runs our scheduled jobs and holds a private copy of the payment records (never players)", "United States, as published by GitHub."],
+    ["GitHub", "Runs our scheduled jobs and holds a protected copy of the payment records in a restricted repository (never players)", "United States, as published by GitHub."],
   ], sections: [
     ["notes", "Also used", [
       "drand: public random numbers. Your phone contacts it; we send it no personal data.",
@@ -135,7 +139,7 @@ const PAGES = {
     ["data", "Your details", ["We use your mobile number to run your partner account. See the <a href=\"/legal.html#privacy\">Privacy &amp; Data Policy</a>.", "You may stop at any time."]],
   ] },
   "organizer-guide.html": { title: "Organizer guide", h1: "Organizer guide", lead: "Short notes for a safe, simple game.", sections: [
-    ["rules", "Keep it a private game", [
+    ["rules", "Keep it a close group game", [
       "Invite people you know: colleagues, families, customers, partners.",
       "Never ask for a fee, a purchase or a donation to take part.",
       "Taking part must be voluntary.",
@@ -159,7 +163,7 @@ const PAGES = {
     ]],
     ["data", "Your players&rsquo; data", [
       "Tell your players what you do with their details.",
-      "Names and numbers are deleted within 24 hours after the game. Your report link works for 22 hours, so open it before then.",
+      "Names and numbers are deleted within 24 hours after the game. Your report link works for 19 hours, so open it before then.",
       "To delete earlier, use your console.",
     ]],
     ["pay", "Payment", ["Build and publish for free. The game does not begin until it is paid for.", "You can pay at any time until the guest data is erased. A late payment starts the game 2 minutes after it is confirmed.", "To cancel, tap Cancel this game in your console.", "We do not give refunds. If you cancel a paid game before it starts, your payment stays as credit for your next game for 365 days. Unused credit lapses at the end of day 365.", "Once the start time has passed, a paid game cannot be cancelled.", "Want another game like this one? Tap Create a new game like this one. Your credit is offered first on the Pay step."]],

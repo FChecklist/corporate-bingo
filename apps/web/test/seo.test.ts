@@ -5,9 +5,9 @@ import { PACKS } from "../../../packages/shared/src/pricing";
 
 const PUB = new URL("../public/", import.meta.url), ORIGIN = "https://bingo.corporatetambola.com";
 const rd = (f: string) => readFileSync(new URL(f, PUB), "utf8");
-const INDEXABLE = ["index.html", "partner.html", "helpdesk.html", "legal.html", "terms.html", "privacy.html", "legal-position.html", "dpa.html", "subprocessors.html", "partner-terms.html", "organizer-guide.html", "trust.html", "brochure.html", "about.html", "contact.html", "pricing.html", "refund-policy.html"];
-const NOINDEX = ["signin.html", "pay.html", "paytest.html", "ai-link.html", "helpdesk-accept.html", "helpdesk-approve.html", "report.html", "z.html", "zc.html", "big.html", "404.html", "owner-visits.html"];
-const urlOf = (f: string) => ORIGIN + (f === "index.html" ? "/" : "/" + f);
+const INDEXABLE = ["index.html", "partner.html", "helpdesk.html", "legal.html", "terms.html", "privacy.html", "legal-position.html", "dpa.html", "subprocessors.html", "partner-terms.html", "trust.html", "brochure.html", "about.html", "contact.html", "pricing.html", "refund-policy.html", "how-it-works.html", "guide.html"];
+const NOINDEX = ["signin.html", "pay.html", "paytest.html", "ai-link.html", "helpdesk-accept.html", "helpdesk-approve.html", "report.html", "z.html", "zc.html", "big.html", "404.html", "owner-visits.html", "organizer-guide.html", "offline.html"];
+const urlOf = (f: string) => ORIGIN + (f === "index.html" ? "/" : "/" + f.replace(/\.html$/, "")); // the clean address: Cloudflare Pages serves page.html as /page (a 308), so that is the one to name
 const meta = (h: string, re: RegExp) => (h.match(re) ?? [])[1] ?? "";
 
 describe("sitemap and robots", () => {
@@ -57,15 +57,15 @@ describe("each indexable page", () => {
   });
   test("every image has alt text and a size, and the picture at the top loads early", () => {
     for (const f of [...INDEXABLE, ...NOINDEX]) { let h = ""; try { h = rd(f); } catch { continue; } for (const img of h.match(/<img\b[^>]*>/g) ?? []) { expect([f, /\balt="[^"]+"/.test(img)]).toEqual([f, true]); expect([f, /\bwidth="\d+"/.test(img) && /\bheight="\d+"/.test(img)]).toEqual([f, true]); } }
-    expect(rd("index.html")).toMatch(/<img src="\/img\/card\.png"[^>]*fetchpriority="high"/);
+    expect(rd("index.html")).toContain('<section class="ck-hero g-bingo">'); // the first screen is drawn in the page (the kit badge), so nothing heavy has to load before it
   });
   test("quick loading: fonts are self-hosted and swap in, the two main fonts are preloaded, scripts do not block the page, nothing third-party is loaded on the home page", () => {
     const h = rd("index.html"), f = rd("fonts.css");
-    expect(f.match(/font-display: swap/g)!.length).toBe(f.match(/@font-face/g)!.length);
+    expect(f.match(/font-display:\s*swap/g)!.length).toBe(f.match(/@font-face/g)!.length);
     for (const w of ["Inter-normal-400.woff2", "Fraunces-normal-500-700.woff2"]) expect(h).toContain(`<link rel="preload" href="/fonts/${w}" as="font" type="font/woff2" crossorigin>`);
-    for (const s of h.match(/<script\b[^>]*\bsrc="[^"]+"[^>]*>/g) ?? []) if (!/theme\.js|keep\.js|consent\.js|common\.js|google\.js|site\.js/.test(s)) expect(s).toMatch(/\bdefer\b/); // theme.js must run first (no flash of the wrong colours); common.js and site.js are the last thing in the body
+    for (const s of h.match(/<script\b[^>]*\bsrc="[^"]+"[^>]*>/g) ?? []) if (!/theme\.js|theme-init\.js|keep\.js|consent\.js|common\.js|google\.js|site\.js/.test(s)) expect(s).toMatch(/\bdefer\b/); // theme.js must run first (no flash of the wrong colours); common.js and site.js are the last thing in the body
     expect(h).toMatch(/<script src="\/common\.js"><\/script><script src="\/google\.js"><\/script><script src="\/site\.js"><\/script>\s*<\/body>/); // the page scripts sit at the very end
-    expect(h.replace(/<footer class="uf"[\s\S]*?<\/footer>/, "")).not.toMatch(/(src|href)="https?:\/\/(?!bingo\.corporatetambola\.com|shobhakamalsolutions\.pages\.dev)/); // the uniform footer names the sister products on purpose
+    expect(h.replace(/<footer class="ck-foot"[\s\S]*?<\/footer>/, "")).not.toMatch(/(src|href)="https?:\/\/(?!bingo\.corporatetambola\.com|shobhakamalsolutions\.pages\.dev)/); // the uniform footer names the sister products on purpose
     expect(rd("../../../pages/build.mjs" as any).includes("max-age=31536000, immutable")).toBe(true);
   });
 });

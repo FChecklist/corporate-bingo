@@ -87,7 +87,7 @@ const consoleOf = (ctx: GoCtx, id: string, act = "") => `${ctx.origin}/zc.html?e
 export async function goScreen(ctx: GoCtx, step: string, q: URLSearchParams): Promise<Screen> {
   const L = (s: string, set: Record<string, string> = {}) => link(ctx, s, q, set);
   switch (step) {
-    case "": case "start": return { say: "Hello! I can set up or manage your Corporate Bingo game with you. What would you like to do?", choices: choices([["Start a new game", `${ctx.base}/go/new`, true], ["Change a game that has not started yet", `${ctx.base}/go/games`], ["Show the links of a game", `${ctx.base}/go/games?then=links`], ["Tell me about the software (is it safe, private, legal?)", `${ctx.base}/facts`], ["Watch the video first", `${ctx.origin}/demo.html`]]), ifWrong: WRONG };
+    case "": case "start": return { say: "Hello! I can set up or manage your Corporate Bingo game with you. What would you like to do?", choices: choices([["Start a new game", `${ctx.base}/go/new`, true], ["Change a game that has not started yet", `${ctx.base}/go/games`], ["Show the links of a game", `${ctx.base}/go/games?then=links`], ["Tell me about the software (is it safe and legal?)", `${ctx.base}/facts`], ["Watch the video first", `${ctx.origin}/demo.html`]]), ifWrong: WRONG };
     case "new":
       if (!zoneKey(q)) return { say: "Which time zone are you in? (The start time is set in it.)", choices: choices(Object.entries(ZONES).map(([k, z]) => [z.label, L("new", { z: k })] as [string, string, boolean?])), ifWrong: WRONG };
       return { say: `Which day is the game? (${zoneLabel(q)})`, choices: choices(dayRows(ctx, q, "time")), ifWrong: WRONG };
@@ -116,7 +116,7 @@ export async function goScreen(ctx: GoCtx, step: string, q: URLSearchParams): Pr
       const base = `${o.code}-${pad(istParts(startMs, tz).mo)}${pad(istParts(startMs, tz).d)}`; let id = base, made: any = null;
       for (let i = 1; i <= 9; i++) {
         id = i === 1 ? base : `${base}-${i}`;
-        const body: any = { id, name: `${o.label}, ${dayLabel(q.get("d")!)}`, startRound: startRoundOf(startMs), tz, callSeconds: Number(q.get("s")) || 9, cap: Number(q.get("c")), tickets: k, rounds: Number(q.get("r")) || 1, rewards, closed: q.get("j") === "c", ...(q.get("x") === "l" ? { breaks: [{ kind: "lucky", title: "Lucky draw", winners: 1, seconds: 60 }] } : {}) };
+        const body: any = { id, name: `${o.label}, ${dayLabel(q.get("d")!)}`, startRound: startRoundOf(startMs), tz, callSeconds: Number(q.get("s")) || 12, cap: Number(q.get("c")), tickets: k, rounds: Number(q.get("r")) || 1, rewards, closed: q.get("j") === "c", ...(q.get("x") === "l" ? { breaks: [{ kind: "lucky", title: "Lucky draw", winners: 1, seconds: 60 }] } : {}) };
         const r = await ctx.api("POST", "z", body);
         if (r.status !== 200) return { say: `I could not save it: ${r.json?.error ?? "something went wrong"}. ${r.json?.next ?? ""}`.trim(), choices: choices([["Open the organizer's console", `${ctx.origin}/zc.html`]]), ifWrong: WRONG };
         if (!r.json.existed) { made = r.json; break; }

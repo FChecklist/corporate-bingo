@@ -1,0 +1,27 @@
+bun test v1.4.4 (38afee6c8)
+
+apps/web/test/guide.test.ts:
+35 |     const missing: string[] = [];
+36 |     for (const m of serverMessages()) {
+37 |       if (CTG.apiOnly(m.msg)) continue;
+38 |       if (!CTG.find({ status: m.status, message: m.msg }).matched) missing.push(`${m.file}:${m.line} [${m.status}] ${m.msg.slice(0, 90)}`);
+39 |     }
+40 |     expect(missing).toEqual([]); // a message listed here needs a catalog entry in guide.js (what happened, what to do, where to go)
+                         ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "people.ts:528 [409] This request waited more than 30 minutes, so it has lapsed. The person can ask again.",
++ ]
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/home/user/corporate-bingo/apps/web/test/guide.test.ts:40:21)
+(fail) every message the server can send has a guide > each one is either guided (matched by a catalog entry) or on the list of messages no person ever sees [114.03ms]
+
+ 12 pass
+ 1 fail
+ 2209 expect() calls
+Ran 13 tests across 1 file. [636.00ms]

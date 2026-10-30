@@ -173,7 +173,7 @@
   // Payer details are remembered in this browser only (never sent anywhere until they pay). They show in grey and can be edited in place; typing turns the text normal.
   TB.payer = {
     load() { try { const v = JSON.parse(localStorage.getItem("cb-payer") || "{}"); return v && typeof v === "object" ? v : {}; } catch { return {}; } },
-    save(o) { try { const keep = {}; for (const k of ["name", "email", "phone", "pcode", "org", "tax"]) if (typeof o[k] === "string" && o[k].trim()) keep[k] = o[k].trim().slice(0, 120); localStorage.setItem("cb-payer", JSON.stringify(keep)); } catch { /* private mode: fine */ } },
+    save(o) { try { const keep = {}; for (const k of ["name", "email", "phone", "pcode", "org", "tax"]) if (typeof o[k] === "string" && o[k].trim()) keep[k] = o[k].trim().slice(0, 120); localStorage.setItem("cb-payer", JSON.stringify(keep)); } catch { /* storage blocked: fine */ } },
     mark(root) { const v = TB.payer.load(); for (const [id, k] of [["nm", "name"], ["em", "email"], ["ph", "phone"], ["org", "org"], ["tax", "tax"]]) { const e = root.querySelector("#" + id); if (!e || !v[k] || e.value !== v[k]) continue; e.classList.add("pfill"); e.addEventListener("input", () => e.classList.remove("pfill"), { once: true }); } },
   };
   TB.pay = (rz, paymentId, hop) => hop ? payViaHop(rz, paymentId, hop) : new Promise((resolve, reject) => {    const open = () => {

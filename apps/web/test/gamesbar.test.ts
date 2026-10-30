@@ -1,30 +1,40 @@
-// The Corporate Games bar: every PUBLIC page loads gamesbar.js (not the play, console, pay or report pages); the bar has exactly the six links, Bingo marked current.
+// The Corporate Games bar: every PUBLIC page loads gamesbar.js (not the play, console, pay or report pages); the bar lists every game, Bingo is marked as the current one.
+// The files themselves are pinned to the canonical copy in brand-site.test.ts.
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { Window } from "happy-dom";
 
 const pub = (f: string) => readFileSync(new URL("../public/" + f, import.meta.url), "utf8");
-const PUBLIC = ["index", "about", "contact", "legal", "terms", "refund-policy", "dpa", "subprocessors", "partner", "partner-terms", "organizer-guide", "pricing", "brochure", "404"];
-const PRIVATE = ["z", "zc", "big", "preview", "pay", "paylink", "paytest", "report", "signin", "demo", "owner-visits", "ai-link"];
-const LINKS = ["https://games.corporatetambola.com/?from=bingo", "https://corporatetambola.com/", "https://bingo.corporatetambola.com/", "https://tictactoe.corporatetambola.com/", "https://snakes.corporatetambola.com/", "https://luck.corporatetambola.com/"];
+const PUBLIC = ["index", "how-it-works", "guide", "brochure", "about", "contact", "legal", "terms", "refund-policy", "dpa", "subprocessors", "partner", "partner-terms", "helpdesk", "pricing", "privacy", "legal-position", "404"];
+const WORK_PAGES = ["z", "zc", "big", "preview", "pay", "paylink", "paytest", "report", "signin", "demo", "owner-visits", "ai-link"];
+const GAMES: [string, string][] = [["tambola", "https://housie.corporatetambola.com/"], ["bingo", "https://bingo.corporatetambola.com/"], ["tictactoe", "https://tictactoe.corporatetambola.com/"], ["snakes", "https://snakes.corporatetambola.com/"], ["luck", "https://luck.corporatetambola.com/"], ["draw", "https://home.corporatetambola.com/contact"]];
 
+const load = (w: any) => new Function("window", "document", "location", "String", "Array", "Object", "Math", "Date", "JSON", "RegExp", "Number", "Error", "URL", "setTimeout", "clearTimeout", pub("gamesbar.js"))
+  .call(w, w, w.document, w.location, String, Array, Object, Math, Date, JSON, RegExp, Number, Error, URL, setTimeout, clearTimeout); // the page's script, run inside the fake window (it needs the usual built-ins)
 describe("the Corporate Games bar", () => {
   test("every public page loads it, no play / console / pay page does, and the build ships it", () => {
-    for (const p of PUBLIC) expect([p, pub(p + ".html").includes('src="/gamesbar.js"')]).toEqual([p, true]);
-    for (const p of PRIVATE) expect([p, pub(p + ".html").includes("gamesbar")]).toEqual([p, false]);
+    for (const p of PUBLIC) expect([p, /<script src="\/gamesbar\.js\?v=\d+" defer><\/script>/.test(pub(p + ".html"))]).toEqual([p, true]);
+    for (const p of WORK_PAGES) expect([p, pub(p + ".html").includes("gamesbar")]).toEqual([p, false]);
     const b = readFileSync(new URL("../../../pages/build.mjs", import.meta.url), "utf8"); expect(b).toContain('"gamesbar.js"'); expect(b).toContain('"gamesbar.css"');
   });
-  test("the bar has exactly the six links, Bingo is current, the line is hidden on phones, the colours and focus are as ordered", async () => {
+  test("the bar sits right after the skip link, lists the six games and the home mark, and marks Bingo as the current game", () => {
     const w = new Window({ url: "https://bingo.corporatetambola.com/" }); const d = w.document;
-    d.body.innerHTML = "<main>page</main>"; d.head.innerHTML = "";
-    new Function("window", "document", "with (window) {" + pub("gamesbar.js") + "}").call(w, w, w.document);
-    const bar = d.querySelector(".cg-bar")!; expect(d.body.firstElementChild).toBe(bar);
-    expect([...bar.querySelectorAll("a")].map((a: any) => a.href)).toEqual(LINKS);
-    expect([...bar.querySelectorAll("a")].map((a: any) => a.textContent)).toEqual(["Corporate Games", "Corporate Tambola", "Corporate Bingo", "Corporate Tic Tac Toe", "Corporate Snakes & Ladders", "Corporate Luck by Chance"]);
-    const cur = [...bar.querySelectorAll('[aria-current="true"]')]; expect(cur.length).toBe(1); expect((cur[0] as any).textContent).toBe("Corporate Bingo");
-    expect(bar.querySelector(".cg-line")!.textContent).toBe("closed group, online engagement");
-    expect(d.head.querySelector('link[href="/gamesbar.css"]')).toBeTruthy();
-    new Function("window", "document", "with (window) {" + pub("gamesbar.js") + "}").call(w, w, w.document); expect(d.querySelectorAll(".cg-bar").length).toBe(1); // loading it twice adds nothing
-    const css = pub("gamesbar.css"); expect(css).toContain("#14213D"); expect(css).toContain("14px"); expect(css).toContain("overflow-x:auto"); expect(css).toContain(":focus-visible"); expect(css).toContain("border-radius:999px");
+    d.head.innerHTML = ""; d.body.innerHTML = '<a class="ck-skip" href="#main">Skip to the content</a><main id="main">page</main>';
+    load(w);
+    const bar = d.querySelector(".cgb")!; expect(bar).toBeTruthy();
+    expect((d.body.firstElementChild as any).className).toBe("ck-skip"); const prev = bar.previousElementSibling as any; expect(prev === d.body.firstElementChild || prev?.previousElementSibling === d.body.firstElementChild).toBe(true); /* only the hidden icon sheet may sit between the skip link and the bar */
+    const links = [...bar.querySelectorAll("a[data-game]")] as any[];
+    expect([...new Map(links.map((a) => [a.getAttribute("data-game"), a.href])).entries()]).toEqual(GAMES);
+    const cur = [...bar.querySelectorAll("[aria-current]")] as any[]; expect(cur.length).toBeGreaterThan(0);
+    for (const a of cur) expect(a.getAttribute("data-game")).toBe("bingo");
+    expect(cur.some((a) => a.getAttribute("aria-current") === "page")).toBe(true);
+    expect(bar.textContent).toContain("Corporate"); expect([...bar.querySelectorAll("a")].some((a: any) => a.href === "https://home.corporatetambola.com/")).toBe(true);
+    load(w); expect(d.querySelectorAll(".cgb").length).toBe(1); // loading it twice adds nothing
+    expect(d.head.querySelector('link[href^="/gamesbar.css"]')).toBeTruthy();
+    const css = pub("gamesbar.css"); expect(css).toContain(":focus-visible");
+  });
+  test("it never says the banned word and never links the old hub", () => {
+    const banned = new RegExp(["pri", "vate"].join(""), "i");
+    for (const f of ["gamesbar.js", "gamesbar.css"]) { expect(banned.test(pub(f))).toBe(false); expect(pub(f)).not.toContain("games.corporatetambola.com"); }
   });
 });

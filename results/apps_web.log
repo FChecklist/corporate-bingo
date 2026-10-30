@@ -1,0 +1,89 @@
+bun test v1.4.4 (38afee6c8)
+
+apps/web/test/storage-notice.test.ts:
+16 |   const { uses, cookies } = scan();
+17 |   const used = new Set(uses.map((u) => `${u.store}|${u.key}`));
+18 | 
+19 |   test("every key the scripts keep on a device is listed in storage-registry.json", () => {
+20 |     const missing = uses.filter((u) => !listed.has(`${u.store}|${u.key}`)).map((u) => `${u.file}: ${u.store} ${u.key}`);
+21 |     expect(missing).toEqual([]);
+                         ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "zc-mode.js: localStorage ?KEY",
++ ]
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/home/user/corporate-bingo/apps/web/test/storage-notice.test.ts:21:21)
+(fail) R9: the storage notice matches the code > every key the scripts keep on a device is listed in storage-registry.json [80.36ms]
+23 |   test("every listed key is still used by a script (the page never claims something that is gone)", () => {
+24 |     const stale = [...listed].filter((k) => !used.has(k));
+25 |     expect(stale).toEqual([]);
+26 |   });
+27 |   test("every key could be followed to its name (nothing is hidden behind a computed key)", () => {
+28 |     expect(uses.filter((u) => u.key.startsWith("?")).map((u) => `${u.file}: ${u.key}`)).toEqual([]);
+                                                                                             ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "zc-mode.js: ?KEY",
++ ]
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/home/user/corporate-bingo/apps/web/test/storage-notice.test.ts:28:89)
+(fail) R9: the storage notice matches the code > every key could be followed to its name (nothing is hidden behind a computed key) [0.42ms]
+
+apps/web/test/guide.test.ts:
+35 |     const missing: string[] = [];
+36 |     for (const m of serverMessages()) {
+37 |       if (CTG.apiOnly(m.msg)) continue;
+38 |       if (!CTG.find({ status: m.status, message: m.msg }).matched) missing.push(`${m.file}:${m.line} [${m.status}] ${m.msg.slice(0, 90)}`);
+39 |     }
+40 |     expect(missing).toEqual([]); // a message listed here needs a catalog entry in guide.js (what happened, what to do, where to go)
+                         ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "people.ts:528 [409] This request waited more than 30 minutes, so it has lapsed. The person can ask again.",
++ ]
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/home/user/corporate-bingo/apps/web/test/guide.test.ts:40:21)
+(fail) every message the server can send has a guide > each one is either guided (matched by a catalog entry) or on the list of messages no person ever sees [198.04ms]
+
+apps/web/test/no-internal-notes.test.ts:
+31 |       const s = readFileSync(f, "utf8");
+32 |       const m = s.match(EVERYWHERE);
+33 |       if (m) hits.push(`${relative(ROOT, f)}: ${m[0]}`);
+34 |     }
+35 |     expect(files).toBeGreaterThan(50);
+36 |     expect(hits).toEqual([]);
+                      ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "apps/web/public/pack/zc-flow.css: todo",
++   "apps/web/public/pack/zc-flow.js: todo",
++ ]
+
+- Expected  - 1
++ Received  + 4
+
+      at <anonymous> (/home/user/corporate-bingo/apps/web/test/no-internal-notes.test.ts:36:18)
+(fail) no internal notes in anything that is shipped > no file of the website or the Pages functions matches [13.43ms]
+
+ 337 pass
+ 4 fail
+ 5431 expect() calls
+Ran 341 tests across 26 files. [242.90s]

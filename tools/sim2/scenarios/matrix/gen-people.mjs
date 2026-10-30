@@ -274,5 +274,15 @@ export default async function gen({ R, L }) {
     t.expect("first phone", await joinRaw(g.id, { token: tok, phone, name: "Anil", device: dev("p1") }, t.ip()), "ok"); const rs = await org.api("POST", `/api/z/${g.id}/people/${a.people[0].id}/resend`, {}); t.expect("send again", rs, "ok"); t.check("a different link", rs.body.link && A.tokenOfLink(rs.body.link) !== tok);
     t.check("the old link is dead", (await fetch(`${SIM}/j/${tok}`)).status === 404); t.expect("the new link works on a new phone", await joinRaw(g.id, { token: A.tokenOfLink(rs.body.link), phone, name: "Anil", device: dev("p2") }, t.ip()), "ok");
   } });
+  // ---------- employee ID formats (owner rule 2026-10-30): every way of typing one ID is the same person ----------
+  {
+    const { normEmp, EMP_CLEAN_FROM_MS } = await import("../../../../apps/edge/src/people.ts");
+    const SEPS = ["", "-", "/", " ", ".", "_", "​", " - "], CASES = [(x) => x, (x) => x.toLowerCase(), (x) => x.toUpperCase()], FULL = [false, true];
+    for (const sep of SEPS) for (const ci of [0, 1, 2]) for (const full of FULL) out.push({ name: `id-format|sep ${JSON.stringify(sep)} case ${ci} fullwidth ${full}`, run: async (t) => {
+      let typed = CASES[ci](`1B${sep}678`); if (full) typed = typed.replace(/[A-Za-z0-9]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0xFEE0));
+      t.check("typed " + JSON.stringify(typed) + " reads as 1B678 in a new game", normEmp(typed, EMP_CLEAN_FROM_MS + 1) === "1B678", String(normEmp(typed, EMP_CLEAN_FROM_MS + 1)));
+      t.check("an older game keeps the old rule (a dash or slash is kept)", sep === "-" || sep === "/" ? normEmp(typed, EMP_CLEAN_FROM_MS - 1) !== "1B678" || full : true);
+    } });
+  }
   return out;
 }
