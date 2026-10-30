@@ -213,10 +213,17 @@ describe("Bingo's name-only join next to the ID", () => {
     expect((await join("PPL-1", { name: "Outsider", device: dev(9) })).status).toBe(200);
     expect((await call("PATCH", "/api/z/PPL-1/settings", { name: "Renamed" }, t.master)).status).toBe(200);
     let s = await j(await call("GET", "/api/z/PPL-1/summary", undefined, t.master)); expect(s.verify).toBe("id");
+    // round 3: the lock (id-kind-locked) counts only people who hold an ID hash; a name-only guest holds none, so the change is allowed. The lock itself is tested in audit-141.test.ts.
     expect((await call("PATCH", "/api/z/PPL-1/settings", { verify: "both" }, t.master)).status).toBe(200);
+    expect((await call("PATCH", "/api/z/PPL-1/settings", { verify: "id" }, t.master)).status).toBe(200);
+    s = await j(await call("GET", "/api/z/PPL-1/summary", undefined, t.master)); expect(s.verify).toBe("id");
+
+  });
+  test("'both' without an ID is asked for the ID (set before anyone joins, since 1.4.1 locks it afterwards); then back to a name-and-number game", async () => {
+    const t = await setup({ verify: "both" });
     const r = await join("PPL-1", { name: "Asha", empId: "E101", device: dev(10) }); expect(r.status).toBe(400); expect((await j(r)).code).toBe("need-id");
     expect((await call("PATCH", "/api/z/PPL-1/settings", { verify: "mobile" }, t.master)).status).toBe(200);
-    s = await j(await call("GET", "/api/z/PPL-1/summary", undefined, t.master)); expect(s.verify).toBe("mobile");
+    const s = await j(await call("GET", "/api/z/PPL-1/summary", undefined, t.master)); expect(s.verify).toBe("mobile");
   });
   test("a waiting person's employee ID is shown to the organizer", async () => {
     const t = await setup({ verify: "id", employeesOnly: true });
