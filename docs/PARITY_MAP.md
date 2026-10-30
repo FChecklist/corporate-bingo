@@ -11,7 +11,7 @@ Bingo differences that drive the ADAPTED / NOT APPLICABLE rows: card patterns (L
 | 5 | Email ID list criterion (Employee ID or Email ID, list decides) | ADOPTED | idKind in config, join + list upload, z.js/zc.js; email-id.test.ts (4 pass, planted break 2 fail); organizer add-box placeholder still says Employee ID |
 | 6 | Same person after cleaning flagged in list check | ADOPTED | sameAfterCleaning (171392c); reply test TODO |
 | 7 | Game log kept 365 days, personal data erased within 24 h | ADOPTED | gamelog.ts (B26) kept on purpose |
-| 8 | 5 organizer steps + Game dashboard | TODO | copy the pack/ flow from Tambola |
+| 8 | 5 organizer steps + Game dashboard | ADAPTED (opt-in, untested) | shared pack vendored from the console repo; Bingo descriptor zc-flow-game.js; ?flow=new |
 | 9 | Game ID always shown; status pills with plain banners | TODO | |
 | 10 | Host and Co-host sign-in, roles, limits | TODO | Bingo has Host/Co-host keys today (hostsetup.ts); screens TODO |
 | 11 | Family Passes | TODO | check Bingo rules (one card per player) |
@@ -28,5 +28,5 @@ Bingo differences that drive the ADAPTED / NOT APPLICABLE rows: card patterns (L
 | 22 | Thank-you and Game completed pages (Share + WhatsApp) | TODO | |
 | 23 | Rules row only inside the game | TODO | |
 | 24 | Retro / Modern minimal player look | TODO | |
-| 25 | Previous-screens link (?flow=old) | TODO | |
+| 25 | Previous-screens link (?flow=old) | ADOPTED (opt-in form) | link swaps flow=new and flow=old; remembered choice TODO |
 | 26 | Consent version safe | TODO | |
