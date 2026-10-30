@@ -8,7 +8,7 @@ Bingo differences that drive the ADAPTED / NOT APPLICABLE rows: card patterns (L
 | 2 | Footer: Version + release date (time IST) | ADOPTED | time is added at deploy (commit 68e8f42) |
 | 3 | Employee ID cleaner (NFKC, A-Z 0-9, 30 cap, old games unchanged) | ADOPTED | emp-clean.test.ts; a12c6a1 |
 | 4 | Email cleaner (case-insensitive) | ADOPTED | email-key tests; f2b452f, 68712b6 |
-| 5 | Email ID list criterion (Employee ID or Email ID, list decides) | TODO | owner decision 2026-10-30: add |
+| 5 | Email ID list criterion (Employee ID or Email ID, list decides) | ADOPTED | idKind in config, join + list upload, z.js/zc.js; email-id.test.ts (4 pass, planted break 2 fail); organizer add-box placeholder still says Employee ID |
 | 6 | Same person after cleaning flagged in list check | ADOPTED | sameAfterCleaning (171392c); reply test TODO |
 | 7 | Game log kept 365 days, personal data erased within 24 h | ADOPTED | gamelog.ts (B26) kept on purpose |
 | 8 | 5 organizer steps + Game dashboard | TODO | copy the pack/ flow from Tambola |
