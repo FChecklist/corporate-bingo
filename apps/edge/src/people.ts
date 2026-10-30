@@ -67,7 +67,7 @@ export const looksLikeEmail = (raw: unknown): boolean => String(raw ?? "").norma
 export const EMP_LOOKS_LIKE_EMAIL = "This looks like an Email ID. This game asks for an employee ID: letters and numbers only.";
 /** The ID a person gives, by what this game asks for: an employee ID (cleaned to A-Z 0-9) or an Email ID (cleaned with emailKey). "" = nothing typed, null = not usable. */
 export const normId = (raw: unknown, kind: "emp" | "email", createdMs?: number | null): string | null => {
-  if (kind === "email") { const t = String(raw ?? ""); if (!t.replace(/[\s\u200B-\u200D\u2060\uFEFF]/g, "")) return ""; const k = emailKey(t); return EMAIL_ID_RE.test(k) && k.length <= 254 ? k : null; }
+  if (kind === "email") { const t = String(raw ?? ""); if (!emailKey(t)) return ""; const k = emailKey(t); return EMAIL_ID_RE.test(k) && k.length <= 254 && !k.includes("..") && !k.split("@")[1]!.startsWith(".") && !k.endsWith(".") ? k : null; }
   if ((createdMs == null || createdMs >= EMP_CLEAN_FROM_MS) && looksLikeEmail(raw)) return null; // an Email ID typed where an employee ID is asked is refused, never mangled
   return normEmp(raw, createdMs);
 };

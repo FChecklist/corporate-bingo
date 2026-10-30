@@ -497,7 +497,7 @@
   }
   // the ID the server will keep, worked out the same way (so the console can find two spellings of one person): an Email ID is NFKC, no spaces, lower case; an employee ID is NFKC, capitals, A-Z 0-9 only (games made before the new rule: capitals, no spaces)
   const idCleanOn = () => !!((S.sum && S.sum.idClean) || (S.cfg && S.cfg.idClean));
-  const idKeyOf = (raw) => { const v = String(raw == null ? "" : raw).normalize("NFKC"); return idKindNow() === "email" ? v.replace(/[\s\u200B-\u200D\u2060\uFEFF]/g, "").toLowerCase() : idCleanOn() ? v.toUpperCase().replace(/[^A-Z0-9]/g, "") : v.replace(/\s+/g, "").toUpperCase(); };
+  const idKeyOf = (raw) => { const v = String(raw == null ? "" : raw).normalize("NFKC"); return idKindNow() === "email" ? v.replace(/[\s\u0085\u200B-\u200D\u2028\u2029\u2060\uFEFF]/g, "").toLowerCase() : idCleanOn() ? v.toUpperCase().replace(/[^A-Z0-9]/g, "") : v.replace(/\s+/g, "").toUpperCase(); };
   const idProblem = (raw) => { const v = String(raw == null ? "" : raw).normalize("NFKC").trim(); if (!v) return ""; if (idKindNow() === "email") return /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/.test(idKeyOf(v)) ? "" : "Please check your Email ID. It looks incomplete."; return idCleanOn() && v.indexOf("@") >= 0 ? "This looks like an Email ID. This game asks for an employee ID: letters and numbers only." : ""; };
   function cleanBatch(rows) {
     const seen = new Set(), good = [], wrong = [], same = []; let dups = 0;
@@ -558,7 +558,7 @@
       }
       if (counted) added = got;
       const d = dups + serverDup;
-      P.sum = (sameId.length ? "Same employee ID after cleaning: " + sameId.slice(0, 10).join(", ") + (sameId.length > 10 ? " and more" : "") + ". " : "") + `${added} good, ${d === 1 ? "1 duplicate" : d + " duplicates"} removed, ${bad.length === 1 ? "1 looks wrong" : bad.length + " look wrong"}`;
+      P.sum = (sameId.length ? (idKindNow() === "email" ? "Same Email ID after cleaning: " : "Same employee ID after cleaning: ") + sameId.slice(0, 10).join(", ") + (sameId.length > 10 ? " and more" : "") + ". " : "") + `${added} good, ${d === 1 ? "1 duplicate" : d + " duplicates"} removed, ${bad.length === 1 ? "1 looks wrong" : bad.length + " look wrong"}`;
       P.wrong = keep ? P.wrong.concat(bad) : bad;
     } catch (e) { P.sum = friendly(e); }
     await loadPeople(); redraw();
@@ -624,7 +624,7 @@
     return h + `</div>`;
   }
   // the same cleaning the server does for an employee ID, shown while typing
-  document.addEventListener("input", (ev) => { const t = ev.target; if (!t || t.id !== "gemp") return; const h = document.getElementById("gemphint"); if (!h) return; const v = String(t.value || ""), bad = idProblem(v), c = bad ? "" : idKeyOf(v); /* no "read this as" line for an e-mail typed in an employee-ID game (it is refused) */ h.textContent = bad ? bad : c && c !== v.trim() ? "The system will read this as " + c : ""; });
+  document.addEventListener("input", (ev) => { const t = ev.target; if (!t || t.id !== "gemp") return; const h = document.getElementById("gemphint"); if (!h) return; const v = String(t.value || ""), bad = idProblem(v), c = bad ? "" : idKeyOf(v); /* no "read this as" line for an e-mail typed in an employee-ID game (it is refused) */ h.textContent = bad ? bad : idKindNow() !== "email" && !idCleanOn() ? "" : c && c !== v.trim() ? "The system will read this as " + c : ""; /* an employee-ID game made before the new rule: no hint */ });
   const localCsv = () => [(vmode() === "mobile" ? "Name,Mobile,Personal link,WhatsApp link,Status" : "Name,Mobile," + idLabel() + ",Personal link,WhatsApp link,Status")].concat((S.pp.list || []).map((p) => [p.name, p.maskedPhone].concat(vmode() === "mobile" ? [] : [p.empId || ""]).concat([p.link, waHref(p), stLabel(p.status)]).map((x) => '"' + String(x == null ? "" : x).replace(/"/g, '""') + '"').join(","))).join("\n");
   /** Organizer and Host play through their own personal link too: their seat is marked for them (POST /people/me), made when they ask. */
   function playBlock() {
@@ -1191,6 +1191,7 @@
       while (S.people.length < pr.total) { const more = await call("GET", `/api/z/${eid}/participants?offset=${S.people.length}`); if (!more.participants.length) break; S.people.push(...more.participants); } // a long list arrives in pages
       S.cfg = { name: pr.name, tickets: pr.tickets, rewards: pr.rewards, breaks: pr.breaks, opening: pr.opening || [], closing: pr.closing || [], rounds: pr.rounds || 1, invites: pr.invites };
       try { S.sum = await call("GET", `/api/z/${eid}/summary`); } catch { S.sum = S.sum || null; }
+      if (S.sum) { S.cfg.verify = S.sum.verify; S.cfg.employeesOnly = S.sum.employeesOnly; S.cfg.idKind = S.sum.idKind; S.cfg.idClean = S.sum.idClean; } // what a person must give is part of the saved game: step 2 opens on it and saves it back unchanged
       if (canRun() && Number(S.sum && S.sum.credit) > 0) { try { S.creditInfo = await call("GET", "/api/org/credit"); } catch { S.creditInfo = null; } } else S.creditInfo = null;
       try { S.claims = (await call("GET", `/api/z/${eid}/claims`)).claims; } catch (e) { if (isOrg()) throw e; S.claims = []; }
       try { S.reqs = (await call("GET", `/api/z/${eid}/control/request`)).requests; } catch { S.reqs = []; }
