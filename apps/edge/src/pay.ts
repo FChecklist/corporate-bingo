@@ -6,7 +6,7 @@
 // An entitlement is what lets an organizer create one engagement of up to `pack` participants; without one, creating is refused.
 // Needs the `nodejs_compat` flag (billing uses node:crypto HMAC). Test mode (env.TEST_MODE = "1", never in production) fulfils without Razorpay.
 import { recordFunnelForOrg } from "./visits";
-import { emailKey } from "./emailkey";
+import { accountEmail } from "./emailkey";
 import { plainToHtml, tagSubject, withFooter } from "./brand";
 import {
   BRANDS, DEFAULT_COMPANY, companyGaps, createOrder, fetchPayment, capturePayment, paymentInfo, financialYear, formatInvoiceNumber, renderInvoiceHtml, renderInvoiceText, splitGst, toMinor,
@@ -206,7 +206,7 @@ async function fulfilInner(env: PayEnv, paymentId: string, now: number, spend: (
   if (!(await spend(6))) return { error: "Busy day. Your payment is safe; this will complete shortly.", status: 503 };
   const meta = JSON.parse(p.meta);
   if (meta.paytest) return fulfilPaytest(env, p, meta, now);
-  const eh = await sha("email|" + emailKey(p.email));
+  const eh = await sha("email|" + accountEmail(p.email));
   let org: string | null = meta.orgId ?? (await db.prepare("SELECT org FROM organizer_email WHERE email_hash=?").bind(eh).first<{ org: string }>())?.org ?? null;
   let organizerKey: string | null = null;
   const test = p.is_test ? 1 : 0; // a payment made in TEST mode (mode.ts): everything it creates is flagged too
@@ -272,10 +272,10 @@ async function fulfilInner(env: PayEnv, paymentId: string, now: number, spend: (
   ];
   await sendMail(env, db, p.email, `${brand.name}: payment received, invoice ${number}`, lines.join("\n\n"), now);
   // the same invoice goes to the organizer's own e-mail when someone else paid (a Co-host or a pay link) or the organizer's e-mail differs from the payer's
-  const orgMail = typeof organizer.email === "string" ? emailKey(organizer.email) : "";
-  const teamTo = await teamEmails(env, org, eidForInvoice || meta.eid || null).catch(() => null), invSeen = new Set<string>([emailKey(p.email)]), invTo: string[] = []; // the organizer and every Host get the invoice once; the payer already has the receipt
-  for (const t0 of [orgMail, teamTo?.organizer ?? "", ...(teamTo?.hosts ?? [])]) { const t = emailKey((t0 ?? "")); if (t && EMAIL.test(t) && !invSeen.has(t)) { invSeen.add(t); invTo.push(t); } }
-  const ownerSet = new Set([orgMail, emailKey((teamTo?.organizer ?? ""))]); // the organizer gets the whole invoice; a Host only hears that the game is paid (a Host may be outside the paying company, so no buyer details and no invoice link)
+  const orgMail = typeof organizer.email === "string" ? accountEmail(organizer.email) : "";
+  const teamTo = await teamEmails(env, org, eidForInvoice || meta.eid || null).catch(() => null), invSeen = new Set<string>([accountEmail(p.email)]), invTo: string[] = []; // the organizer and every Host get the invoice once; the payer already has the receipt
+  for (const t0 of [orgMail, teamTo?.organizer ?? "", ...(teamTo?.hosts ?? [])]) { const t = accountEmail((t0 ?? "")); if (t && EMAIL.test(t) && !invSeen.has(t)) { invSeen.add(t); invTo.push(t); } }
+  const ownerSet = new Set([orgMail, accountEmail((teamTo?.organizer ?? ""))]); // the organizer gets the whole invoice; a Host only hears that the game is paid (a Host may be outside the paying company, so no buyer details and no invoice link)
   for (const to of invTo) await sendMail(env, db, to, `${brand.name}: ${ownerSet.has(to) ? `invoice ${number} for your game` : `your game ${eidForInvoice ?? ""} is paid`}`, ownerSet.has(to)
     ? `An invoice for your game${eidForInvoice ? ` ${eidForInvoice}` : ""} was issued by ${brand.name}.
 
@@ -382,13 +382,13 @@ export async function payRoute(req: Request, env: PayEnv, now: number, spend: (n
     const meta = { org: orgName.slice(0, 120), name: payerName.slice(0, 120), ...(contact ? { phone: contact } : {}), country: typeof b.country === "string" ? b.country.slice(0, 2) : "IN", taxId: typeof b.taxId === "string" ? b.taxId.trim().slice(0, 20) : "", origin: env.PUBLIC_ORIGIN ?? url.origin, ...(boundOrg ? { orgId: boundOrg, eid: boundEid, paidBy, ...(credited > 0 ? { creditInr: credited } : {}) } : {}) };
     let order: any = null;
     if (rzp) {
-      try { order = await placeOrder(env, rzp, { amountMinor: toMinor(pr.total), currency: cur, receipt: id, plan: `bingo_pack_${pack}`, user: boundOrg ?? null, email: emailKey(b.email), notes: { brand: brand.name, site: env.PAY_SITE ?? "corporate-bingo.pages.dev", stream: "sales", product: "corporate_bingo", plan: `bingo_pack_${pack}`, variation: `bingo_pack_${pack}`, pack: String(pack), currency: cur, organization: (meta.org || meta.name).slice(0, 80), payment_ref: id } }); }
+      try { order = await placeOrder(env, rzp, { amountMinor: toMinor(pr.total), currency: cur, receipt: id, plan: `bingo_pack_${pack}`, user: boundOrg ?? null, email: accountEmail(b.email), notes: { brand: brand.name, site: env.PAY_SITE ?? "corporate-bingo.pages.dev", stream: "sales", product: "corporate_bingo", plan: `bingo_pack_${pack}`, variation: `bingo_pack_${pack}`, pack: String(pack), currency: cur, organization: (meta.org || meta.name).slice(0, 80), payment_ref: id } }); }
       catch (e: any) { return json({ error: `The payment service said: ${e.message}` }, 502); }
     }
     const ref = (await helperRefFor(db, boundEid)) ?? refCode(b.ref); // a game a Help Desk helper prepared always pays its helper (helpdesk.ts); otherwise from the buyer's own browser (valid for 30 days after the link was opened); checked against real partners when the payment is fulfilled
     const bph = partnerCode(b.phone); // optional, only used to spot a partner buying through their own link
     const lf = ledgerFields(siteOf(meta.origin), "game_pack", `pack_${pack}`, boundOrg ?? null);
-    await db.prepare("INSERT INTO payment(id,org,email,pack,currency,amount,tax,rzp_order_id,status,created_ms,meta,ref,buyer_phone_hash,is_test,eid,site,product,product_type,product_ref,payer_user,txn_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id, null, emailKey(b.email), pack, cur, pr.total, pr.tax, order?.id ?? null, "created", now, JSON.stringify(meta), ref, bph ? await phoneHashFor(env, bph) : null, siteTest ? 1 : 0, boundEid, lf.site, lf.product, lf.productType, lf.productRef, lf.payerUser, txnIdOf(id)).run();
+    await db.prepare("INSERT INTO payment(id,org,email,pack,currency,amount,tax,rzp_order_id,status,created_ms,meta,ref,buyer_phone_hash,is_test,eid,site,product,product_type,product_ref,payer_user,txn_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)").bind(id, null, accountEmail(b.email), pack, cur, pr.total, pr.tax, order?.id ?? null, "created", now, JSON.stringify(meta), ref, bph ? await phoneHashFor(env, bph) : null, siteTest ? 1 : 0, boundEid, lf.site, lf.product, lf.productType, lf.productRef, lf.payerUser, txnIdOf(id)).run();
     if (!rzp) { const f = await fulfil(env, id, now, spend); return "result" in f ? json({ mode: "test", paymentId: id, result: f.result, ...(siteTest ? { testPayment: true, label: "TEST payment: nothing was charged." } : {}) }) : json({ error: f.error }, f.status); }
     return json({ mode: "razorpay", paymentId: id, ...hopOf(env), razorpay: { keyId: rzp.keyId, orderId: order.id, amount: toMinor(pr.total), currency: cur, name: brand.name, description: "(closed-group bingo software) | owned and made by IT Services by Rajat Agarwal", prefill: { email: b.email.trim(), name: payerName.slice(0, 80), ...(contact ? { contact } : {}) }, notes: { brand: brand.name, participants: String(pack) }, theme: { color: brand.theme }, ...(cur === "INR" ? { config: UPI_FIRST } : {}) } });
   }
@@ -414,13 +414,13 @@ export async function payRoute(req: Request, env: PayEnv, now: number, spend: (n
     const id = "pay_" + randHex(8);
     await recordConsent(db, { subject: id, kind: "K3", ref: id, now });
     let order: any;
-    try { order = await placeOrder(env, rzp, { amountMinor: 100, currency: cur, receipt: id, plan: "payment_test", email: emailKey(b.email), notes: { brand: brand.name, site: env.PAY_SITE ?? "corporate-bingo.pages.dev", stream: "sales", product: "corporate_bingo", plan: "payment_test", variation: "payment_test", payment_ref: id } }); }
+    try { order = await placeOrder(env, rzp, { amountMinor: 100, currency: cur, receipt: id, plan: "payment_test", email: accountEmail(b.email), notes: { brand: brand.name, site: env.PAY_SITE ?? "corporate-bingo.pages.dev", stream: "sales", product: "corporate_bingo", plan: "payment_test", variation: "payment_test", payment_ref: id } }); }
     catch (e: any) { return json({ error: `The payment service said: ${e.message}` }, 502); }
     const taxId = typeof b.taxId === "string" ? b.taxId.trim().toUpperCase().slice(0, 20) : "";
     if (cty === "IN" && taxId && !/^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(taxId)) return json({ error: "That GSTIN does not look right. It has 15 characters, like 27ABCDE1234F1Z5." }, 400);
     const meta = { paytest: true, name: nm.slice(0, 120), ...(typeof b.org === "string" && b.org.trim() ? { org: b.org.trim().slice(0, 120) } : {}), ...(taxId ? { taxId } : {}), ...(contact ? { phone: contact } : {}), country: cty, origin: env.PUBLIC_ORIGIN ?? url.origin };
     const lf = ledgerFields(siteOf(meta.origin), "payment_test", "payment_test", null);
-    await db.prepare("INSERT INTO payment(id,org,email,pack,currency,amount,tax,rzp_order_id,status,created_ms,meta,is_test,site,product,product_type,product_ref,payer_user,txn_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,?)").bind(id, null, emailKey(b.email), 0, cur, 1, 0, order.id, "created", now, JSON.stringify(meta), lf.site, lf.product, lf.productType, lf.productRef, lf.payerUser, txnIdOf(id)).run();
+    await db.prepare("INSERT INTO payment(id,org,email,pack,currency,amount,tax,rzp_order_id,status,created_ms,meta,is_test,site,product,product_type,product_ref,payer_user,txn_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,?,?,?,?,?,?)").bind(id, null, accountEmail(b.email), 0, cur, 1, 0, order.id, "created", now, JSON.stringify(meta), lf.site, lf.product, lf.productType, lf.productRef, lf.payerUser, txnIdOf(id)).run();
     return json({ mode: "razorpay", paymentId: id, ...hopOf(env), razorpay: { keyId: rzp.keyId, orderId: order.id, amount: 100, currency: cur, name: brand.name, description: "(closed-group bingo software) | owned and made by IT Services by Rajat Agarwal", prefill: { email: b.email.trim(), name: nm.slice(0, 80), ...(contact ? { contact } : {}) }, notes: { brand: brand.name }, theme: { color: brand.theme }, ...(cur === "INR" ? { config: UPI_FIRST } : {}) } });
   }
 

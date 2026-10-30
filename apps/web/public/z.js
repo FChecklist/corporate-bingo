@@ -37,7 +37,7 @@
     if ("brand" in r && !(fromJoin && INFO.brand)) { INFO.brand = cleanBrand(r.brand); if (!DEMO && EID && INFO.brand && INFO.brand.logo !== undefined) { try { store.set("cbz:" + EID + ":brand", JSON.stringify(INFO.brand)); } catch { /* storage full or blocked: the strip just is not kept */ } } } // a join answer carries the brand without its logo: never let it replace the full one read from info
     if ("joinPhone" in r) INFO.joinPhone = r.joinPhone === true;
     if ("roomMode" in r) { INFO.quiet = r.roomMode === true; if (INFO.quiet && store.get("cbz-sound") === null) { sound = false; if (window.TBAudio) TBAudio.enabled = false; } } // B14: everyone is in one room and the big screen says the numbers: phones start silent unless the person turned sound on
-    if ("verify" in r) { INFO.verify = r.verify === "id" || r.verify === "both" ? r.verify : "mobile"; INFO.empOnly = r.employeesOnly === true; INFO.idKind = r.idKind === "email" ? "email" : "emp"; }
+    if ("verify" in r) { INFO.verify = r.verify === "id" || r.verify === "both" ? r.verify : "mobile"; INFO.empOnly = r.employeesOnly === true; INFO.idKind = r.idKind === "email" ? "email" : "emp"; INFO.idClean = r.idClean === true; }
     if ("rehearsal" in r) INFO.rehearsal = r.rehearsal && typeof r.rehearsal === "object" ? r.rehearsal : null; // a rehearsal: its pages carry the REHEARSAL block and, once it is over, the calm "over" page
     if (r.didNotStart === true) INFO.dns = true; else if ("startRound" in r && !fromJoin) INFO.dns = false;
     if ("cancelled" in r || "startRound" in r) INFO.cancelled = r.cancelled ? { message: String(r.message || "").slice(0, 200) } : null;
@@ -89,7 +89,7 @@
     return needPhone ? phone("Your mobile number", "") : "";
   };
   // the same cleaning the server does (NFKC, upper case, only A-Z and 0-9), shown while typing
-  document.addEventListener("input", (ev) => { const t = ev.target; if (!t || t.id !== "emp") return; const em = INFO.idKind === "email", c = em ? String(t.value || "").normalize("NFKC").replace(/[s​-‍⁠﻿]/g, "").toLowerCase() : String(t.value || "").normalize("NFKC").toUpperCase().replace(/[^A-Z0-9]/g, ""), h = document.getElementById("empHint"); if (h) h.textContent = c && c !== String(t.value).trim() ? "The system will read this as " + c : ""; });
+  document.addEventListener("input", (ev) => { const t = ev.target; if (!t || t.id !== "emp") return; const em = INFO.idKind === "email", v = String(t.value || "").normalize("NFKC"), h = document.getElementById("empHint"); let c = ""; if (em) c = v.replace(/[\s\u200B-\u200D\u2060\uFEFF]/g, "").toLowerCase(); else if (INFO.idClean && v.indexOf("@") < 0) c = v.toUpperCase().replace(/[^A-Z0-9]/g, ""); /* an e-mail typed in an employee-ID game, or a game made before the new rule, gets no "read this as" line: the server refuses it or reads it the old way */ if (h) h.textContent = c && c !== String(t.value).trim() ? "The system will read this as " + c : ""; });
   const BUSY_TRIES = 15;
   const joinView = (msg) => {
     if (J.mode === "removed") return `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard" role="status"><h2>You are not on this game's list</h2><p class="zsmall" style="margin:0">You were removed from this game, so there is no card for you here. If you think this is a mistake, please ask the person who invited you.</p></div>`;

@@ -495,22 +495,27 @@
     if (!out.length) throw new Error("This PDF has no text in it. It looks like a photo or a scan. Please save it from Excel (File, Save as, PDF).");
     return out.join("\n");
   }
+  // the ID the server will keep, worked out the same way (so the console can find two spellings of one person): an Email ID is NFKC, no spaces, lower case; an employee ID is NFKC, capitals, A-Z 0-9 only (games made before the new rule: capitals, no spaces)
+  const idCleanOn = () => !!((S.sum && S.sum.idClean) || (S.cfg && S.cfg.idClean));
+  const idKeyOf = (raw) => { const v = String(raw == null ? "" : raw).normalize("NFKC"); return idKindNow() === "email" ? v.replace(/[\s\u200B-\u200D\u2060\uFEFF]/g, "").toLowerCase() : idCleanOn() ? v.toUpperCase().replace(/[^A-Z0-9]/g, "") : v.replace(/\s+/g, "").toUpperCase(); };
+  const idProblem = (raw) => { const v = String(raw == null ? "" : raw).normalize("NFKC").trim(); if (!v) return ""; if (idKindNow() === "email") return /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/.test(idKeyOf(v)) ? "" : "Please check your Email ID. It looks incomplete."; return idCleanOn() && v.indexOf("@") >= 0 ? "This looks like an Email ID. This game asks for an employee ID: letters and numbers only." : ""; };
   function cleanBatch(rows) {
-    const seen = new Set(), good = [], wrong = []; let dups = 0;
+    const seen = new Set(), good = [], wrong = [], same = []; let dups = 0;
     for (const r of rows) {
-      const name = String(r.name || "").trim(), emp = String(r.empId || "").normalize("NFKC").toUpperCase().replace(/[^A-Z0-9]/g, "");
-      if (vmode() === "id" && emp) { // known by employee ID: a mobile number is welcome but not needed
+      const name = String(r.name || "").trim(), rawId = String(r.empId || ""), bad = idProblem(rawId), emp = bad ? "" : idKeyOf(rawId);
+      if (bad) { wrong.push({ name, raw: rawId, why: bad }); continue; }
+      if (vmode() === "id" && emp) { // known by ID: a mobile number is welcome but not needed
         const d0 = String(r.phone || "").trim() ? cleanPhone(r.phone) : "";
         if (String(r.phone || "").trim() && !d0) { wrong.push({ name, raw: String(r.phone || ""), why: "The mobile number looks wrong." }); continue; }
-        if (seen.has("E" + emp)) { dups++; continue; }
+        if (seen.has("E" + emp)) { dups++; same.push(rawId.trim() + " (read as " + emp + ")"); continue; }
         seen.add("E" + emp); good.push({ name, phone: d0, empId: emp }); continue;
       }
       const d = cleanPhone(r.phone);
-      if (!d) { wrong.push({ name, raw: String(r.phone || ""), ...(vmode() !== "mobile" && !emp ? { why: "A mobile number or an employee ID is needed." } : {}) }); continue; }
+      if (!d) { wrong.push({ name, raw: String(r.phone || ""), ...(vmode() !== "mobile" && !emp ? { why: "A mobile number or an ID is needed." } : {}) }); continue; }
       if (seen.has(d)) { dups++; continue; }
       seen.add(d); good.push({ name, phone: d, ...(emp && vmode() !== "mobile" ? { empId: emp } : {}) });
     }
-    return { good, dups, wrong };
+    return { good, dups, wrong, same };
   }
   const stLabel = (s2) => ({ invited: "Invited", joined: "Joined", waiting: "Waiting", removed: "Removed" }[String(s2 || "invited").toLowerCase()] || "Invited");
   const startedNow = () => (role() === "cohost" ? !!(S.coh && S.coh.startMs && S.coh.startMs <= Date.now()) : !!S.started);
@@ -544,7 +549,7 @@
     if (!raw.length) { P.sum = "Add a name and a number first."; return redraw(); }
     if (!CBConsent.all($app, "K6")) { P.sum = "Please tick the box to continue."; return redraw(); }
     const consent = CBConsent.payload($app, "K6");
-    const { good, dups, wrong } = cleanBatch(raw); let added = good.length, serverDup = 0, sameId = [], got = 0, counted = false; const bad = wrong.slice();
+    const { good, dups, wrong, same } = cleanBatch(raw); let added = good.length, serverDup = 0, sameId = same.slice(), got = 0, counted = false; const bad = wrong.slice();
     try {
       for (let i = 0; i < good.length; i += 200) {
         const r = await call("POST", `/api/z/${eid}/people`, { consent, people: good.slice(i, i + 200).map((p) => ({ name: p.name, ...(p.phone ? { phone: "+" + p.phone } : {}), ...(p.empId ? { empId: p.empId } : {}) })) });
@@ -619,7 +624,7 @@
     return h + `</div>`;
   }
   // the same cleaning the server does for an employee ID, shown while typing
-  document.addEventListener("input", (ev) => { const t = ev.target; if (!t || t.id !== "gemp") return; const c = String(t.value || "").normalize("NFKC").toUpperCase().replace(/[^A-Z0-9]/g, ""), h = document.getElementById("gemphint"); if (h) h.textContent = c && c !== String(t.value).trim() ? "The system will read this as " + c : ""; });
+  document.addEventListener("input", (ev) => { const t = ev.target; if (!t || t.id !== "gemp") return; const h = document.getElementById("gemphint"); if (!h) return; const v = String(t.value || ""), bad = idProblem(v), c = bad ? "" : idKeyOf(v); /* no "read this as" line for an e-mail typed in an employee-ID game (it is refused) */ h.textContent = bad ? bad : c && c !== v.trim() ? "The system will read this as " + c : ""; });
   const localCsv = () => [(vmode() === "mobile" ? "Name,Mobile,Personal link,WhatsApp link,Status" : "Name,Mobile," + idLabel() + ",Personal link,WhatsApp link,Status")].concat((S.pp.list || []).map((p) => [p.name, p.maskedPhone].concat(vmode() === "mobile" ? [] : [p.empId || ""]).concat([p.link, waHref(p), stLabel(p.status)]).map((x) => '"' + String(x == null ? "" : x).replace(/"/g, '""') + '"').join(","))).join("\n");
   /** Organizer and Host play through their own personal link too: their seat is marked for them (POST /people/me), made when they ask. */
   function playBlock() {
