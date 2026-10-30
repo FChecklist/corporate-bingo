@@ -103,8 +103,8 @@ def version_line():
     """'Version 1.4.0 | 29 Oct 2026, 18:30 IST' from the newest row of apps/edge/src/releases.json (the time shows once the row has one)."""
     import json, datetime
     r = json.load(open(os.path.join(PUB, "..", "..", "edge", "src", "releases.json"), encoding="utf8"))[0]
-    d = datetime.date.fromisoformat(r["date"]); t = (", " + r["time"] + " IST") if r.get("time") else " (IST)"
-    return "Version %s | %s%s" % (r["version"], d.strftime("%d %b %Y").lstrip("0"), t)
+    d = datetime.date.fromisoformat(r["date"]); t = (", " + r["time"] + " IST") if r.get("time") else ""
+    return "Version %s, released %s%s" % (r["version"], d.strftime("%d %b %Y").lstrip("0"), t)
 
 
 def footer():
