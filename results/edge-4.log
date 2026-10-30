@@ -1,0 +1,27 @@
+bun test v1.4.4 (38afee6c8)
+
+apps/edge/test/worker.test.ts:
+51 |   test("a join returns what the phone needs to play and nothing about others", async () => {
+52 |     const r = await (await join(1)).json() as any;
+53 |     expect(r.startRound).toBe(FAR_START);
+54 |     expect(r.callSeconds).toBe(6);
+55 |     expect(r.pid).toMatch(/^1x[0-9a-f]{12}$/); // seat number + hash: the seat makes the ticket collision-free
+56 |     expect(Object.keys(r).sort()).toEqual(["breaks", "callSeconds", "closing", "employeesOnly", "invites", "joinPhone", "jr", "opening", "pid", "rewards", "roomMode", "rounds", "startRound", "tickets", "trackClaims", "verify"]);
+                                       ^
+error: expect(received).toEqual(expected)
+
+@@ -5,2 +5,3 @@
+    "employeesOnly",
++   "idKind",
+    "invites",
+
+- Expected  - 0
++ Received  + 1
+
+      at <anonymous> (/home/user/corporate-bingo/apps/edge/test/worker.test.ts:56:35)
+(fail) joining > a join returns what the phone needs to play and nothing about others [50.77ms]
+
+ 347 pass
+ 1 fail
+ 2579 expect() calls
+Ran 348 tests across 19 files. [100.76s]
