@@ -51,23 +51,23 @@ export const tokenHash = async (token: string) => (await sha("pj|" + token.toLow
 export const phoneHashOf = (env: { PHONE_SALT?: string; ORGANIZER_SECRET?: string }, digits: string) => sha(`${env.PHONE_SALT ?? env.ORGANIZER_SECRET ?? "unset"}|${digits.slice(-10)}`);
 
 /** An employee ID as typed: spaces dropped, upper case. "" = nothing typed, null = not a usable ID. */
-export const EMP_CLEAN_FROM_MS = 1793341800000; // the deploy instant of the uniform employee ID rule (30 Oct 2026, 12:00 IST; set to the real deploy time at release). Games made BEFORE it keep the old rule.
+export const EMP_CLEAN_FROM_MS = Date.UTC(2099, 0, 1); // RELEASE SESSION: set this to the exact deploy instant (Date.UTC(...) or epoch ms) in the same commit that is deployed. Until it is set it is far in the future, so NO game takes the uniform employee ID rule early. A game created before the deploy instant keeps the old behaviour.
 /** THE one cleaning rule for an employee ID (owner rule 2026-10-30): NFKC, upper case, then keep only A-Z and 0-9. 1B-678, 1b-678, 1B/678 and 1B 678 all become 1B678. */
 export const empClean = (raw: unknown): string => String(raw ?? "").normalize("NFKC").toUpperCase().replace(/[^A-Z0-9]/g, "");
 /** An employee ID as typed. "" = nothing typed, null = not a usable ID (only symbols, or over 30 characters after cleaning). `createdMs` is when the game was made; an older game keeps the old rule. */
 export const normEmp = (raw: unknown, createdMs?: number | null): string | null => {
   if (createdMs != null && createdMs < EMP_CLEAN_FROM_MS) { const s = String(raw ?? "").replace(/\s+/g, "").toUpperCase(); if (!s) return ""; return /^[A-Z0-9][A-Z0-9._\-/]{0,29}$/.test(s) ? s : null; }
-  if (!String(raw ?? "").replace(/[\s​-‍⁠﻿]/g, "")) return "";
+  if (!String(raw ?? "").replace(/[\s\u200B-\u200D\u2060\uFEFF]/g, "")) return "";
   const s = empClean(raw); return s && s.length <= 30 ? s : null;
 };
 /** An Email ID shape check on the cleaned form. */
-const EMAIL_ID_RE = /^[^s@]{1,64}@[^s@]{1,255}.[^s@]{2,}$/;
+const EMAIL_ID_RE = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
 /** Does the text look like an e-mail address (an "@" after NFKC)? An employee-ID box never turns one into letters and digits. */
 export const looksLikeEmail = (raw: unknown): boolean => String(raw ?? "").normalize("NFKC").includes("@");
 export const EMP_LOOKS_LIKE_EMAIL = "This looks like an Email ID. This game asks for an employee ID: letters and numbers only.";
 /** The ID a person gives, by what this game asks for: an employee ID (cleaned to A-Z 0-9) or an Email ID (cleaned with emailKey). "" = nothing typed, null = not usable. */
 export const normId = (raw: unknown, kind: "emp" | "email", createdMs?: number | null): string | null => {
-  if (kind === "email") { const t = String(raw ?? ""); if (!t.replace(/[s​-‍⁠﻿]/g, "")) return ""; const k = emailKey(t); return EMAIL_ID_RE.test(k) && k.length <= 254 ? k : null; }
+  if (kind === "email") { const t = String(raw ?? ""); if (!t.replace(/[\s\u200B-\u200D\u2060\uFEFF]/g, "")) return ""; const k = emailKey(t); return EMAIL_ID_RE.test(k) && k.length <= 254 ? k : null; }
   if ((createdMs == null || createdMs >= EMP_CLEAN_FROM_MS) && looksLikeEmail(raw)) return null; // an Email ID typed where an employee ID is asked is refused, never mangled
   return normEmp(raw, createdMs);
 };

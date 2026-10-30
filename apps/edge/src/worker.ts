@@ -13,7 +13,7 @@
 //   nobody        - phones: join, send claims, read results counts, read the engagement info and the signed control file.
 
 import { zoneTime, tzOfRow } from "./tz";
-import { emailKey } from "./emailkey";
+import { accountEmail } from "./emailkey";
 import { DEMO_CAP, GRACE_ROUNDS, HOUSE_ORDER, isTimeZone, PRIZE_HOUSES, brandMomentsFor, defaultCfg, validateCfg, type EngagementCfg } from "../../../packages/beacon/src/config";
 import { openPii, openText, sealPii, sealText } from "./pii";
 import { TEST_LOGINS, TEST_LOGIN_CODE, TEST_LOGINS_PER_IP_DAY, testLoginsOpen } from "./testlogins";
@@ -40,7 +40,7 @@ import { PAY_SCHEMA, payRoute, retryOutbox, sendMail, freeLaunch, payMode, FREE_
 import { PACKS, price } from "../../../packages/shared/src/pricing";
 import { PARTNER_SCHEMA, partnerRoute } from "./partners";
 import { HELPDESK_SCHEMA, HELPER_MANUAL_NOTE, helpdeskCloseStatements, helpdeskRoute, helpdeskSweep, isDeskKeyId, isHelperKey, noteHelperGame } from "./helpdesk";
-import { normEmp, normId, badIdMessage, empHashOf, verifyOf, keptPhone, phoneDigits, cleanName as cleanPersonName, PEOPLE_SCHEMA, COHOST_FROM, HOST_FROM, ORG_FROM, COHOST_LIMIT_DEFAULT, COHOST_LIMIT_MIN, COHOST_LIMIT_MAX, WAITING_MAX, addWaiting, chainOf, cleanPhone, fromCodeOf, inviterOf, joinLinkPage, limitOfInviter, listCount, parseFrom, peopleRoute, personByPhone, personByToken, srcOf, waitingWho, type PersonRow } from "./people";
+import { EMP_CLEAN_FROM_MS, normEmp, normId, badIdMessage, empHashOf, verifyOf, keptPhone, phoneDigits, cleanName as cleanPersonName, PEOPLE_SCHEMA, COHOST_FROM, HOST_FROM, ORG_FROM, COHOST_LIMIT_DEFAULT, COHOST_LIMIT_MIN, COHOST_LIMIT_MAX, WAITING_MAX, addWaiting, chainOf, cleanPhone, fromCodeOf, inviterOf, joinLinkPage, limitOfInviter, listCount, parseFrom, peopleRoute, personByPhone, personByToken, srcOf, waitingWho, type PersonRow } from "./people";
 import { PAYLINK_SCHEMA, PAYLINK_TOKEN, createPayLink, packFor } from "./paylink";
 import { HOST_LINK_TTL_MS, HOST_SCHEMA, confirmHostEmail, emailHashOf, hostForEmail, hostKeyStatus, hostSetupRoute, hostStateRow, identityRow, maskEmail, maskMobile, mintDeviceKey, retireHost } from "./hostsetup";
 import { googleClientId, verifyGoogleCredential } from "./google";
@@ -100,7 +100,7 @@ const tracks = (e: { cap: number }) => e.cap <= CLAIM_TRACKING_MAX_CAP;
 /** The part of the settings every phone needs, public by design: how many tickets, what each house wins, and when the brand breaks are. */
 /** The brand strip as phones see it: the full brand (with the logo) from `info`; everywhere else only name and colour (a logo can be 40 KB and a 10,000-person list must not carry it). */
 const brandOut = (c: EngagementCfg, withLogo: boolean) => (c.brand ? { brand: withLogo ? c.brand : { name: c.brand.name, color: c.brand.color, ...(c.brand.logo ? { hasLogo: true } : {}) } } : {});
-const pub = (e: any, withLogo = false) => { const c = cfgOf(e); return { ...(c.mark ? { mark: c.mark } : {}), joinPhone: c.join === "phone", tickets: c.tickets, rewards: c.rewards, breaks: c.breaks, rounds: c.rounds, invites: c.invites, opening: c.opening, closing: c.closing, ...(c.name ? { name: c.name } : {}), verify: c.verify ?? "mobile", employeesOnly: !!c.employeesOnly, idKind: c.idKind === "email" ? "email" : "emp", roomMode: !!c.roomMode, ...brandOut(c, withLogo) }; };
+const pub = (e: any, withLogo = false) => { const c = cfgOf(e); return { ...(c.mark ? { mark: c.mark } : {}), joinPhone: c.join === "phone", tickets: c.tickets, rewards: c.rewards, breaks: c.breaks, rounds: c.rounds, invites: c.invites, opening: c.opening, closing: c.closing, ...(c.name ? { name: c.name } : {}), verify: c.verify ?? "mobile", employeesOnly: !!c.employeesOnly, idKind: c.idKind === "email" ? "email" : "emp", idClean: Number(e.created_ms) >= EMP_CLEAN_FROM_MS, roomMode: !!c.roomMode, ...brandOut(c, withLogo) }; };
 const cfgJson = (c: EngagementCfg) => JSON.stringify({ rewards: c.rewards, breaks: c.breaks, rounds: c.rounds, invites: c.invites, opening: c.opening, closing: c.closing, ...(c.name ? { name: c.name } : {}), ...(c.brand ? { brand: c.brand } : {}), ...(c.mark ? { mark: c.mark } : {}), ...(c.join ? { join: c.join } : {}), ...(c.tz ? { tz: c.tz } : {}), ...(c.verify ? { verify: c.verify } : {}), ...(c.employeesOnly ? { employeesOnly: true } : {}), ...(c.idKind === "email" ? { idKind: "email" } : {}), ...(c.roomMode ? { roomMode: true } : {}) });
 
 /** Privacy and lifecycle: sealed personal data, the role / inviter / invite kind / source of a seat, when each game ended, the winners record that outlives the personal data, and the votes that tell us a game is over. */
@@ -331,7 +331,7 @@ async function useHeldPass(env: Env, org: string, eh: string, now: number): Prom
 async function ownerTestGrant(env: Env, org: string, cap: number, now: number): Promise<boolean> {
   for (const t of OWNER_TEST_FREE) {
     if (now > t.until || cap > t.maxCap) continue;
-    const eh = await sha("email|" + emailKey(t.email));
+    const eh = await sha("email|" + accountEmail(t.email));
     if (!(await env.DB.prepare("SELECT 1 AS x FROM organizer_email WHERE email_hash=? AND org=?").bind(eh, org).first())) continue;
     const open = (await env.DB.prepare("SELECT COUNT(*) AS c FROM entitlement WHERE org=? AND payment_id='owner-test' AND eid IS NULL").bind(org).first<{ c: number }>())?.c ?? 0;
     if (open >= 3) return true; // enough unused free packs already
@@ -884,7 +884,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
   }
   if (req.method === "POST" && p === "/api/start") {
     const b = await body(req);
-    const email = typeof b?.email === "string" ? emailKey(b.email) : "";
+    const email = typeof b?.email === "string" ? accountEmail(b.email) : "";
     if (!/^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/.test(email)) return json({ error: "Please enter a valid e-mail address." }, 400);
     const eh = await sha("email|" + email);
     if (await env.DB.prepare("SELECT org FROM organizer_email WHERE email_hash=?").bind(eh).first()) { await holdPassForSignIn(env, eh, b?.pass, now); return json({ ok: true, exists: true }); }
@@ -897,7 +897,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
   }
   if (req.method === "POST" && p === "/api/auth/email") {
     const b = await body(req);
-    const email = typeof b?.email === "string" ? emailKey(b.email) : "";
+    const email = typeof b?.email === "string" ? accountEmail(b.email) : "";
     if (!/^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/.test(email)) return json({ error: "Please enter a valid e-mail address." }, 400);
     const eh = await sha("email|" + email);
     const acct = await env.DB.prepare("SELECT org FROM organizer_email WHERE email_hash=?").bind(eh).first<{ org: string }>();
@@ -939,7 +939,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
       const ident = ha && ha.kind === "host" && ha.hid === kh ? await env.DB.prepare("SELECT expires_ms FROM organizer_key WHERE hash=?").bind(kh).first<{ expires_ms: number | null }>() : null;
       if (!ha || !ident || ident.expires_ms !== null || !ha.org) return bad("This link has been used or has expired. Ask the Organizer for a new one, or sign in with your e-mail.", "host-link-gone");
       const row = await identityRow(env.DB, ha.hid!), onFile = row?.email_sealed ? await openText(env as any, row.email_sealed) : null;
-      if (onFile && emailKey(onFile) !== email) return json({ error: `This link is for ${maskEmail(onFile)}`, code: "email-mismatch" }, 403);
+      if (onFile && accountEmail(onFile) !== email) return json({ error: `This link is for ${maskEmail(onFile)}`, code: "email-mismatch" }, 403);
       { const cm = consentMissing(b, "K5"); if (cm) return cm; } // K5: the Host accepts the role
       if (!(await spend(env, now, 3))) return BUSY();
       const done = await confirmHostEmail(env, ha.hid!, ha.org, email, newHostKey(), now);
@@ -990,7 +990,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
   }
   if (req.method === "POST" && p === "/api/auth/verify") {
     const b = await body(req);
-    const email = typeof b?.email === "string" ? emailKey(b.email) : "";
+    const email = typeof b?.email === "string" ? accountEmail(b.email) : "";
     const code = typeof b?.code === "string" ? b.code.replace(/\D/g, "") : "";
     if (!email || code.length !== 6) return json({ error: "Enter the 6-digit code." }, 400);
     const eh = await sha("email|" + email);
@@ -1078,7 +1078,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     if (a.kind !== "host" || a.viaLink || !a.hid || a.hostReady === false) return deny(a);
     const row = await identityRow(env.DB, a.hid), mail = row?.email_sealed ? await openText(env as any, row.email_sealed) : null;
     if (!mail) return json({ error: "Your e-mail is not confirmed yet. Finish your Host setup first." }, 409);
-    const email = emailKey(mail), eh = await sha("email|" + email);
+    const email = accountEmail(mail), eh = await sha("email|" + email);
     if (await env.DB.prepare("SELECT org FROM organizer_email WHERE email_hash=?").bind(eh).first()) return json({ error: "You already have an Organizer account. Sign out and sign in again with your e-mail code to use it.", code: "has-organizer" }, 409);
     const b = await body(req);
     { const cm = consentMissing(b, "K2"); if (cm) return cm; }
@@ -1115,7 +1115,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     if (a.kind === "ai") return json({ error: "A Host needs a mobile number or an e-mail address. Only the owner enters those, in the console (Your team). Tell the organizer to add the Host there." }, 403);
     if (a.kind !== "master" || !a.org) return deny(a);
     const hb = await body(req);
-    const hEmail = typeof hb?.email === "string" ? emailKey(hb.email) : "";
+    const hEmail = typeof hb?.email === "string" ? accountEmail(hb.email) : "";
     const rawMob = hb?.mobile ?? hb?.phone, hasMob = rawMob !== undefined && rawMob !== null && String(rawMob).trim() !== "";
     if (!hEmail && !hasMob) return json({ error: "Please give the Host's e-mail address or mobile number (at least one). Their own link is sent there." }, 400);
     if (hEmail && !EMAIL_RE.test(hEmail)) return json({ error: "That e-mail address does not look right. Please check it." }, 400);
@@ -1429,7 +1429,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     const codes = [...new Set(text.match(/\b\d{6}\b/g) ?? [])].slice(0, 5);
     for (const tok of [...new Set(text.match(/[A-Za-z0-9_-]{4,40}/g) ?? [])].slice(0, 80)) {
       const c = await env.DB.prepare("SELECT v FROM kv WHERE k=?").bind(`contact/${tok}`).first<{ v: string }>();
-      if (!c || emailKey(JSON.parse(c.v).email) !== from) continue;
+      if (!c || accountEmail(JSON.parse(c.v).email) !== from) continue;
       const registered = String(JSON.parse(c.v).email);
       const pend = await env.DB.prepare("SELECT v FROM kv WHERE k=?").bind(`delreq/${tok}`).first<{ v: string }>();
       const pv = pend ? JSON.parse(pend.v) : null;
@@ -1578,6 +1578,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
   if (locked && !can(a, e) && (action === "info" || action === "join")) await nudge(env, e.id, "lockmail", now, `Your engagement ${e.id} could not begin: payment is due`, `Your engagement ${e.id} could not begin: payment is due.\n\nPay now and the first number comes 2 minutes after your payment is confirmed: ${(env as PayEnv).PUBLIC_ORIGIN ?? ""}/pay.html?e=${e.id}`);
   if (action === "who" && req.method === "POST") { // "Is this you?": once the employee ID is typed and both boxes are ticked, the first name and the first letter of the last name the organizer gave, so the person sees the name that will be used. Nothing is kept; a wrong ID counts like a wrong ID at the door.
     const b = await body(req), vf = verifyOf(e), id = normId(b?.empId, vf.idKind, (e as any)?.created_ms);
+    if (vf.mode !== "mobile" && String(b?.empId ?? "").trim() !== "" && id === null) return json({ error: badIdMessage(b?.empId, vf.idKind, (e as any)?.created_ms), code: "bad-id" }, 400); // the same plain refusal as the join path
     if (vf.mode === "mobile" || !id) return json({ known: false });
     const ck = consentMissing(b, "K4"); if (ck) return ck;
     const eh = await empHashOf(env, id);
@@ -1856,7 +1857,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
       credit: creditNow ? creditNow.activeTotalInr : null, creditExpiresMs: creditNow ? creditNow.nextExpiryMs : null, creditApplied: creditNow ? await creditAppliedFor(env.DB, e.id) : null,
       status: didNotStart ? "did not start (closed)" : cancelled ? "cancelled by the organizer" : isDraft ? "draft" : unpaid ? (locked ? "published, NOT PAID, held because the start time passed" : "published, payment due before the start") : "published and paid",
       startsAtIST: istTime(roundMs(e.start_round), tzOfRow(e)), tz: tzOfRow(e), startMs: roundMs(e.start_round), startRound: e.start_round, callSeconds: e.call_seconds, limit: e.cap, closed: !!e.closed, whoCanJoin: e.closed ? "list" : "anyone", coHostLimit: e.cohost_limit ?? COHOST_LIMIT_DEFAULT, guestInvites: cfgOf(e).invites,
-      tickets: c.tickets, rounds: c.rounds, rewards: c.rewards, breaks: c.breaks, opening: c.opening, closing: c.closing, invites: c.invites, verify: c.verify ?? "mobile", employeesOnly: !!c.employeesOnly, idKind: c.idKind === "email" ? "email" : "emp", brandMomentsAllowed: brandMomentsFor(c.tickets), participants: n, ...(c.name ? { name: c.name } : {}), ...(c.brand ? { brand: c.brand } : {}),
+      tickets: c.tickets, rounds: c.rounds, rewards: c.rewards, breaks: c.breaks, opening: c.opening, closing: c.closing, invites: c.invites, verify: c.verify ?? "mobile", employeesOnly: !!c.employeesOnly, idKind: c.idKind === "email" ? "email" : "emp", idClean: Number(e.created_ms) >= EMP_CLEAN_FROM_MS, brandMomentsAllowed: brandMomentsFor(c.tickets), participants: n, ...(c.name ? { name: c.name } : {}), ...(c.brand ? { brand: c.brand } : {}),
       paid: !unpaid, payment, ...(unpaid ? { pack: PACKS.find((x) => x[0] >= e.cap)?.[0] ?? null, priceInr: PACKS.find((x) => x[0] >= e.cap) ? price(PACKS.find((x) => x[0] >= e.cap)![0], "INR").total : null, priceUsd: PACKS.find((x) => x[0] >= e.cap) ? price(PACKS.find((x) => x[0] >= e.cap)![0], "USD").total : null, startsAt: istTime(roundMs(e.start_round), tzOfRow(e)), payUntil: istTime(await erasureOf(env, e), tzOfRow(e)) } : { pack: e.pack }),
       gameMinutes: Math.round((75 * e.call_seconds * c.rounds + c.breaks.reduce((t: number, b: any) => t + b.seconds, 0) + (c.rounds - 1) * 90) / 60),
       links, nextSteps, consoleUrl: `${origin}/zc.html?e=${e.id}`, ...(isDraft ? {} : { shareUrl: `${origin}/z.html?e=${e.id}` }), ...(unpaid && !isDraft ? { payUrl: `${origin}/pay.html?e=${e.id}` } : {}) });
@@ -2055,6 +2056,8 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     if (!a.plat && e.pack !== 0 && next.cap > (e.pack ?? e.cap)) return json({ error: `Your pack allows up to ${e.pack ?? e.cap} people. For more people, make a new game like this one.` }, 402);
     const listed = await env.DB.prepare("SELECT COUNT(*) AS c FROM person WHERE eid=? AND status<>'removed'").bind(eid).first<{ c: number }>().catch(() => null); // people on the lists who have not come in yet count too
     if (next.cap < Math.max(have?.c ?? 0, listed?.c ?? 0)) return json({ error: "The limit cannot be lower than the people already on the list." }, 409);
+    { const cur = verifyOf(e), nk = vc.cfg.idKind === "email" ? "email" : "emp", nm = vc.cfg.verify ?? "mobile"; // what people are asked for decides how their identity is stored: it cannot change once anyone is listed or has joined
+      if ((cur.idKind !== nk || cur.mode !== nm) && ((have?.c ?? 0) > 0 || (listed?.c ?? 0) > 0)) return json({ error: "You already have people listed. Start a new game to use a different kind of ID.", code: "id-kind-locked" }, 409); }
     if (!(await spend(env, now))) return BUSY();
     await env.DB.prepare("UPDATE engagement SET start_round=?, call_seconds=?, cap=?, closed=?, tickets=?, config=?, cohost_limit=? WHERE id=?").bind(next.start_round, next.call_seconds, next.cap, next.closed, vc.cfg.tickets, cfgJson(vc.cfg), next.cohost_limit, eid).run();
     if (next.start_round !== e.start_round) { // a new time: for a game nobody paid for, the erasure clock follows it (the lifecycle tick re-reads the schedule), and the date has been chosen
