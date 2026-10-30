@@ -25,7 +25,8 @@ const START = roundAt(T) + 1200; // one hour after T
 const INCOMPLETE = "Please check your Email ID. It looks incomplete.";
 const OLD_EMP_MSG = "An employee ID has letters and numbers only (up to 30).";
 const LOCKED_MSG = "You already have people listed. Start a new game to use a different kind of ID.";
-const ZW = "​‌‍⁠﻿";
+const LOCKED_VERIFY_MSG = "You already have people listed. Start a new game to use a different way of asking for IDs.";
+const ZW = "\u200b\u200c\u200d\u2060\ufeff";
 let env: PayEnv; let raw: Database; let ipN = 0;
 const realFetch = globalThis.fetch;
 const call = (method: string, path: string, body?: unknown, key?: string, now = T, extra: Record<string, string> = {}) =>
@@ -83,10 +84,10 @@ describe("1. EMAIL_ID_RE (people.ts) and the cleaners: real backslashes", () => 
     expect(normId("a b@c.com", "email")).toBe("ab@c.com");
     expect(normId("ra jat＠acme.com", "email")).toBe("rajat@acme.com");
     expect(normId(" S a l e s @ A c m e . c o m ", "email")).toBe("sales@acme.com");
-    for (const ws of ["\t", "\n", "\r", " ", "　", " ", "\v", "\f"]) expect([ws, normId(`sa${ws}les@ac${ws}me.com`, "email")]).toEqual([ws, "sales@acme.com"]);
+    for (const ws of ["\t", "\n", "\r", "\u00a0", "\u3000", " ", "\v", "\f"]) expect([ws, normId(`sa${ws}les@ac${ws}me.com`, "email")]).toEqual([ws, "sales@acme.com"]);
   });
   test("zero-width characters are stripped (all five), and ONLY those: the letters u, B, F, E, C, D and the digits 2, 0, 6 stay", () => {
-    for (const z of ["​", "‌", "‍", "⁠", "﻿"]) expect([z.charCodeAt(0).toString(16), normId(`sa${z}les@ac${z}me.com`, "email"), emailKey(`sa${z}les@acme.com`), accountEmail(`sa${z}les@acme.com`)]).toEqual([z.charCodeAt(0).toString(16), "sales@acme.com", "sales@acme.com", "sales@acme.com"]);
+    for (const z of ["\u200b", "\u200c", "\u200d", "\u2060", "\ufeff"]) expect([z.charCodeAt(0).toString(16), normId(`sa${z}les@ac${z}me.com`, "email"), emailKey(`sa${z}les@acme.com`), accountEmail(`sa${z}les@acme.com`)]).toEqual([z.charCodeAt(0).toString(16), "sales@acme.com", "sales@acme.com", "sa les@acme.com"]); // account: an invisible character inside becomes a plain space, so the shape check refuses it (nothing is mended)
     // a regex that lost its backslash would treat the text "u200B-u200D" as a character range (B to u: most capital and lower-case letters) and eat the address
     const tricky = "Bu200Dfeff2060CE@Dubai-U200B.com";
     expect(emailKey(tricky)).toBe("bu200dfeff2060ce@dubai-u200b.com");
@@ -99,9 +100,10 @@ describe("1. EMAIL_ID_RE (people.ts) and the cleaners: real backslashes", () => 
   test("full-width letters, digits, dot and at-sign (NFKC) become the plain address", () => {
     expect(normId("ＳＡＬＥＳ１＠ＡＣＭＥ．ＣＯＭ", "email")).toBe("sales1@acme.com");
   });
-  test("accountEmail KEEPS inner spaces (trim, NFKC, lower case, zero-width dropped); emailKey removes them", () => {
+  test("accountEmail KEEPS inner spaces and turns inner invisible characters into spaces (trim, NFKC, lower case); emailKey removes them", () => {
     expect(accountEmail("  Ra jat＠Acme.COM \t")).toBe("ra jat@acme.com");
-    expect(accountEmail(`s${ZW}ales＠acme.com`)).toBe("sales@acme.com");
+    expect(accountEmail(`s${ZW}ales＠acme.com`)).toBe("s     ales@acme.com"); // five invisible characters = five plain spaces: kept, so the shape check refuses it
+    expect(accountEmail(`${ZW} s@acme.com ${ZW}`)).toBe("s@acme.com"); // at the two ends they are trimmed
     expect(emailKey("  Ra jat＠Acme.COM \t")).toBe("rajat@acme.com");
     expect(accountEmail(undefined)).toBe(""); expect(accountEmail(null)).toBe(""); expect(emailKey(12 as any)).toBe("12");
   });
@@ -118,12 +120,12 @@ describe("1. EMAIL_ID_RE (people.ts) and the cleaners: real backslashes", () => 
     expect(hits).toEqual([]);
     // and the exact shape lives where the handoff says
     expect(readFileSync(pjoin(SRC, "people.ts"), "utf8")).toContain("const EMAIL_ID_RE = /^[^\\s@]{1,64}@[^\\s@]{1,255}\\.[^\\s@]{2,}$/;");
-    expect(readFileSync(pjoin(SRC, "emailkey.ts"), "utf8")).toContain("replace(/[\\u200B-\\u200D\\u2060\\uFEFF]/g, \"\")");
+    expect(readFileSync(pjoin(SRC, "emailkey.ts"), "utf8")).toContain("INVISIBLE_RE = /[\\s\\u0085\\u200B-\\u200D\\u2028\\u2029\\u2060\\uFEFF]/g");
     expect(readFileSync(pjoin(SRC, "emailkey.ts"), "utf8")).toContain("replace(/\\s+/g, \"\")");
     for (const f of ["hostsetup.ts", "google.ts", "helpdesk.ts", "pay.ts", "worker.ts", "partners.ts"]) expect([f, readFileSync(pjoin(SRC, f), "utf8").includes("[^\\s@]{1,64}@[^\\s@]{1,255}\\.[^\\s@]{2,}$")]).toEqual([f, true]);
     expect(readFileSync(pjoin(PUBLIC, "zc.js"), "utf8")).toContain("/^[^\\s@]{1,64}@[^\\s@]{1,255}\\.[^\\s@]{2,}$/");
     const zc = readFileSync(pjoin(PUBLIC, "zc.js"), "utf8"), z = readFileSync(pjoin(PUBLIC, "z.js"), "utf8");
-    expect(zc).toContain("replace(/[\\s\\u200B-\\u200D\\u2060\\uFEFF]/g, \"\")"); expect(z).toContain("replace(/[\\s\\u200B-\\u200D\\u2060\\uFEFF]/g, \"\")");
+    expect(zc).toContain("replace(/[\\s\\u0085\\u200B-\\u200D\\u2028\\u2029\\u2060\\uFEFF]/g, \"\")"); expect(z).toContain("replace(/[\\s\\u0085\\u200B-\\u200D\\u2028\\u2029\\u2060\\uFEFF]/g, \"\")");
   });
   test("the same words through the real game: an Email-ID game ACCEPTS sales／rahul.sharma／assist and refuses a half address", async () => {
     const t = await setup({ verify: "id", employeesOnly: true, idKind: "email" });
@@ -252,7 +254,7 @@ describe("3. employee-ID game vs Email ID: plain refusal, no 'The system will re
 
 // ---------------------------------------------------------------------------------------------------------------------------------------------------------------
 describe("4. PATCH idKind / verify: 409 id-kind-locked once anyone is LISTED (person) or JOINED (participant)", () => {
-  const expectLocked = async (r: Response) => { expect(r.status).toBe(409); const b = await j(r); expect(b.code).toBe("id-kind-locked"); expect(b.error).toBe(LOCKED_MSG); };
+  const expectLocked = async (r: Response, msg = LOCKED_MSG) => { expect(r.status).toBe(409); const b = await j(r); expect(b.code).toBe("id-kind-locked"); expect(b.error).toBe(msg); };
   const cfgOf = async (t: { master: string }) => { const s = await j(await call("GET", "/api/z/PPL-1/summary", undefined, t.master)); return { verify: s.verify, idKind: s.idKind }; };
   test("nobody listed, nobody joined: idKind and verify can be changed, again and again", async () => {
     const t = await setup({ verify: "id" });
@@ -266,27 +268,39 @@ describe("4. PATCH idKind / verify: 409 id-kind-locked once anyone is LISTED (pe
     expect((await j(await add(t.master, [{ name: "Asha", empId: "E101" }]))).added).toBe(1);
     expect(count("SELECT COUNT(*) c FROM person WHERE eid='PPL-1'")).toBe(1); expect(count("SELECT COUNT(*) c FROM participant WHERE eid='PPL-1'")).toBe(0);
     await expectLocked(await patch(t.master, { idKind: "email" }));
-    await expectLocked(await patch(t.master, { verify: "both" }));
-    await expectLocked(await patch(t.master, { verify: "mobile" }));
+    await expectLocked(await patch(t.master, { verify: "both" }), LOCKED_VERIFY_MSG); // only the way of asking changes: the second sentence
+    await expectLocked(await patch(t.master, { verify: "mobile" }), LOCKED_VERIFY_MSG);
+    await expectLocked(await patch(t.master, { verify: "both", idKind: "email" })); // both change: the kind-of-ID sentence
     expect(await cfgOf(t)).toEqual({ verify: "id", idKind: "emp" }); // nothing was written
     expect((await patch(t.master, { idKind: "emp", verify: "id" })).status).toBe(200); // the same values again
     expect((await patch(t.master, { name: "Renamed" })).status).toBe(200); // an unrelated change
   });
   test("one person JOINED (table participant, nobody listed): the same refusal", async () => {
-    const t = await setup({ verify: "id" }); // not employees only: a name alone comes in
-    expect((await join("PPL-1", { name: "Outsider", device: dev(9) })).status).toBe(200);
+    const t = await setup({ verify: "id", employeesOnly: true });
+    await add(t.master, [{ name: "Asha", empId: "E101" }]);
+    expect((await joinAs("PPL-1", 1, { phone: undefined, empId: "E101" })).status).toBe(200); // joined WITH a listed ID: the stored identity is an ID hash
     expect(count("SELECT COUNT(*) c FROM participant WHERE eid='PPL-1'")).toBe(1);
     expect(count("SELECT COUNT(*) c FROM person WHERE eid='PPL-1'")).toBe(1); // joining also writes the person row; take it away so only the PARTICIPANT row can be what locks the game
     raw.prepare("DELETE FROM person WHERE eid='PPL-1'").run(); expect(count("SELECT COUNT(*) c FROM person WHERE eid='PPL-1'")).toBe(0);
     await expectLocked(await patch(t.master, { idKind: "email" }));
-    await expectLocked(await patch(t.master, { verify: "both" }));
+    await expectLocked(await patch(t.master, { verify: "both" }), LOCKED_VERIFY_MSG);
     expect(await cfgOf(t)).toEqual({ verify: "id", idKind: "emp" });
     expect((await patch(t.master, { verify: "id" })).status).toBe(200);
   });
-  test("a mobile-number game: a joined guest locks it too", async () => {
-    const t = await setup({});
-    expect((await joinAs("PPL-1", 1)).status).toBe(200);
-    await expectLocked(await patch(t.master, { verify: "id" })); await expectLocked(await patch(t.master, { idKind: "email" }));
+  test("round 3 rule: the lock counts only people who HOLD an ID hash. A name-only guest and a mobile-only guest do not lock the game", async () => {
+    const t = await setup({ verify: "id" });
+    expect((await join("PPL-1", { name: "Outsider", device: dev(9) })).status).toBe(200); // name only: no ID stored
+    expect(count("SELECT COUNT(*) c FROM participant WHERE eid='PPL-1'")).toBe(1);
+    expect((await patch(t.master, { verify: "both" })).status).toBe(200); expect((await patch(t.master, { idKind: "email" })).status).toBe(200);
+    const m = await setup({ id: "PPL-2" }); // a mobile-number game with a guest who came in with a number
+    expect((await joinAs("PPL-2", 1)).status).toBe(200);
+    expect((await patch(m.master, { verify: "id" }, "PPL-2")).status).toBe(200); expect((await patch(m.master, { idKind: "email" }, "PPL-2")).status).toBe(200);
+  });
+  test("a mobile-number game: a guest who came in with an ID locks it (the same two sentences)", async () => {
+    const t = await setup({ verify: "either", employeesOnly: true });
+    await add(t.master, [{ name: "Asha", empId: "E55" }]);
+    expect((await joinAs("PPL-1", 1, { phone: undefined, empId: "E55" })).status).toBe(200);
+    await expectLocked(await patch(t.master, { verify: "id" }), LOCKED_VERIFY_MSG); await expectLocked(await patch(t.master, { idKind: "email" }));
   });
   test("a Host with the key gets the same refusal (the lock is not only for the Organizer)", async () => {
     const t = await setup({ verify: "id", employeesOnly: true });
@@ -368,16 +382,12 @@ describe("6. rehearsal inherits created_ms; ensureRehearsalColumns adds only wha
     expect(rows("SELECT created_ms FROM engagement WHERE id='PPL-1-R1'")[0].created_ms).toBe(EMP_CLEAN_FROM_MS + 1);
     expect((await j(await call("GET", "/api/z/PPL-1-R1/info"))).idClean).toBe(true);
   });
-  // PRODUCT BUG (found 30 Oct, see TESTER_REPORT.md): the three rehearsal routes are handled in worker.ts (lines ~1549-1560) but "rehearsal", "rehearsals" and "rehearsalclose" are missing from the
-  // route regex at worker.ts:1486, so every call answers 404 before it gets there. test.failing = this passes while the bug exists; the day the route works it turns red: delete the marker then.
-  test.failing("the HTTP routes POST /rehearsal, GET /rehearsals and POST /rehearsalclose are reachable (they answer 404 today)", async () => {
+  // Round 3 added "rehearsal|rehearsals|rehearsalclose" to the route pattern (worker.ts), so the three routes now answer; this test was a test.failing pin of the 404 and is now a plain test.
+  test("the HTTP routes POST /rehearsal, GET /rehearsals and POST /rehearsalclose are reachable", async () => {
     const t = await paidGame({ verify: "id", employeesOnly: true });
     expect((await call("GET", "/api/z/PPL-1/rehearsals", undefined, t.master, T + 60_000)).status).toBe(200);
     expect((await call("POST", "/api/z/PPL-1/rehearsal", {}, t.master, T + 60_000)).status).toBe(200);
-  });
-  test("pin (the bug above): today the three routes answer 404 Not found", async () => {
-    const t = await paidGame({ verify: "id", employeesOnly: true });
-    for (const [m, p] of [["GET", "/api/z/PPL-1/rehearsals"], ["POST", "/api/z/PPL-1/rehearsal"], ["POST", "/api/z/PPL-1/rehearsalclose"]] as const) expect([m, p, (await call(m, p, m === "POST" ? {} : undefined, t.master, T + 60_000)).status]).toEqual([m, p, 404]);
+    expect((await call("POST", "/api/z/PPL-1/rehearsalclose", {}, t.master, T + 60_000)).status).not.toBe(404);
   });
 
   // a database as it was BEFORE 0030 / as it is AFTER it, built from the real migration files

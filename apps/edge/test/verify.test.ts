@@ -213,8 +213,8 @@ describe("Bingo's name-only join next to the ID", () => {
     expect((await join("PPL-1", { name: "Outsider", device: dev(9) })).status).toBe(200);
     expect((await call("PATCH", "/api/z/PPL-1/settings", { name: "Renamed" }, t.master)).status).toBe(200);
     let s = await j(await call("GET", "/api/z/PPL-1/summary", undefined, t.master)); expect(s.verify).toBe("id");
-    // 1.4.1: once anyone has joined, what a person must give is locked (id-kind-locked); an unrelated change and the same value again still work. The lock itself is tested in audit-141.test.ts.
-    expect((await call("PATCH", "/api/z/PPL-1/settings", { verify: "both" }, t.master)).status).toBe(409);
+    // round 3: the lock (id-kind-locked) counts only people who hold an ID hash; a name-only guest holds none, so the change is allowed. The lock itself is tested in audit-141.test.ts.
+    expect((await call("PATCH", "/api/z/PPL-1/settings", { verify: "both" }, t.master)).status).toBe(200);
     expect((await call("PATCH", "/api/z/PPL-1/settings", { verify: "id" }, t.master)).status).toBe(200);
     s = await j(await call("GET", "/api/z/PPL-1/summary", undefined, t.master)); expect(s.verify).toBe("id");
 

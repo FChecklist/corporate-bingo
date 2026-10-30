@@ -14,8 +14,8 @@ const N = 1_000_000;
 const WORDS = ["sales", "assist", "rahul.sharma", "s", "ss", "info", "x.y.z", "support", "susan", "ops", "hr", "boss", "Mr.Sam"];
 const DOMAINS = ["acme.com", "x.co", "gmail.com", "sales.example.org", "s.ss", "mail.co.in", "a.b.cc", "ss.ss.ss", "assist.io", "z9.net"];
 const TAGS = ["", "", "", "+news", "+a.b", "+s5"];
-const ZWS = ["​", "‌", "‍", "⁠", "﻿"];
-const BLANKS = [" ", " ", "\t", " ", "　", " ", "\n"];
+const ZWS = ["\u200b", "\u200c", "\u200d", "\u2060", "\ufeff", "\u0085", "\u2028", "\u2029"]; // v3: the owner added U+0085, U+2028 and U+2029 to the invisible set
+const BLANKS = [" ", " ", "\t", "\u00a0", "\u3000", " ", "\n"];
 
 /** a small deterministic random stream per index (mulberry32) */
 const rng = (seed: number) => () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -100,13 +100,13 @@ describe("Email ID matrix: 1,000,000 distinct addresses through the participant 
       rawHashes[i] = Bun.hash.wyhash(c.raw) as bigint;
       const got = normId(c.raw, "email");
       (perKind[c.kind] ||= { accepted: 0, refused: 0 });
-      if (/s/i.test(c.canon)) withS++; if (/[A-Z]/.test(c.raw)) withUpper++; if (c.raw.includes("＠")) withFullAt++; if (/[ \t 　 \n]/.test(c.raw.trim())) withSpace++; if (/[​-‍⁠﻿]/.test(c.raw)) withZw++; if (c.raw.includes("+") || c.raw.includes("＋")) withPlus++;
+      if (/s/i.test(c.canon)) withS++; if (/[A-Z]/.test(c.raw)) withUpper++; if (c.raw.includes("＠")) withFullAt++; if (/[ \t\u00a0\u3000 \n]/.test(c.raw.trim())) withSpace++; if (/[\u0085\u200b-\u200d\u2028\u2029\u2060\ufeff]/.test(c.raw)) withZw++; if (c.raw.includes("+") || c.raw.includes("＋")) withPlus++;
       if (c.raw.length > longest) longest = c.raw.length;
       if (c.raw === prevRaw) nonDistinctRaw++; prevRaw = c.raw;
       if (c.want) {
         if (got !== c.canon) { wrongResult++; if (examples.length < 8) examples.push(`${c.kind} #${i}: ${JSON.stringify(c.raw)} -> ${JSON.stringify(got)} wanted ${JSON.stringify(c.canon)}`); continue; }
         accepted++; perKind[c.kind]!.accepted++;
-        if (got !== got.toLowerCase()) upperLeft++; if (/\s/.test(got)) spaceLeft++; if (/[​-‍⁠﻿]/.test(got)) zwLeft++; if (got.length > 254) tooLong++;
+        if (got !== got.toLowerCase()) upperLeft++; if (/\s/.test(got)) spaceLeft++; if (/[\u0085\u200b-\u200d\u2028\u2029\u2060\ufeff]/.test(got)) zwLeft++; if (got.length > 254) tooLong++;
         const back = parseInt(got.slice(0, got.indexOf(".")), 36); if (back !== i) wrongResult++; else if (seenOnce[i]) dupIdx++; else seenOnce[i] = 1;
       } else {
         if (got !== null) { wrongResult++; if (examples.length < 8) examples.push(`${c.kind} #${i}: ${JSON.stringify(c.raw)} -> ${JSON.stringify(got)} wanted refusal`); continue; }
@@ -136,7 +136,7 @@ describe("Email ID matrix: 1,000,000 distinct addresses through the participant 
   test("a nothing-typed input is '' (not refused) whatever mix of blanks and zero-width characters it is made of", () => {
     let n = 0;
     for (const a of BLANKS.concat(ZWS, [""])) for (const b of BLANKS.concat(ZWS, [""])) for (const c of BLANKS.concat(ZWS, [""])) { expect(normId(a + b + c, "email")).toBe(""); n++; }
-    expect(n).toBe(13 * 13 * 13);
+    expect(n).toBe((BLANKS.length + ZWS.length + 1) ** 3);
   });
 });
 
@@ -156,6 +156,6 @@ describe("the same matrix, a slice of it, through the real list-add route", () =
     expect(r.added).toBe(90); expect(r.invalid.length).toBe(10); expect(r.duplicates ?? 0).toBe(0);
     const list = ((await (await call("GET", "/api/z/MTX-1/people", undefined, st.token)).json()) as any).people.map((p: any) => p.empId as string).sort();
     expect(list).toEqual(good.map((c) => c.canon).sort());
-    for (const e of list) { expect(e).toBe(e.toLowerCase()); expect(e).not.toMatch(/\s/); expect(e).not.toMatch(/[​-‍⁠﻿]/); }
+    for (const e of list) { expect(e).toBe(e.toLowerCase()); expect(e).not.toMatch(/\s/); expect(e).not.toMatch(/[\u200b-\u200d\u2060\ufeff]/); }
   });
 });

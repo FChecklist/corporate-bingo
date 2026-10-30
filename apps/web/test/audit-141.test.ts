@@ -6,7 +6,6 @@ import { join } from "node:path";
 import { newWorld, openPage, roundAt, T, type Page } from "./harness";
 import { PRIZE_HOUSES } from "../../../packages/beacon/src/config";
 import { EMP_CLEAN_FROM_MS, EMP_LOOKS_LIKE_EMAIL, badIdMessage } from "../../edge/src/people";
-import { EMAIL_UNUSABLE_MESSAGE } from "../../edge/src/approvals";
 
 setDefaultTimeout(60_000);
 const PUB = join(import.meta.dir, "../public");
@@ -88,13 +87,8 @@ describe("3b/9. console: the typing hint, paste, CSV; duplicates after cleaning 
     const em = await hintAt("C-NEW", "rajat1@demo.com"); expect(em).toBe(EMP_LOOKS_LIKE_EMAIL); expect(em).not.toMatch(/read this as/i); // the refusal, never "read this as RAJAT1DEMOCOM"
     expect(await hintAt("C-OLD", "1B678")).toBe(""); // nothing to mend: no hint (the old-game hints for other typings are pinned below)
   });
-  // Handoff item 3 says "older games get no hint". The console (zc.js:627) still shows the OLD rule's reading of a typed employee ID ("1b-678" -> "1B-678"), which is true to the server but is a hint.
-  test("pin: in a game made BEFORE the new rule the console shows the old-rule reading ('read this as 1B-678'), even for an e-mail ('read this as RAJAT1@DEMO.COM', which the server then refuses); the join page shows nothing", async () => {
-    const o = await organizer(); await game(o, "C-OLD2", "emp-old"); const c = await consoleAt(o, "C-OLD2");
-    setField(c.p, "#gemp", "1b-678"); expect((c.p.$("#gemphint") as any).textContent).toBe("The system will read this as 1B-678");
-    setField(c.p, "#gemp", "rajat1@demo.com"); expect((c.p.$("#gemphint") as any).textContent).toBe("The system will read this as RAJAT1@DEMO.COM");
-  });
-  test.failing("handoff item 3: an older game gets NO hint in the console either, and an e-mail typed there gets no 'read this as' line", async () => {
+  // Handoff item 3: "older games get no hint". Round 3 fixed the console (zc.js:627); this was a pin plus a test.failing and is now one plain test.
+  test("handoff item 3: an older game gets NO hint in the console either, and an e-mail typed there gets no 'read this as' line", async () => {
     const o = await organizer(); await game(o, "C-OLD3", "emp-old"); const c = await consoleAt(o, "C-OLD3");
     setField(c.p, "#gemp", "rajat1@demo.com"); expect((c.p.$("#gemphint") as any).textContent).not.toMatch(/read this as/i);
     setField(c.p, "#gemp", "1b-678"); expect((c.p.$("#gemphint") as any).textContent).toBe("");
@@ -102,7 +96,7 @@ describe("3b/9. console: the typing hint, paste, CSV; duplicates after cleaning 
   test("Email-ID game, paste: the e-mail cleaner is used (never the employee-ID cleaner); two spellings of one address are NAMED; an incomplete address goes to the 'look wrong' list with the plain message", async () => {
     const o = await organizer(); await game(o, "P-EML", "email"); const c = await consoleAt(o, "P-EML");
     const t = await paste(c, ["Asha, Asha.Sharma＠Acme.com", "Bala, asha.sharma@acme.com", "Chitra, Sales@X.com", "Dev, a@b", "Esha, ra jat＠x.com", "Farid, ASSIST＠GMAIL.COM"].join("\n"), /\d good, .* look(s)? wrong/);
-    expect(t).toMatch(/Same employee ID after cleaning: asha\.sharma@acme\.com \(read as asha\.sharma@acme\.com\)\. 4 good, 1 duplicate removed, 1 looks wrong/);
+    expect(t).toMatch(/Same Email ID after cleaning: asha\.sharma@acme\.com \(read as asha\.sharma@acme\.com\)\. 4 good, 1 duplicate removed, 1 looks wrong/);
     expect(c.posts[0].people.map((x: any) => x.empId)).toEqual(["asha.sharma@acme.com", "sales@x.com", "rajat@x.com", "assist@gmail.com"]); // what the server keeps: lower case, no spaces, plain at-sign
     expect((c.p.$("#wronglist") as any).textContent).toMatch(/Dev/); expect((c.p.$("#wronglist") as any).textContent).toContain(INCOMPLETE);
     expect((await listOf(o, "P-EML")).people.map((x: any) => x.empId).sort()).toEqual(["asha.sharma@acme.com", "assist@gmail.com", "rajat@x.com", "sales@x.com"]);
@@ -113,10 +107,10 @@ describe("3b/9. console: the typing hint, paste, CSV; duplicates after cleaning 
     await paste(c, "Asha, asha@acme.com", /1 good, 0 duplicates removed, 0 look wrong/);
     c.p.click('[data-mode="file"]'); const inp = c.p.$("#gfile") as any;
     Object.defineProperty(inp, "files", { value: [{ text: async () => "Name,Email ID\nAsha again,ASHA＠Acme.com\nBala,bala@acme.com\nBala twice,Bala@ACME.com\nChitra,c@d\n" }], configurable: true }); inp.dispatchEvent(new c.p.win.Event("change", { bubbles: true }));
-    const t = await c.p.waitFor((x) => /Same employee ID after cleaning/.test(x));
+    const t = await c.p.waitFor((x) => /Same Email ID after cleaning/.test(x));
     // found inside the file: Bala twice is NAMED. ASHA＠Acme.com is cleaned on the page to the address already on the list, so the server sees a plain repeat: it is counted (2 duplicates) but not named (observation, TESTER_REPORT.md)
-    expect(t).toMatch(/Same employee ID after cleaning: Bala@ACME\.com \(read as bala@acme\.com\)\. 1 good, 2 duplicates removed, 1 looks wrong/);
-    expect(t).not.toContain("ASHA＠Acme.com (read as");
+    expect(t).toMatch(/Already on the list: Asha again \(asha@acme\.com\)\. Same Email ID after cleaning: Bala@ACME\.com \(read as bala@acme\.com\)\. 1 good, 2 duplicates removed, 1 looks wrong/);
+    // round 3: the server now NAMES a row it found already on the list ("Already on the list: Asha again (asha@acme.com)"); it used to be counted but not named
     expect(c.posts[1].people.map((x: any) => x.empId)).toEqual(["asha@acme.com", "bala@acme.com"]); // the page sent the clean forms; the server found the first one already listed
     expect((await listOf(o, "F-EML")).people.map((x: any) => x.empId).sort()).toEqual(["asha@acme.com", "bala@acme.com"]);
   });
@@ -134,7 +128,7 @@ describe("3b/9. console: the typing hint, paste, CSV; duplicates after cleaning 
     expect(c.posts[0].people.map((x: any) => x.empId)).toEqual(["1B-678", "1B678", "RAJAT@X.COM"]); // different people in the old rule; nothing is mangled into RAJATXCOM
     expect(t).toMatch(/2 good, 0 duplicates removed, 1 looks wrong/); expect(t).not.toMatch(/Same employee ID after cleaning/);
     const wl = (c.p.$("#wronglist") as any).textContent as string; expect(wl).toContain("An employee ID has letters and numbers only (up to 30)."); expect(wl).not.toContain(EMP_LOOKS_LIKE_EMAIL);
-    expect(wl).not.toMatch(/Chitra/); // a row the SERVER refuses comes back without the person's name ("No name"): observation in TESTER_REPORT.md
+    expect(wl).toMatch(/Chitra/); // round 3: a row the SERVER refuses keeps the person's name (it used to come back as "No name")
   });
   test("one person at a time in an Email-ID game: the typed address is cleaned and sent; a half address is refused on the page and nothing is sent", async () => {
     const o = await organizer(); await game(o, "T-EML", "email"); const c = await consoleAt(o, "T-EML");
@@ -143,11 +137,27 @@ describe("3b/9. console: the typing hint, paste, CSV; duplicates after cleaning 
     setField(c.p, "#gname", "Bad"); setField(c.p, "#gemp", "nobody@"); c.p.click("#gadd"); await c.p.waitFor((x) => /0 good, 0 duplicates removed, 1 looks wrong/.test(x));
     expect(c.posts.length).toBe(1); expect((c.p.$("#wronglist") as any).textContent).toContain(INCOMPLETE);
   });
-  test("observation: a bare address with no name on its own line is read as a NAME in an Email-ID game (only an employee ID shape is recognised by the paste parser)", async () => {
+  test("round 4: a line with only an Email ID (no name) in an Email-ID game is accepted and sent as that Email ID", async () => {
     const o = await organizer(); await game(o, "B-EML", "email"); const c = await consoleAt(o, "B-EML");
     const t = await paste(c, "asha@acme.com\nbala@acme.com", /\d good, .* look(s)? wrong/);
-    expect(t).toMatch(/0 good, 0 duplicates removed, 2 look wrong/); // pinned so a future change is noticed; see TESTER_REPORT.md (product observation 3)
-    expect(c.posts.length).toBe(0);
+    expect(t).toMatch(/2 good, 0 duplicates removed, 0 look wrong/);
+    expect(c.posts[0].people.map((x: any) => x.empId)).toEqual(["asha@acme.com", "bala@acme.com"]);
+    expect((await listOf(o, "B-EML")).people.map((x: any) => x.empId).sort()).toEqual(["asha@acme.com", "bala@acme.com"]);
+  });
+});
+
+// --- v3: the too-long sentence (owner rule: over 30 after cleaning shows 'This ID is too long. An employee ID may be up to 30 characters once cleaned.') ---
+describe("PRODUCT DEFECT D1 (pages): an employee ID over 30 characters once cleaned shows the too-long sentence while typing", () => {
+  const TOO_LONG = "This ID is too long. An employee ID may be up to 30 characters once cleaned.";
+  test("PRODUCT DEFECT D1: the join page (z.js) hint for 31 cleaned characters is the too-long sentence; 30 is a normal hint", async () => {
+    const o = await organizer(); await game(o, "L-NEW", "emp-new"); const p = await joinPage(o, "L-NEW");
+    setField(p, "#emp", "a".repeat(30)); expect((p.$("#empHint") as any).textContent).toBe("The system will read this as " + "A".repeat(30));
+    setField(p, "#emp", "a-".repeat(31)); expect((p.$("#empHint") as any).textContent).toBe(TOO_LONG);
+  });
+  test("PRODUCT DEFECT D1: the console typing hint (zc.js) for 31 cleaned characters is the too-long sentence", async () => {
+    const o = await organizer(); await game(o, "L-CON", "emp-new"); const c = await consoleAt(o, "L-CON");
+    setField(c.p, "#gemp", "a".repeat(30)); expect((c.p.$("#gemphint") as any).textContent).toBe("The system will read this as " + "A".repeat(30));
+    setField(c.p, "#gemp", "a-".repeat(31)); expect((c.p.$("#gemphint") as any).textContent).toBe(TOO_LONG);
   });
 });
 
@@ -162,15 +172,15 @@ describe("7. 'Which ID?' is hidden in Bingo's new flow (zc-flow-game.js:8), and 
     const at = heading[0]![0]; expect(lines.slice(Math.max(0, at - 3), at).some((l) => /if \(G\.idKind\)/.test(l))).toBe(true);
     expect(pack).toContain("audienceSettings(who.card, who.upTo, G.idKind ? who.idKind : undefined)"); // and what is saved: idKind only when the game declares it
   });
-  test("the pack's page really shows no 'Which ID?' for Bingo, and does show it when a game switches the flag on (proof that the flag is what hides it)", async () => {
-    const run = async (flag: boolean) => {
-      const o = await organizer(); await o.api("POST", "/api/z", { id: "W-1", startRound: START, callSeconds: 12, cap: 100 }, o.aiKey);
-      const scripts = "zgame.js control.js zc-mode.js zc.js zc-flow-game.js pack/zc-flow.js".split(" ");
-      const p = await openPage(o.world, { url: "http://localhost/zc?flow=new&e=W-1", html: "zc.html", scripts, session: { "cbz-org": o.token, "cbz-aimsg": o.aiMessage, "cbz-email": "boss@acme.com" }, afterLoad: (win: any, f: string) => { if (f === "zgame.js" && win.ZG && !win.ZG.PRIZE_HOUSES) win.ZG.PRIZE_HOUSES = PRIZE_HOUSES; if (f === "zc-flow-game.js" && flag) win.ZFLOW_GAME.idKind = true; } }); open.push(p);
-      await p.waitFor((x) => /Date and time/.test(x)); return p;
-    };
-    const off = await run(false); expect(off.text()).not.toMatch(/Which ID\?/); expect(off.errors).toEqual([]);
-    const on = await run(true); expect(on.errors).toEqual([]); expect(on.win.ZFLOW_GAME.idKind).toBe(true); // the flag is read by the pack at load
+  test("round 5: the new screens are hidden for this release: ?flow=new opens the previous screens, so no 'Which ID?' is drawn by the pack", async () => {
+    expect(readFileSync(join(PUB, "zc-mode.js"), "utf8")).toContain("var NEW_SCREENS_ENABLED = false;");
+    const o = await organizer(); await game(o, "W-ONE", "mobile");
+    const scripts = "zgame.js control.js zc-mode.js zc.js zc-flow-game.js pack/zc-flow.js".split(" ");
+    const p = await openPage(o.world, { url: "http://localhost/zc?flow=new&e=W-ONE", html: "zc.html", scripts, session: { "cbz-org": o.token, "cbz-aimsg": o.aiMessage, "cbz-email": "boss@acme.com" }, afterLoad: (win: any, f: string) => { if (f === "zgame.js" && win.ZG && !win.ZG.PRIZE_HOUSES) win.ZG.PRIZE_HOUSES = PRIZE_HOUSES; } }); open.push(p);
+    await p.waitFor((x) => /Hello|Last step|Your game|Hi\./i.test(x));
+    expect(p.win.CT_ZCFLOW).toBe("old"); expect(p.win.location.search).toContain("flow=old"); expect(p.win.location.search).not.toContain("flow=new");
+    expect(p.$(".zc-dot")).toBeTruthy(); expect(p.$('[class*="zf-"]')).toBeNull(); expect(p.text()).not.toMatch(/Which ID\?/); expect(p.errors).toEqual([]);
+    expect(p.$("#trynewtop")).toBeNull(); // the "Try the new screens" link is gone from zc.html
   });
   test("Bingo's own console 'Which ID?' (zc.js:289) is shown only when what a person must give is not just a mobile number", async () => {
     const zc = readFileSync(join(PUB, "zc.js"), "utf8");
@@ -184,7 +194,7 @@ describe("7. 'Which ID?' is hidden in Bingo's new flow (zc-flow-game.js:8), and 
 });
 
 // --- found while testing item 4: the console form does not know the saved setting ---
-describe("4b. console step 2 against the new lock (PRODUCT BUG, TESTER_REPORT.md): the form starts from defaults, not from the game's saved 'what a person must give'", () => {
+describe("4b. console step 2 opens on the game's saved 'what a person must give' and saves it back unchanged (fixed in round 3; before that it started from defaults)", () => {
   const stepTwo = async (id: string, people: boolean) => {
     const o = await organizer(); await game(o, id, "email"); if (people) expect((await o.json(await o.api("POST", `/api/z/${id}/people`, { people: [{ name: "Asha", empId: "asha@acme.com" }] }, o.token))).added).toBe(1);
     const c = await consoleAt(o, id); const patches: any[] = [], answers: any[] = []; const rf = c.p.win.fetch;
@@ -192,23 +202,19 @@ describe("4b. console step 2 against the new lock (PRODUCT BUG, TESTER_REPORT.md
     c.p.click('.zc-dot[data-open="2"]'); await c.p.waitFor((x) => /What must a person give to get in/.test(x)); await new Promise((r) => setTimeout(r, 300));
     return { o, c, patches, answers, pressed: (k: string, v: string) => (c.p.$(`[data-ck="${k}"][data-v="${v}"]`) as any)?.getAttribute("aria-pressed") };
   };
-  test.failing("step 2 of a saved Email-ID game shows the saved choice (Employee ID or Email ID pressed, Email ID chosen, employees only ticked)", async () => {
+  test("step 2 of a saved Email-ID game shows the saved choice (Employee ID or Email ID pressed, Email ID chosen)", async () => {
     const s = await stepTwo("S2-A", false);
     expect([s.pressed("ver", "id"), s.pressed("idk", "email")]).toEqual(["true", "true"]);
   });
-  test.failing("saving step 2 without touching 'what a person must give' keeps verify id / idKind email / employeesOnly true", async () => {
+  test("saving step 2 without touching 'what a person must give' sends verify id / idKind email / employeesOnly true, and the game keeps them", async () => {
     const s = await stepTwo("S2-B", false); s.c.p.click('[data-save="2"]'); await s.c.p.waitFor(() => s.patches.length > 0);
-    expect(s.patches[0]).toMatchObject({ verify: "id", idKind: "email", employeesOnly: true });
+    expect(s.patches[0]).toMatchObject({ verify: "id", idKind: "email", employeesOnly: true }); expect(s.answers[0].status).toBe(200);
+    const sum = await s.o.json(await s.o.api("GET", "/api/z/S2-B/summary", undefined, s.o.token)); expect([sum.verify, sum.idKind, sum.employeesOnly]).toEqual(["id", "email", true]);
   });
-  test("pin: today the save sends verify mobile / idKind emp / employeesOnly false; with nobody listed the server accepts it and the game silently becomes a name-or-mobile game", async () => {
-    const s = await stepTwo("S2-C", false); s.c.p.click('[data-save="2"]'); await s.c.p.waitFor(() => s.patches.length > 0);
-    expect(s.patches[0]).toMatchObject({ verify: "mobile", idKind: "emp", employeesOnly: false }); expect(s.answers[0].status).toBe(200);
-    const sum = await s.o.json(await s.o.api("GET", "/api/z/S2-C/summary", undefined, s.o.token)); expect([sum.verify, sum.idKind, sum.employeesOnly]).toEqual(["mobile", "emp", false]);
-  });
-  test("pin: with one person listed the same untouched save is refused 409 id-kind-locked, so no setting on step 2 (not even the limit) can be saved", async () => {
+  test("with one person listed the same untouched save is NOT refused (same values are not a change), so the organizer can still save the other step-2 settings", async () => {
     const s = await stepTwo("S2-D", true); s.c.p.click('[data-save="2"]'); await s.c.p.waitFor(() => s.patches.length > 0);
-    expect(s.answers[0].status).toBe(409); expect(s.answers[0].body.code).toBe("id-kind-locked");
-    const sum = await s.o.json(await s.o.api("GET", "/api/z/S2-D/summary", undefined, s.o.token)); expect([sum.verify, sum.idKind, sum.employeesOnly]).toEqual(["id", "email", true]); // the lock kept the saved values
+    expect(s.patches[0]).toMatchObject({ verify: "id", idKind: "email", employeesOnly: true }); expect(s.answers[0].status).toBe(200);
+    const sum = await s.o.json(await s.o.api("GET", "/api/z/S2-D/summary", undefined, s.o.token)); expect([sum.verify, sum.idKind, sum.employeesOnly]).toEqual(["id", "email", true]);
   });
 });
 
@@ -220,7 +226,7 @@ describe("8. guide.js: no duplicate entry, no template syntax, the three new car
     expect(guide.split("The game has ended, so no one can be added").length - 1).toBe(1);
     const { CTG } = await page(); const C = CTG.catalog as any[];
     const idx = (frag: string) => C.map((e, i) => (e.m as string[]).some((f) => f.includes(frag) || frag.includes(f)) ? i : -1).filter((i) => i >= 0);
-    for (const frag of ["The game has ended, so no one can be added", "This looks like an Email ID. This game asks for an employee ID", "Please check your Email ID. It looks incomplete", "The system could not use this email ID for this game"]) expect([frag, idx(frag).length]).toEqual([frag, 1]);
+    for (const frag of ["The game has ended, so no one can be added", "This looks like an Email ID. This game asks for an employee ID", "Please check your Email ID. It looks incomplete", "You already have people listed. Start a new game to use a different"]) expect([frag, idx(frag).length]).toEqual([frag, 1]);
     // an exact copy (same fragments, same words, same steps) of another entry is a duplicate row
     const sig = C.map((e) => JSON.stringify([e.m, e.s ?? null, e.t, e.w, e.d, e.g])); expect(sig.filter((x, i) => sig.indexOf(x) !== i)).toEqual([]);
   });
@@ -229,7 +235,7 @@ describe("8. guide.js: no duplicate entry, no template syntax, the three new car
     const bad: string[] = [];
     for (const e of CTG.catalog as any[]) { const txt = [...e.m, e.t, e.w, ...e.d, e.g?.label ?? "", e.g?.field ?? "", e.g?.href ?? ""].join(" | "); if (/\$\{|\{\{|\}\}|<%|%>|`|\bundefined\b|\[object|\bnull\b/.test(txt)) bad.push(e.t); if (!e.t || !e.w || !e.m?.length || !e.d?.length) bad.push("incomplete: " + e.t); }
     expect(bad).toEqual([]);
-    const rows = guide.split("\n").filter((l) => /This looks like an Email ID\. This game asks|Please check your Email ID\. It looks incomplete|The system could not use this email ID/.test(l)); expect(rows.length).toBe(3);
+    const rows = guide.split("\n").filter((l) => /This looks like an Email ID\. This game asks|Please check your Email ID\. It looks incomplete|You already have people listed\. Start a new game/.test(l)); expect(rows.length).toBe(3); // e-mail in an employee-ID game, incomplete Email ID, the lock
     for (const r of rows) expect(r).not.toMatch(/\$\{|\{\{|<%|`/);
   });
   test("card 1 and card 2 match the strings the Worker REALLY sends (a real join answer), card 3 matches the constant in approvals.ts", async () => {
@@ -239,10 +245,10 @@ describe("8. guide.js: no duplicate entry, no template syntax, the three new car
     const b = await o.api("POST", "/api/z/G-EML/join", { name: "Raj", empId: "rajat1@demo", device: "02" + "b".repeat(30) }); expect(b.status).toBe(400);
     const am = ((await a.json()) as any).error as string, bm = ((await b.json()) as any).error as string;
     expect(am).toBe(EMP_LOOKS_LIKE_EMAIL); expect(bm).toBe(INCOMPLETE); expect(badIdMessage("x", "email")).toBe(INCOMPLETE);
-    const fa = CTG.find({ status: 400, message: am }), fb = CTG.find({ status: 400, message: bm }), fc = CTG.find({ status: 400, message: EMAIL_UNUSABLE_MESSAGE });
+    const fa = CTG.find({ status: 400, message: am }), fb = CTG.find({ status: 400, message: bm }), fl = CTG.find({ status: 409, message: "You already have people listed. Start a new game to use a different kind of ID." }), fv = CTG.find({ status: 409, message: "You already have people listed. Start a new game to use a different way of asking for IDs." });
     expect([fa.matched, fa.entry.t]).toEqual([true, "This game asks for your employee ID"]);
     expect([fb.matched, fb.entry.t]).toEqual([true, "Please check your Email ID"]);
-    expect([fc.matched, fc.entry.t]).toEqual([true, "This Email ID could not be used"]);
+    expect([fl.matched, fl.entry.t]).toEqual([true, "You already have people listed"]); expect([fv.matched, fv.entry.t]).toEqual([true, "You already have people listed"]); // both lock sentences (id-kind-locked) have their card
     // the cards send the person to the right box and say the right thing
     expect(fa.entry.g.field).toBe("#emp"); expect(fb.entry.g.field).toBe("#emp"); expect(fa.entry.d.join(" ")).toMatch(/letters and numbers/); expect(fb.entry.d.join(" ")).toMatch(/name@company\.com/);
     // an old catalog entry must not swallow them first: they match their own entry, not "Your employee ID is needed"
@@ -257,9 +263,8 @@ describe("8. guide.js: no duplicate entry, no template syntax, the three new car
     });
     expect(missing).toEqual([]);
   });
-  test("observation: EMAIL_UNUSABLE_MESSAGE (card 3) is defined in approvals.ts but the Worker never sends it today", () => {
-    let uses = 0; for (const f of readdirSync(EDGE).filter((x) => x.endsWith(".ts"))) for (const l of readFileSync(join(EDGE, f), "utf8").split("\n")) if (/EMAIL_UNUSABLE_MESSAGE/.test(l) && !/export const EMAIL_UNUSABLE_MESSAGE/.test(l)) uses++;
-    expect(uses).toBe(0); // when the message is wired in, change this to > 0 and add a real-request check next to cards 1 and 2
-    expect(EMAIL_UNUSABLE_MESSAGE).toMatch(/^The system could not use this email ID for this game\./);
+  test("round 3: the dead 'could not use this email ID' message is gone from the server and from the guide", () => {
+    for (const f of readdirSync(EDGE).filter((x) => x.endsWith(".ts"))) expect([f, /EMAIL_UNUSABLE_MESSAGE|could not use this email ID/i.test(readFileSync(join(EDGE, f), "utf8"))]).toEqual([f, false]);
+    expect(/could not use this email ID/i.test(guide)).toBe(false);
   });
 });
