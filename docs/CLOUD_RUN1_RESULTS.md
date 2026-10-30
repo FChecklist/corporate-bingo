@@ -13,7 +13,7 @@
 | `bun install` | OK |
 | `build:control`, `build:report`, `build:zgame`, `pages:build` | All OK |
 | Rebuilt bundles vs committed | `apps/web/public/control.js`, `reportgen.js`, `zgame.js` differ from the committed copies after a rebuild (15 lines changed, minified). The committed bundles may be stale. I reverted them and ran tests on the committed files. |
-| `bun run typecheck` (`tsc --noEmit`) | 82 errors, all in `apps/edge/test/*` (none in `src`): 80 x TS2345 (header object `{ "x-organizer": string } \| {}` passed as `Record<string,string>`), 2 x TS2367. Files: param-people (21), param-config (17), join-gaps (13), room-mode (8), demo-pass (8), param-life (7), param-harness (3), gamesbar-unrelated gamelog (3), shared-read (2). Full list was not kept in the repo. Not checked on base. |
+| `bun run typecheck` (`tsc --noEmit`) | 82 errors, all in `apps/edge/test/*` (none in `src`): 80 x TS2345 (header object `{ "x-organizer": string } \| {}` passed as `Record<string,string>`), 2 x TS2367. Files: param-people (21), param-config (17), join-gaps (13), room-mode (8), demo-pass (8), param-life (7), param-harness (3), gamelog (3), shared-read (2). Full list was not kept in the repo. Not checked on base. |
 
 ## Counts per folder
 
@@ -37,7 +37,7 @@
 ## The two files the laptop never saw finish
 
 - `apps/web/test/brand-site.test.ts` alone: 34 pass, 0 fail, 26 ms. Does not hang.
-- `apps/web/test/gamesbar.test.ts` alone (timeout 180 s): exit 1 after 52 s. 2 pass, 1 fail. It does not hang for good, but one test is very slow. The assertion at line 25 fails (`expect(d.body.children[1]).toBe(bar)`, or the line's neighbour), and Bun then spends ~50 s trying to print the failed comparison of two huge DOM objects; it ends with "The error message exceeds the maximum string length" and "timed out after 5000ms". So: a real failure, plus a slow failure message that looks like a hang. On base the file passes (2 tests).
+- `apps/web/test/gamesbar.test.ts` alone (timeout 180 s): exit 1 after 52 s. 2 pass, 1 fail. It does not hang for good, but one test is very slow. The assertion at line 25 of the test fails (the bar is not the second child of body, or a similar check on that line), and Bun then spends ~50 s trying to print the failed comparison of two huge DOM objects; it ends with "The error message exceeds the maximum string length" and "timed out after 5000ms". So: a real failure, plus a slow failure message that looks like a hang. On base the file passes (2 tests).
 
 ## Failures
 
