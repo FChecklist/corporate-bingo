@@ -1,0 +1,5 @@
+$ bun build packages/beacon/src/zgame-browser.ts --target browser --format iife --minify --outfile apps/web/public/zgame.js
+Bundled 31 modules in 16ms
+
+  zgame.js  134.83 KB  (entry point)
+
