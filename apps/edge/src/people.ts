@@ -72,6 +72,18 @@ export const normId = (raw: unknown, kind: "emp" | "email", createdMs?: number |
   return normEmp(raw, createdMs);
 };
 export const badIdMessage = (raw: unknown, kind: "emp" | "email", createdMs?: number | null): string => kind === "email" ? "Please check your Email ID. It looks incomplete." : (createdMs == null || createdMs >= EMP_CLEAN_FROM_MS) && looksLikeEmail(raw) ? EMP_LOOKS_LIKE_EMAIL : "An employee ID has letters and numbers only (up to 30).";
+/** Does anybody in this game hold an identity made from an ID (an employee ID or an Email ID)? A listed person or a joined person with an ID, in pages of 100. A name-only or mobile-only guest does not count:
+ *  only a stored ID hash is orphaned when "what a person must give" changes, so only that locks the setting. */
+export async function anyoneHoldsIdHash(env: Env, eid: string): Promise<boolean> {
+  for (const q of ["SELECT pii FROM person WHERE eid=? AND status<>'removed' AND pii IS NOT NULL LIMIT 100 OFFSET ?", "SELECT pii FROM participant WHERE eid=? AND pii IS NOT NULL LIMIT 100 OFFSET ?"]) {
+    for (let off = 0; ; off += 100) {
+      const rows = (await env.DB.prepare(q).bind(eid, off).all<{ pii: string }>().catch(() => ({ results: [] as { pii: string }[] }))).results ?? [];
+      for (const r of rows) { const p = await openPii(env as any, r.pii); if (p?.empId) return true; }
+      if (rows.length < 100) break;
+    }
+  }
+  return false;
+}
 /** The identity of a person who is known by employee ID alone (no mobile number needed). One hash for the same ID in every game, like the phone hash. */
 export const empHashOf = (env: { PHONE_SALT?: string; ORGANIZER_SECRET?: string }, id: string) => sha(`${env.PHONE_SALT ?? env.ORGANIZER_SECRET ?? "unset"}|emp|${id}`);
 /** What the organizer asked people to give to get in, read from the game's stored settings. */

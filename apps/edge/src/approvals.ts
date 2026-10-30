@@ -27,7 +27,5 @@ export const cleanEmail = (raw: unknown): string | null => { const s = String(ra
 /** 1.8.0 audit: the 30-minute lapse, the family cutoff and the Email ID apply only to games CREATED from this date on. Every game made before the release behaves exactly as in 1.7.1. */
 export const APPROVAL_RULES_FROM_MS = Date.UTC(2099, 0, 1); // RELEASE SESSION: set this to the exact deploy instant (Date.UTC(...) or epoch ms) in the same commit that is deployed. Until it is set it is far in the future, so NO game takes the 30-minute wait limit, the family cutoff and the polite messages early. A game created before the deploy instant keeps the old behaviour.
 export const approvalRulesOn = (e: { created_ms?: number | null } | null | undefined): boolean => Number(e?.created_ms) >= APPROVAL_RULES_FROM_MS;
-/** The same sentence whether the email is held by someone else or not usable: nobody can find out who holds an email. */
-export const EMAIL_UNUSABLE_MESSAGE = "The system could not use this email ID for this game. Please check it, or open your ticket from the phone you first used.";
 /** The earliest request time that can still be answered: 30 minutes back for a game under the new rules, 0 (no limit) for an older game. */
 export const waitSince = (e: { created_ms?: number | null }, now: number): number => (approvalRulesOn(e) ? now - WAIT_LIMIT_MS : 0);
