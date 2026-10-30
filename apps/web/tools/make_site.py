@@ -46,11 +46,11 @@ def landing():
         '<p class="ck-small">See the <a href="/pricing">full price list</a>. We do not give refunds. If you cancel a paid game before it starts, your payment stays as credit for 365 days.</p>\n'
         '</div></section>')
     ai = (
-        '<section class="ck-sec ck-alt" id="ai-host" aria-labelledby="aih"><div class="ck-wrap"><div class="ck-sec-head"><span class="ck-kicker">Included with every game</span>'
-        '<h2 id="aih">A free AI helper for the organizer.</h2>'
-        '<p class="ck-lead">Give your own AI assistant the work link we send you. It can build the draft and change it before the start. You press publish and pay.</p></div></div></section>')
+        '<section class="ck-sec ck-alt" id="ai-host" aria-labelledby="aih"><div class="ck-wrap"><div class="ck-sec-head"><span class="ck-kicker">Prizes</span>'
+        '<h2 id="aih">You choose the prizes. The software keeps it fair.</h2>'
+        '<p class="ck-lead">Choose patterns like Line, Four Corners, X, Frame or Blackout. If two cards finish on the same number, a fixed public rule puts them in order and each prize goes to one card. You provide the prizes.</p></div></div></section>')
     faq_items = [
-        ("How do I set up a game?", "Sign in with your e-mail and use the organizer console, or ask the free AI helper to build the draft. Building and publishing are free."),
+        ("How do I set up a game?", "Sign in with your e-mail and use the organizer console to build the draft. Building and publishing are free."),
         ("Do players pay or install anything?", "No. Players never pay and there is no app. They open your link, type their name and get a Bingo card."),
         ("Who gives the prizes?", "You do, the organizer. Corporate Bingo is software only. We never hold or pay prize money."),
         ("Who decides the winners?", "The software only. Phones work out winners from public random numbers, and a win counts only when enough phones agree. Nobody can choose or change a winner."),
@@ -111,7 +111,7 @@ GUIDE_SECTIONS = [
     ("law", "Check the law", ["Some countries and states restrict games with prizes. You must check yours.", "In the United States, prize promotions above a certain value may need registration. Check your state.", "In India, prizes above INR 10,000 may carry tax deducted at source. Check with your tax adviser.", "You are responsible for tax on the prizes you give."]),
     ("run", "Running the game", ["Share one link in Slack, Teams, Zoom chat, e-mail or WhatsApp.", "Pick the gap between calls: 6, 9, 12 or 15 seconds.", "Show the big-screen page on a projector or in a shared video call."]),
     ("prizes", "Prizes", ["You provide the prizes and hand them over.", "Corporate Bingo is software only. We never hold or pay prize money.", "Winners confirm their details on their own phone. Tick “Prize given” in your console."]),
-    ("data", "Your players’ data", ["Tell your players what you do with their details.", "Names and numbers are deleted within 24 hours after the game. Your report link works for 22 hours, so open it before then.", "To delete earlier, use your console."]),
+    ("data", "Your players’ data", ["Tell your players what you do with their details.", "Names and numbers are deleted within 24 hours after the game. Your report link works for 19 hours, so open it before then.", "To delete earlier, use your console."]),
     ("pay", "Payment", ["Build and publish for free. The game does not begin until it is paid for.", "You can pay at any time until the guest data is erased. A late payment starts the game 2 minutes after it is confirmed.", "To cancel, tap Cancel this game in your console.", "We do not give refunds. If you cancel a paid game before it starts, your payment stays as credit for your next game for 365 days. Unused credit lapses at the end of day 365.", "Once the start time has passed, a paid game cannot be cancelled.", "Want another game like this one? Tap Create a new game like this one. Your credit is offered first on the Pay step."]),
     ("helpdesk", "Someone to set it up for you", ["A Help Desk person can prepare a game in your account. You allow them first, and you can stop them at any time.", "They can create and change the game. They cannot publish, pay, see your sign-in keys or close your account.", "When it is ready they ask you to publish. You get an e-mail with a summary and publish with one tap.", "After you publish, they become a Host of that game. They do not use one of your 5 Host places.", 'Find a helper, or become one: <a href="/helpdesk">Help Desk</a>.']),
 ]
@@ -142,7 +142,6 @@ def brochure():
         ("Your message in the game", "An opening, moments during the game and a closing: a message, a video, audio or a lucky draw."),
         ("Fair for everyone", "The software, not a person, decides the winners from public random numbers that many phones check."),
         ("Your team can help", "You, up to 5 Hosts and any number of Co-hosts. One payment is enough."),
-        ("A free AI helper", "Give your own AI assistant the work link. It builds the draft. You publish and pay."),
         ("Players pay nothing", "You give the prizes. We provide the software and never hold or pay prize money."),
         ("Player details erased in 24 hours", "Designed to follow the EU GDPR, US privacy laws and India’s DPDP Act."),
     ]

@@ -90,7 +90,7 @@ def header(current="", img_badge=False):
     dots = ('<span class="ck-dots" role="group" aria-label="Colour theme"><button type="button" data-t="blue" aria-pressed="true" aria-label="Studio blue theme" title="Studio blue"></button>'
             '<button type="button" data-t="maroon" aria-pressed="false" aria-label="Maroon theme" title="Maroon"></button>'
             '<button type="button" data-t="emerald" aria-pressed="false" aria-label="Emerald theme" title="Emerald"></button></span>')
-    BADGE_IMG_OR_SVG = ('<img class="ck-badge" src="/favicon.svg" alt="" width="44" height="44">' if img_badge
+    BADGE_IMG_OR_SVG = ('<img class="ck-badge" src="/favicon.svg" alt="Corporate Bingo logo" width="44" height="44">' if img_badge
                         else '<svg class="ck-badge" aria-hidden="true" focusable="false"><use href="#i-bingo"/></svg>')
     return ('<a class="ck-skip" href="#main">Skip to the content</a>\n'
             '<header class="ck-top"><div class="ck-top-in">\n'

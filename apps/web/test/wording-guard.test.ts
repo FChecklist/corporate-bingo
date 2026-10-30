@@ -88,8 +88,8 @@ describe("B19: hours are stated once, from the lifecycle constants", () => {
     expect(PURGE_AFTER_MS).toBeLessThanOrEqual(24 * 3_600_000);
     expect(REPORT_LINK_MS).toBeLessThan(PURGE_AFTER_MS);
   });
-  test("the organizer guide says the report link works for exactly the hours in lifecycle.ts", () => {
-    const g = read(pub("organizer-guide.html")), m = /report link works for (\d+) hours/.exec(g);
+  test("the guide says the report link works for exactly the hours in lifecycle.ts", () => {
+    const g = read(pub("guide.html")), m = /report link works for (\d+) hours/.exec(g);
     expect(m).not.toBeNull();
     expect(Number(m![1])).toBe(REPORT_LINK_MS / 3_600_000);
     expect(read(join(ROOT, "tools/make-legal-pages.mjs"))).toMatch(new RegExp(`report link works for ${REPORT_LINK_MS / 3_600_000} hours`));
@@ -104,7 +104,7 @@ describe("B03: no page promises an AI assistant that the console does not show",
     expect(zc).toMatch(/return ""; \/\/ the AI work link is not offered to the organizer or the host/);
   });
   test("the home page, the price list, the guide, the partner page and the console help do not mention it", () => {
-    expect(hits(["index.html", "site.js", "pricing.html", "about.html", "organizer-guide.html", "partner.html", "contact.html"].map(pub), AI_PROMISE)).toEqual([]);
+    expect(hits(["index.html", "site.js", "pricing.html", "about.html", "guide.html", "partner.html", "contact.html"].map(pub), AI_PROMISE)).toEqual([]);
     expect(zc).not.toMatch(/Copy your AI link at the top/);
     expect(zc).not.toMatch(/Can the AI do this for me/);
     expect(zc).not.toMatch(/keys, e-mail, AI link/);

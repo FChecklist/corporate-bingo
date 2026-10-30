@@ -22,7 +22,7 @@ describe("the Corporate Games bar", () => {
     d.head.innerHTML = ""; d.body.innerHTML = '<a class="ck-skip" href="#main">Skip to the content</a><main id="main">page</main>';
     load(w);
     const bar = d.querySelector(".cgb")!; expect(bar).toBeTruthy();
-    expect((d.body.firstElementChild as any).className).toBe("ck-skip"); expect(d.body.children[1]).toBe(bar);
+    expect((d.body.firstElementChild as any).className).toBe("ck-skip"); const prev = bar.previousElementSibling as any; expect(prev === d.body.firstElementChild || prev?.previousElementSibling === d.body.firstElementChild).toBe(true); /* only the hidden icon sheet may sit between the skip link and the bar */
     const links = [...bar.querySelectorAll("a[data-game]")] as any[];
     expect([...new Map(links.map((a) => [a.getAttribute("data-game"), a.href])).entries()]).toEqual(GAMES);
     const cur = [...bar.querySelectorAll("[aria-current]")] as any[]; expect(cur.length).toBeGreaterThan(0);

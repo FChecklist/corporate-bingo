@@ -406,7 +406,7 @@ describe("console (organizer page)", () => {
     let copied = ""; Object.defineProperty(p.win.navigator, "clipboard", { value: { writeText: async (t: string) => { copied = t; } }, configurable: true });
     p.click("#copy"); await p.waitFor((x) => /Copied/.test(x)); expect(copied).toBe(guest); p.click("#copybig"); await new Promise((r) => setTimeout(r, 50)); expect(copied).toBe("http://localhost/big.html?e=UI-SHARE");
     const t = p.text(); expect(t).toMatch(/Open it on a laptop or phone connected to the big screen\. It shows numbers and winners only\./); expect((p.$('a[href="http://localhost/big.html?e=UI-SHARE"]') as any).textContent).toMatch(/Open the big screen/);
-    expect(Array.from(doc.querySelectorAll("[data-mode]")).map((e: any) => e.textContent)).toEqual(["Upload a PDF", "Add a name and number", "Paste from Excel", "Upload a CSV"]); // no contacts button where the browser has no contact picker
+    expect(Array.from(doc.querySelectorAll("body [data-mode]")).map((e: any) => e.textContent)).toEqual(["Upload a PDF", "Add a name and number", "Paste from Excel", "Upload a CSV"]); // no contacts button where the browser has no contact picker
     p.click('[data-mode="file"]'); expect(p.$("#gfile")).toBeTruthy(); expect((p.$("#gfile") as any).type).toBe("file");
     expect(t).not.toMatch(/By e-mail|Send by e-mail|Send invites/); expect(t).toMatch(/Invite only people who would like to play/); expect(t).toMatch(/Names and numbers stay here, on your console\./); expect(t).toMatch(/Download my list/);
     expect(p.errors).toEqual([]);
@@ -747,8 +747,8 @@ describe("Refer & Earn page", () => {
     expect(p.errors).toEqual([]);
   });
   test("the page is linked from the home page and listed for search engines, and ships with its stylesheet", () => {
-    expect(readFileSync(join(import.meta.dir, "../public/index.html"), "utf8")).toContain('href="/partner.html"');
-    expect(readFileSync(join(import.meta.dir, "../public/sitemap.xml"), "utf8")).toContain("/partner.html");
+    expect(readFileSync(join(import.meta.dir, "../public/index.html"), "utf8")).toContain('href="/partner"');
+    expect(readFileSync(join(import.meta.dir, "../public/sitemap.xml"), "utf8")).toContain("/partner");
     expect(readFileSync(join(import.meta.dir, "../../../pages/build.mjs"), "utf8")).toContain('"partner.css"');
     expect(html()).toContain('href="/partner.css"');
   });
