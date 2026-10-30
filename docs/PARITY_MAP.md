@@ -20,7 +20,7 @@ Bingo differences that drive the ADAPTED / NOT APPLICABLE rows: card patterns (L
 | 14 | Check-in "I am here" | TODO | |
 | 15 | Links: common / personal / family / Co-host / Host | ADAPTED | common + personal links exist; family and Host links TODO |
 | 16 | Payment lifecycle (Pay now / copy link, pending, paid) | ADOPTED | Bingo has paid games; screens to compare TODO |
-| 17 | Rehearsals | TODO | |
+| 17 | Rehearsals | ADOPTED (untested) | rehearsal.ts + mail, 3 free after payment, game ids R1-R3; new console only; big screen banner TODO |
 | 18 | Claims, claim pause, heartbeat/claim signal | TODO | |
 | 19 | Prizes: tags, 1-5 wins, gift, worth | ADAPTED | Bingo prizes are patterns; mapping TODO |
 | 20 | Full House 1st-5th, Super Bumper, A/B ticket | NOT APPLICABLE | Bingo has one card and no housie houses |
