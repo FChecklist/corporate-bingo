@@ -36,6 +36,7 @@ def landing():
         '<section class="ck-sec" id="pricing" aria-labelledby="ph"><div class="ck-wrap">\n'
         '<div class="ck-sec-head"><span class="ck-kicker">Price</span><h2 id="ph">You pay per game. Players never pay.</h2>'
         '<p class="ck-lead">Building and publishing are free. You pay once, before the game starts. No yearly plan.</p>'
+        '<p class="ck-small offer"><b>Festive offer: 50% off</b> on every pack</p>'
         '<span class="cur" role="group" aria-label="Currency" data-cur></span></div>\n'
         # site.js still looks for the size list and the buy button: they stay in the page, out of sight, so the one price card below is the only choice
         '<div class="buy" hidden><div class="buyrow"><div class="selwrap"><select id="pack" aria-label="Number of players"></select></div>'

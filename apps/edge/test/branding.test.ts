@@ -100,11 +100,11 @@ describe("pages: one title pattern, icons, manifest, theme colour", () => {
     test(`${f}: title names Corporate Bingo exactly; favicon, touch icon, manifest and theme colour`, () => {
       const s = read("apps/web/public", f); const title = (s.match(/<title>([^<]*)<\/title>/) ?? [])[1]!;
       expect(title).toMatch(/(^Corporate Bingo|\| Corporate Bingo$)/); expect(title).not.toMatch(/CORPORATE|Bingo Corporate/);
-      for (const needle of ['rel="icon"', "apple-touch-icon", 'rel="manifest"', 'name="theme-color" content="#0B5D5B"']) expect(s).toContain(needle);
+      for (const needle of ['rel="icon"', "apple-touch-icon", 'rel="manifest"', 'name="theme-color" content="#0B3D91"']) expect(s).toContain(needle);
     });
   }
   test("the PWA manifest and the build ship the brand", () => {
-    const m = JSON.parse(read("apps/web/public/manifest.webmanifest")); expect(m.name).toBe("Corporate Bingo"); expect(m.short_name).toBe("Corporate Bingo"); expect(m.theme_color).toBe("#0B5D5B");
+    const m = JSON.parse(read("apps/web/public/manifest.webmanifest")); expect(m.name).toBe("Corporate Bingo"); expect(m.short_name).toBe("Corporate Bingo"); expect(m.theme_color).toBe("#0B3D91");
     expect(read("pages/build.mjs")).toContain('"404.html"');
   });
   test("every page header uses the Corporate Bingo name; the report PDF names it and carries the support address and legal link", () => {

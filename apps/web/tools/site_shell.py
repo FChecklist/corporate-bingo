@@ -140,7 +140,7 @@ def page(title, desc, path, main, *, current="", tail_scripts="", legacy_icons=F
 
 
 def trust_block():
-    return read(KIT + "/snippets/trust.html").rstrip("\n")
+    return read(KIT + "/snippets/trust.html").rstrip(chr(10)).replace("A free Tambola or Bingo demo", "A free Bingo demo")  # Bingo names only Bingo
 
 
 def gameday_block(demo="/zc.html?demo=1"):
