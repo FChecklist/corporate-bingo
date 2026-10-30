@@ -10,7 +10,7 @@
 //   - E-mails (Organizer + Hosts only, once each per credit): on cancel/arrival, 30 days before the lapse, 3 days before, on use, on lapse.
 // `expires_ms` is the instant the credit lapses: 00:00 IST at the START of day 366 (= the end of day 365 in India time). A credit is usable while now < expires_ms.
 import { PACKS, price } from "../../../packages/shared/src/pricing";
-import { emailKey } from "./emailkey";
+import { accountEmail } from "./emailkey";
 import { fulfil, PAYER, sendMail, type PayEnv } from "./pay";
 import { openText } from "./pii";
 import { orgIsTest, testFlag } from "./mode";
@@ -60,7 +60,7 @@ export async function teamEmails(env: PayEnv, org: string | null, eid: string | 
 export async function mailTeam(env: PayEnv, org: string | null, eid: string | null, subject: string, text: string, now: number): Promise<void> {
   try {
     const tos = await teamEmails(env, org, eid), seen = new Set<string>();
-    for (const to of [tos.organizer, ...tos.hosts]) { const t = emailKey((to ?? "")); if (!t || seen.has(t)) continue; seen.add(t); await sendMail(env, env.DB, t, subject, text, now); }
+    for (const to of [tos.organizer, ...tos.hosts]) { const t = accountEmail((to ?? "")); if (!t || seen.has(t)) continue; seen.add(t); await sendMail(env, env.DB, t, subject, text, now); }
   } catch { /* a mail is a courtesy; the money records are already written */ }
 }
 
@@ -266,7 +266,7 @@ async function payGameFromCredit(env: PayEnv, e: any, a: CreditAuth, pack: numbe
   const src = first?.pid ? await db.prepare("SELECT meta, email FROM payment WHERE id=?").bind(first.pid).first<{ meta: string; email: string }>() : null;
   let sm: any = {}; try { sm = src ? JSON.parse(src.meta) : {}; } catch { sm = {}; }
   const tos = await teamEmails(env, e.org, e.id);
-  const email = emailKey(tos.organizer ?? src?.email ?? "");
+  const email = accountEmail(tos.organizer ?? src?.email ?? "");
   const test = (await testFlag(env)) === 1 || (await orgIsTest(env, e.org)) ? 1 : 0;
   const meta = { org: sm.org ?? "", name: sm.name || sm.org || "Organizer", country: sm.country ?? "IN", taxId: sm.taxId ?? "", origin: env.PUBLIC_ORIGIN ?? "", orgId: e.org, eid: e.id, paidBy: PAYER[a.kind ?? ""] ?? "organizer", creditInr: usedInr, viaCredit: true, by: a.kind };
   await db.prepare("INSERT OR IGNORE INTO payment(id,org,email,pack,currency,amount,tax,rzp_order_id,status,created_ms,meta,ref,buyer_phone_hash,is_test,eid) VALUES(?,?,?,?,?,0,0,NULL,'created',?,?,NULL,NULL,?,?)").bind(id, null, email || "credit@invalid.local", pack, cur, now, JSON.stringify(meta), test, e.id).run();

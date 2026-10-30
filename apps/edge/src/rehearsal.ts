@@ -23,11 +23,16 @@ export const REHEARSAL_SCHEMA = [
 ];
 let colsOk = false;
 export const resetRehearsalColumnsFlag = () => { colsOk = false; };
-/** The three new columns are added by the first rehearsal request if the database does not have them yet (additive, safe to repeat), like the permanent record table: no manual migration step can be forgotten. */
+/** The three columns normally come from migration 0030_rehearsal.sql (apply it BEFORE deploying this code). If the database does not have them yet, the first rehearsal request adds ONLY the ones that are missing,
+    after asking the table itself (pragma_table_info), so this and the migration never add the same column twice. Safe to repeat. */
 export async function ensureRehearsalColumns(db: D1): Promise<void> {
   if (colsOk) return;
-  try { await db.prepare("SELECT rehearsal_of, run_no, rehearsal_closed_ms FROM engagement LIMIT 1").first(); colsOk = true; return; } catch { /* not there yet: add them */ }
-  for (const s of REHEARSAL_SCHEMA) { try { await db.prepare(s).run(); } catch { /* already there */ } }
+  const have = new Set(((await db.prepare("SELECT name FROM pragma_table_info('engagement')").all<{ name: string }>()).results ?? []).map((r) => r.name));
+  for (const s of REHEARSAL_SCHEMA) {
+    const col = /ADD COLUMN (\w+)/.exec(s)?.[1];
+    if (col && have.has(col)) continue;
+    try { await db.prepare(s).run(); } catch { /* added by someone else a moment ago */ }
+  }
   colsOk = true;
 }
 const GENESIS = 1692803367;
@@ -90,11 +95,12 @@ export async function startRehearsal(env: Env, real: any, b: any, now: number, o
   const n = next.n;
   if (!(await spend(10))) return json({ error: "It is very busy right now. Please try again in a few minutes." }, 503);
   const id = `${String(real.id).slice(0, 34)}-R${n}`;
+  // created_ms is copied from the real game on purpose: the people copied below carry the real game's identity hashes, so the rehearsal must follow the same ID rules as the real game (an older game stays on the old rules)
   const sr = roundAt(now + 30_000);
   let cfg: any = {}; try { cfg = real.config ? JSON.parse(real.config) : {}; } catch { cfg = {}; }
   delete cfg.demo; // a rehearsal never uses the demo allowance
   const r = await db.prepare("INSERT OR IGNORE INTO engagement(id,start_round,call_seconds,cap,created_ms,org,closed,pack,tickets,config,is_test,cohost_limit,rehearsal_of,run_no) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
-    .bind(id, sr, real.call_seconds, REHEARSAL_PEOPLE, now, real.org, real.closed ? 1 : 0, REHEARSAL_PEOPLE, real.tickets, JSON.stringify(cfg), real.is_test ?? 0, real.cohost_limit ?? null, real.id, n).run();
+    .bind(id, sr, real.call_seconds, REHEARSAL_PEOPLE, real.created_ms ?? now, real.org, real.closed ? 1 : 0, REHEARSAL_PEOPLE, real.tickets, JSON.stringify(cfg), real.is_test ?? 0, real.cohost_limit ?? null, real.id, n).run();
   if ((r.meta?.changes ?? 0) < 1) return json({ error: ONE_AT_A_TIME_MSG, code: "one-at-a-time" }, 409);
   await db.prepare("INSERT OR IGNORE INTO kv(k,v) VALUES(?,?)").bind(`pub/${id}`, String(now)).run(); // published at once: nothing to pay, nothing to wait for
   let people = 0;

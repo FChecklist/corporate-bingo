@@ -10,7 +10,7 @@
 //     smaller visitor-tracking allowance (VISIT_DAILY_WRITES, default 20,000), so marketing numbers can never starve the games.
 //   - Reports are owner-only (platform key, same as the audit log) and every read is written to the audit access log.
 import { parseUa } from "./audit";
-import { emailKey } from "./emailkey";
+import { accountEmail } from "./emailkey";
 import { isTestMode, orgIsTest } from "./mode";
 import type { D1, Env } from "./worker";
 
@@ -78,7 +78,7 @@ export async function ipHash(env: VisitEnv, ip: string): Promise<string> {
 }
 export async function emailHash(env: VisitEnv, email: string): Promise<string> {
   const s = secretOf(env);
-  return s && email ? (await hmacHex(s, "email|" + emailKey(email))).slice(0, 32) : "";
+  return s && email ? (await hmacHex(s, "email|" + accountEmail(email))).slice(0, 32) : "";
 }
 
 // ------------------------------------------------------------------------------------------------ who and where from
