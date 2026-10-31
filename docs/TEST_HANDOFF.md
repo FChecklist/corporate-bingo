@@ -187,3 +187,5 @@ They differ, so live code is kept until the boss decides:
 - C2: Claim button also shows for a prize this phone already worked out; the "You won" card is held until Claim is pressed or 10 s pass.
 - Pause words on phones: "Paused by the Host/Organizer" (docs wording). The old test gameday-copy B08 still looks for "Game paused by the organizer" and needs its wording updated.
 - Organizer on/off switch for reactions (rxmode route, `?rx=1`), reactions.css in the service-worker saved set.
+
+## Engine step 13: re-vendor core 0.9.4 (eb6a5e8). Reaction ids used by Bingo checked present; zgame.js rebuilt.
