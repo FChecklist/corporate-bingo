@@ -7,6 +7,7 @@ import { ticketCompletion, ticketStillNeeds } from "./house-rules";
 import { sha256 } from "@noble/hashes/sha256";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils";
 import { positionOf, seatOfPid, ticketAt } from "./unique-ticket";
+import { settleFromLog, type Seat as CoreSeat, type HouseCounts } from "../../../vendor/game-core/packages/bingo/src/settle";
 import { NUMBERS, fetchRound, pickNumber, seededRand, verifyRound, type BeaconOpts, type Round, defaultMirrors } from "./index";
 
 export const ALL_PATTERNS: readonly PatternId[] = PATTERN_ORDER;
@@ -65,6 +66,16 @@ export function assignOrdinals(engagementId: string, key: PatternKey, groups: re
   return out;
 }
 
+/** OFF. When on, settleAll asks the common engine (vendor/game-core bingo settleFromLog) with the same seats, countFrom and callRounds. Same winners as the live code above; kept off until tested. */
+export let CORE_SETTLE = false;
+export const setCoreSettle = (on: boolean): void => { CORE_SETTLE = on; };
+function settleViaCore(engagementId: string, pids: readonly string[], log: readonly number[], cfg: EngagementCfg, round: number, late?: { countFrom: ReadonlyMap<string, number>; callRounds: readonly number[] }): Settled[] {
+  const eid = roundEid(engagementId, round), keys = keysInPlay(cfg.rewards), houses: HouseCounts = {};
+  for (const k of keys) houses[k] = Math.max(0, ...linesFor(cfg.rewards, k).map((l) => l.ordinal));
+  const seats: CoreSeat[] = pids.map((pid) => ({ id: pid, cards: ticketsFor(eid, pid, cfg.tickets), seat: seatOfPid(pid) ?? pid, countFrom: late?.countFrom.get(pid) ?? 0 }));
+  return settleFromLog(engagementId, seats, log, houses, round, late?.callRounds).map((x) => ({ pattern: x.house, ordinal: x.ordinal, idx: x.idx, pids: [x.player], round: x.round, ...(x.tied ? { tied: x.tied } : {}) }));
+}
+
 /**
  * The organizer console's settlement: from the public log, the participant list and the engagement's own settings alone, who completed each house first.
  * Claims are not needed to decide this (a phone with no network still gets its reward), they only cross-check it.
@@ -72,6 +83,7 @@ export function assignOrdinals(engagementId: string, key: PatternKey, groups: re
  * distinct call; and so on.
  */
 export function settleAll(engagementId: string, pids: readonly string[], log: readonly number[], cfg: EngagementCfg = defaultCfg(), round = 1, late?: { countFrom: ReadonlyMap<string, number>; callRounds: readonly number[] }): Settled[] {
+  if (CORE_SETTLE) return settleViaCore(engagementId, pids, log, cfg, round, late);
   const eid = roundEid(engagementId, round);
   const keys = keysInPlay(cfg.rewards);
   const best = new Map<PatternKey, Map<number, string[]>>(keys.map((k) => [k, new Map()]));

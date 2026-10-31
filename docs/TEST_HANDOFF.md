@@ -157,3 +157,7 @@ They differ, so live code is kept until the boss decides:
 ## Engine step 6: re-vendor core 26da1ff
 - vendor/game-core re-vendored at game-core 26da1ff (adds bingo/settle.ts: settleFromLog from public log + seats, fate CB1-TIE|eid|seat|tie|house|ordinal). Not wired: live settle in beacon/game.ts still settles; flag default off. Typecheck: only the old phone.ts errors.
 - Not done: calling core settle with seats/countFrom/callRounds behind a flag; golden Claim button; Host key.
+
+## Engine step 7: flagged core settle (off)
+- packages/beacon/src/game.ts: `CORE_SETTLE=false`; when on, settleAll calls `settleViaCore` -> core settleFromLog with seats (id, cards, seat number, countFrom) and callRounds. Same output shape. Default path unchanged.
+- To compare: core ordinals are 1..n and capped at the house max; live uses the actual reward-line ordinals. Equal when lines are 1..n within the cap.
