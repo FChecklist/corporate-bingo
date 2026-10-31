@@ -7,7 +7,7 @@
   var DEFAULT_NEW = false;
   // 1.4.1: the new screens cannot sign in on Bingo yet (the shared pack looks for the key under the name "ctz-org" and the prefix ct[hcak]_, Bingo stores "cbz-org" and cb[hca]_), so they are HIDDEN for this release:
   // ?flow=new and a remembered "new" both open the previous screens. Set NEW_SCREENS_ENABLED = true only after the pack reads Bingo's key.
-  var NEW_SCREENS_ENABLED = false;
+  var NEW_SCREENS_ENABLED = true; /* opt-in only: DEFAULT_NEW stays false, so nobody sees them unless ?flow=new */
   if (!NEW_SCREENS_ENABLED) {
     try { var q0 = new URLSearchParams(location.search); if (q0.get("flow") === "new") { q0.set("flow", "old"); history.replaceState(null, "", location.pathname + "?" + q0.toString() + location.hash); } } catch (e) { /* the page opens as before */ }
     window.CT_ZCFLOW = "old"; window.CT_ZCFORCED = true; return;

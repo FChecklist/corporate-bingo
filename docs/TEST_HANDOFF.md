@@ -148,3 +148,8 @@ They differ, so live code is kept until the boss decides:
 - Pause/Resume: exists as a signed control file (`/api/z/:id/control`). It needs the organizer's own browser key; a Host's work link can read the pause file but cannot pause. Spec 410 lets Organizer AND Host pause: needs a decision on how a Host signs.
 - Claim button: phones claim automatically (`autoClaim`, phone-runtime.ts); there is no golden button. A manual "Claim" press would change the game; needs a decision.
 - Six-step flow: the console (zc.js) has its own steps; a rewrite onto core `FLOW` is a large UI change, not started.
+
+## Engine step 5: shared new screens reachable again (opt-in only)
+- New `zc-flow-bridge.js` (loaded before pack/zc-flow.js) maps the pack's storage names `ctz-org`/`ctz-email` to Bingo's `cbz-org`/`cbz-email`, so the pack can sign in. The pack is not edited.
+- `zc-mode.js`: `NEW_SCREENS_ENABLED = true`, `DEFAULT_NEW` still false: the previous screens stay the default; the new ones open only with `?flow=new`. The "Which ID?" part stays hidden. Not yet checked against Bingo's real API in a browser: independent test needed.
+- Still to do: Host key for pause, golden Claim button, core planner (Auto prizes), per-step checks.
