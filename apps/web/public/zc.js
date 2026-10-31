@@ -47,6 +47,7 @@
   const role = () => (S.kind === "cohost" ? "cohost" : S.kind === "host" ? "host" : /^(partner|refer|sales)/.test(S.kind) ? "partner" : "organizer");
   const isOrg = () => role() === "organizer";
   const HOSTKEY = /[?&]hostkey=1(?:&|$)/.test(location.search); // the Host signs pause and resume with its own key (off unless the page has ?hostkey=1)
+  const RXSW = /[?&]rx=1(?:&|$)/.test(location.search); // the switch for the comic reactions shows only on pages opened with ?rx=1
   const canRun = () => role() === "organizer" || role() === "host"; // the full game console
   const fmtDay = (ms) => new Date(ms).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
   const pad2 = (n) => String(n).padStart(2, "0");
@@ -814,7 +815,8 @@
     const by = paused && S.pausedBy ? `<p class="zc-small"><b>Paused by the ${S.pausedBy === "host" ? "Host" : "Organizer"}.</b></p>` : "";
     const hk = !HOSTKEY ? "" : isOrg() ? (S.hostWait ? `<div class="zc-block"><h3>Host key</h3><p class="zc-small">Your Host made a key so they can pause and resume. They cannot end the game.</p><button type="button" class="zc-btn zc-btn-s" id="hostok" style="min-height:44px">Approve the Host key</button></div>` : "")
       : role() === "host" ? `<div class="zc-block"><h3>Your key</h3><p class="zc-small">${S.hostKeyOk ? "Your key is approved. You can pause and resume." : "Waiting for the Organizer to approve your key. Ask them to open this game."}</p></div>` : "";
-    const ctl = hk + by + `<div class="zc-block"><h3>Controls</h3><div class="zc-chips"><button type="button" class="zc-btn zc-btn-s" data-ctl="pause"${paused ? " disabled" : ""}>Pause</button><button type="button" class="zc-btn zc-btn-s zc-btn-alt" data-ctl="resume"${paused ? "" : " disabled"}>Resume</button><button type="button" class="zc-btn zc-btn-s zc-btn-bad" data-ctl="stop">End the game</button></div>
+    const rxs = !RXSW ? "" : `<div class="zc-block"><h3>Comic words on phones</h3><div class="zc-chips">${["off", "reduced", "full"].map((m) => `<button type="button" class="zc-btn zc-btn-s${S.rxMode === m ? "" : " zc-btn-alt"}" style="min-height:44px" data-rx="${m}">${{ off: "Off", reduced: "Still", full: "On" }[m]}</button>`).join("")}</div>${small("Short words like Hurray! in a corner of each phone. Off hides them.")}</div>`;
+    const ctl = hk + by + rxs + `<div class="zc-block"><h3>Controls</h3><div class="zc-chips"><button type="button" class="zc-btn zc-btn-s" data-ctl="pause"${paused ? " disabled" : ""}>Pause</button><button type="button" class="zc-btn zc-btn-s zc-btn-alt" data-ctl="resume"${paused ? "" : " disabled"}>Resume</button><button type="button" class="zc-btn zc-btn-s zc-btn-bad" data-ctl="stop">End the game</button></div>
       ${small((S.cf ? `A pause reaches every phone about ${Math.max(10, Math.round(S.cf.leadRounds * 3 / 5) * 5)} seconds after you press it: phones check in on a timer, and larger games check less often so they stay within the free plan.` : (S.info && S.info.cap > 2000 ? "Pause is available for games of up to 2,000 people. This one is larger, so it runs without it." : "Pause becomes available once this game is set up.")) + (paused ? " <b>Paused now.</b>" : "") + (S.ctlNote ? " " + esc(S.ctlNote) : ""))}</div>`;
     const board = `<div class="zc-block" id="gamedaybig"><h3>Big number board</h3><a class="zc-btn zc-btn-s" id="openbig9" href="${esc(bigLink())}" target="_blank" rel="noopener">Open the big number board</a> <button type="button" class="zc-mini" id="copybig9">Copy the big-screen link</button>${small("Every number called and the winners, for a TV or projector. No names. Open it on the laptop that is connected to the screen.")}</div>`; // B09: the organizer finds the board where the game is run
     return ctl + board + announceBlock() + statsBlock() + prizeBlock() + rewardsBlock() + luckyBlock() + playBlock() + cont(9);
@@ -1632,6 +1634,7 @@
     };
     if ($("annClear")) $("annClear").onclick = async () => { try { await call("POST", `/api/z/${eid}/announce`, { text: "" }); S.annNote = "Message cleared."; } catch (e) { S.annNote = e.message; } refreshEng(); };
     if ($("hostok")) $("hostok").onclick = async () => { try { const r = await TBControl.hostApprove(eid, { token: secret, base: BASE, prefix: "/api/z" }, S.hostWait); S.ctlNote = r.ok ? "Host key approved." : r.reason; if (r.ok) S.hostWait = null; } catch (e) { S.ctlNote = e.message; } refreshEng(); };
+    all("[data-rx]", (b) => (b.onclick = async () => { try { await call("POST", `/api/z/${eid}/rxmode`, { mode: b.dataset.rx }); S.rxMode = b.dataset.rx; S.ctlNote = "Saved. Phones follow within about a minute."; } catch (e) { S.ctlNote = e.message; } refreshEng(); }));
     all("[data-ctl]", (b) => (b.onclick = async () => {
       const action = b.dataset.ctl;
       if (action === "stop" && !confirm("End this game for everyone? This cannot be undone.")) return;

@@ -181,3 +181,9 @@ They differ, so live code is kept until the boss decides:
 
 ## Engine step 11: core 0.9.0 and Reactions (off)
 - vendor re-vendored at game-core 0.9.0 (1934ebc). Reactions: `reactions.css` copied to public (in build FILES, linked in z.html), `createReactions` in ZG; z.js `rxEvents` on `?rx=1` only. Readiness list: docs/BINGO_RELEASE_READINESS.md.
+
+## Engine step 12: fixes after the flag tests (06c0f3c)
+- S7: settle adapter keeps the organizer's reward-line numbers (core assignOrdinals with the real ordinals).
+- C2: Claim button also shows for a prize this phone already worked out; the "You won" card is held until Claim is pressed or 10 s pass.
+- Pause words on phones: "Paused by the Host/Organizer" (docs wording). The old test gameday-copy B08 still looks for "Game paused by the organizer" and needs its wording updated.
+- Organizer on/off switch for reactions (rxmode route, `?rx=1`), reactions.css in the service-worker saved set.

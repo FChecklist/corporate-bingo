@@ -7,7 +7,7 @@ import { ticketCompletion, ticketStillNeeds } from "./house-rules";
 import { sha256 } from "@noble/hashes/sha256";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils";
 import { positionOf, seatOfPid, ticketAt } from "./unique-ticket";
-import { settleFromLog, type Seat as CoreSeat, type HouseCounts } from "../../../vendor/game-core/packages/bingo/src/settle";
+import { assignOrdinals as coreAssign, countedLog, roundEid as coreRoundEid, seatCompletion } from "../../../vendor/game-core/packages/bingo/src/settle";
 import { NUMBERS, fetchRound, pickNumber, seededRand, verifyRound, type BeaconOpts, type Round, defaultMirrors } from "./index";
 
 export const ALL_PATTERNS: readonly PatternId[] = PATTERN_ORDER;
@@ -70,10 +70,20 @@ export function assignOrdinals(engagementId: string, key: PatternKey, groups: re
 export let CORE_SETTLE = false;
 export const setCoreSettle = (on: boolean): void => { CORE_SETTLE = on; };
 function settleViaCore(engagementId: string, pids: readonly string[], log: readonly number[], cfg: EngagementCfg, round: number, late?: { countFrom: ReadonlyMap<string, number>; callRounds: readonly number[] }): Settled[] {
-  const eid = roundEid(engagementId, round), keys = keysInPlay(cfg.rewards), houses: HouseCounts = {};
-  for (const k of keys) houses[k] = Math.max(0, ...linesFor(cfg.rewards, k).map((l) => l.ordinal));
-  const seats: CoreSeat[] = pids.map((pid) => ({ id: pid, cards: ticketsFor(eid, pid, cfg.tickets), seat: seatOfPid(pid) ?? pid, countFrom: late?.countFrom.get(pid) ?? 0 }));
-  return settleFromLog(engagementId, seats, log, houses, round, late?.callRounds).map((x) => ({ pattern: x.house, ordinal: x.ordinal, idx: x.idx, pids: [x.player], round: x.round, ...(x.tied ? { tied: x.tied } : {}) }));
+  // the core's own pieces (roundEid, countedLog, seatCompletion, assignOrdinals), but with the organizer's own reward-line numbers: lines numbered 2 and 3 only stay 2 and 3
+  const eid = coreRoundEid(engagementId, round), keys = keysInPlay(cfg.rewards), by = new Map<PatternKey, Map<number, { id: string; key: string | number }[]>>(keys.map((k) => [k, new Map()]));
+  for (const pid of pids) {
+    const cards = ticketsFor(roundEid(engagementId, round), pid, cfg.tickets), mine = countedLog(log, late?.countFrom.get(pid) ?? 0, late?.callRounds);
+    for (const k of keys) {
+      const i = seatCompletion(cards, k, mine);
+      if (i < 0) continue;
+      const g = by.get(k)!, e = { id: pid, key: seatOfPid(pid) ?? pid }, arr = g.get(i);
+      if (arr) arr.push(e); else g.set(i, [e]);
+    }
+  }
+  const out: Settled[] = [];
+  for (const k of keys) for (const x of coreAssign(eid, k, [...by.get(k)!.entries()], linesFor(cfg.rewards, k).map((l) => l.ordinal), round)) out.push({ pattern: x.house, ordinal: x.ordinal, idx: x.idx, pids: [x.player], round: x.round, ...(x.tied ? { tied: x.tied } : {}) });
+  return out;
 }
 
 /**

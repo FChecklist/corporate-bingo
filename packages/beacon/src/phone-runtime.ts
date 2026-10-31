@@ -40,6 +40,8 @@ export interface RuntimeView {
   lucky: { ordinal: number; title: string; winners: number; published: boolean; won: boolean; style: "draw" | "scratch" }[];
   /** The organizer's latest message to everyone (shown and spoken on phones), or null. */
   announcement: { id: string; text: string } | null;
+  /** The Organizer's switch for the corner reactions, or null when never set. */
+  rxMode: "off" | "reduced" | "full" | null;
   /** The round being played (or just finished) and how many there are. */
   round: number; rounds: number;
   /** Between two rounds: which round comes next and how long until its first number. */
@@ -74,6 +76,7 @@ export class PhoneRuntime {
   /** The engagement was not paid for by its start time: nothing is shown until it is. */
   locked = false;
   announcement: { id: string; text: string } | null = null;
+  rxMode: "off" | "reduced" | "full" | null = null;
   store: RoundStore;
   tracker: ControlTracker | null = null;
   results: RuntimeView["results"] = [];
@@ -195,6 +198,7 @@ export class PhoneRuntime {
       this.tracker?.failed(now); return;
     }
     this.announcement = body && body.ann && typeof body.ann.id === "string" && typeof body.ann.text === "string" ? { id: body.ann.id, text: body.ann.text.slice(0, 200) } : null;
+    this.rxMode = body && (body.rx === "off" || body.rx === "reduced" || body.rx === "full") ? body.rx : null;
     const wasLocked = this.locked; this.locked = !!body?.locked;
     if (wasLocked && !this.locked) await this.reloadSchedule(); // paid at last: the start time has moved, read it again
     if (!body?.pubKey) { this.tracker?.failed(now); return; }
@@ -542,7 +546,7 @@ export class PhoneRuntime {
     const claimedNow = keysInPlay(this.cfg.rewards).filter((k) => this.claimedAll.has(`${this.cur}:${k}`));
     return {
       phase: this.phase, error: this.error, pid: this.pid, ticket: this.ticket, log: this.visibleLog(), nowRound: now, startRound: this.startRound, scheduledRound: this.scheduledRound, callSeconds: this.callSeconds,
-      locked: this.locked, announcement: this.announcement,
+      locked: this.locked, announcement: this.announcement, rxMode: this.rxMode,
       mode: now === null ? (this.controlState === "none" ? "none" : "hold") : this.modeAt(now), paused: !!st && now !== null && pausedAt(st, now), pausedBy: st && now !== null && pausedAt(st, now) ? (((this.tracker?.log ?? []).filter((m) => m.action === "pause" && m.atBeaconRound <= now).sort((x, y) => y.atBeaconRound - x.atBeaconRound || y.seq - x.seq)[0] as { by?: string } | undefined)?.by === "host" ? "host" : "organizer") : null, pausedFromRound: st && now !== null ? (st.intervals.find((i) => now >= i.start && now < i.end)?.start ?? null) : null, stopped: !!st && now !== null && st.stopRound !== null && now >= st.stopRound,
       claimed: claimedNow, unsent: this.unsent, results: this.allResults.filter((x) => (x.round ?? 1) === this.cur), pendingChecks: this.store.pending(), discarded: this.store.discarded,
       nextCallInSec: nextRound !== null && now !== null ? secsTo(nextRound) : null,

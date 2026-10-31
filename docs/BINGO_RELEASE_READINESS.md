@@ -18,7 +18,7 @@ sed -i 's/var DEFAULT_NEW = false;/var DEFAULT_NEW = true;/' apps/web/public/zc-
 ## 2. Settle adapter (settlement through the common engine)
 - Default now: OFF (`CORE_SETTLE = false`, `packages/beacon/src/game.ts`).
 - What it changes: when on, `settleAll` asks the core `settleFromLog` with seats, `countFrom` and `callRounds`. Same output shape and the same rule (public log plus seat list, one winner per prize line, fate `CB1-TIE|eid|seat|tie|house|ordinal`).
-- Known difference to check: the core numbers prize lines 1..n and caps them at the house maximum; the live code uses the actual reward-line numbers.
+- Reward-line numbers: the adapter keeps the organizer's own numbers (lines numbered 2 and 3 only stay 2 and 3). It uses the core's `assignOrdinals`, `seatCompletion`, `countedLog` and `roundEid`, not `settleFromLog` (which renumbers 1..n).
 - Tests that exist: `packages/beacon/test/game.test.ts`, `houses.test.ts`, `houses-runtime.test.ts`, `late-joiner.test.ts` cover the LIVE settle. None runs with the flag on. A same-answer comparison (live vs core on many random games) is needed before flipping.
 - Flip on: change `export let CORE_SETTLE = false;` to `true` in `packages/beacon/src/game.ts`, then rebuild the phone bundle.
 ```bash
@@ -28,7 +28,9 @@ bun run build:zgame
 
 ## 3. Claim mirror button (golden "Claim")
 - Default now: OFF. Shows only when the phone page address has `?claim=1`.
-- What it changes: a gold "Claim" button on the card screen when this card meets a house not yet in its won list. Press: the phone re-sends its claims and asks for results now. It changes no result; auto-claim still runs; the "You won" card comes from the settle as before.
+- What it changes: a gold "Claim" button on the card screen.
+- When it shows: (a) this card meets a house and the result is not out yet, or (b) this phone has already worked out its prize (a one-player or local-settle game) and has not yet shown it. In case (b) the "You won" card is held back until Claim is pressed, or for at most 10 seconds if it is never pressed (auto-claim has sent the claim meanwhile). After that it never shows for that prize again.
+- Press: the phone re-sends its claims, asks for results now, and shows the same "You won" card. It changes no result; a missed press loses nothing.
 - Tests that exist: `packages/beacon/test/phone-runtime.test.ts` covers the runtime but not `claimNow`.
 - Flip on for everyone: in `apps/web/public/z.js` replace the `CLAIM_BTN` test with `true`.
 ```bash
@@ -48,9 +50,10 @@ bun run build:zgame && bun run build:control
 ```
 
 ## 5. Reactions (comic words in the corner)
-- Default now: OFF. Shows only with `?rx=1` on the phone page.
+- Default now: OFF. Shows only with `?rx=1` on the phone page and the Organizer switch not set to Off.
 - What it changes: short words (2.2 s) in a corner strip at most a quarter of the width, never over the card, from the core Reaction pack. Events: join (Hello!), countdown (Tick tock!), a number you have (Yes!), one number from a house (Last chance!), claim button shown (Super!), claim accepted (Spot on!), You won (Champion!), paused (Hang on!), resumed (Let's go!). Pack rules limit it to one every 15 s and 15 per 10 minutes of game time (a pause freezes that time).
-- Not done: Organizer on/off switch (`setMode`), service-worker precache entry for `reactions.css`.
+- Organizer switch: with `?rx=1` the console shows "Comic words on phones" (Off / Still / On); stored per game (`POST /api/z/{id}/rxmode`, kv `rx/{id}`), carried in the pause file phones already read as `rx`. Phones with `?rx=1` follow it; none set means On. Without `?rx=1` nothing changes.
+- `reactions.css` is in the service-worker saved set (`zsw.js`).
 - Tests that exist: none here. The core has its own simulation (`bun tools/reactions-sim.ts` in the core clone).
 - Flip on: replace the `RX_ON` test with `true` in `apps/web/public/z.js`.
 ```bash

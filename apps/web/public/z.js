@@ -66,7 +66,7 @@
   const RX = { rx: null, t: 0, at: 0, seen: {}, prev: null };
   function rxEvents(v) {
     if (!RX_ON || !window.ZG || !ZG.createReactions || DEMO) return;
-    const R = RX.rx || (RX.rx = ZG.createReactions(v.pid || null)), P = RX.prev, nowMs = Date.now();
+    const R = RX.rx || (RX.rx = ZG.createReactions(v.pid || null)); R.setMode(v.rxMode || "full"); const P = RX.prev, nowMs = Date.now();
     if (RX.at) { if (!v.paused) RX.t += nowMs - RX.at; } RX.at = nowMs; // game time: a pause freezes it
     const go = (id, o) => { try { R.react(id, Object.assign({ who: v.pid || undefined, now: RX.t, game: "bingo" }, o || {})); } catch { /* a reaction is only decoration */ } };
     const once = (k) => (RX.seen[k] ? false : (RX.seen[k] = true));
@@ -88,6 +88,10 @@
     R.tick(RX.t);
   }
   const CLAIM_BTN = /[?&]claim=1(?:&|$)/.test(location.search); // the golden Claim button: off by default
+  // With the Claim button on, a prize this phone has already worked out is held back from the "You won" card until Claim is pressed, or for at most 10 seconds (the auto-claim has sent it meanwhile). Same card, same result; never lost.
+  const CLAIM_HOLD_MS = 10000, heldSince = {}, revealedWin = new Set();
+  const wid = (w) => w.round + ":" + w.pattern + ":" + w.ordinal;
+  const isHeld = (w) => { if (!CLAIM_BTN || revealedWin.has(wid(w))) return false; const t = heldSince[wid(w)] || (heldSince[wid(w)] = Date.now()); if (Date.now() - t >= CLAIM_HOLD_MS) { revealedWin.add(wid(w)); return false; } return true; };
   const rt = new ZG.PhoneRuntime(EID, DEMO ? { api, getPublic, beacon: DEMO.beacon, verify: DEMO.verify, mono: DEMO.mono, store } : { api, getPublic, beacon: {}, mono: () => performance.now(), store });
   let lastLen = 0, firstPaint = true, sound = store.get("cbz-sound") !== "off", timer = null;
   if (window.TBAudio) TBAudio.enabled = sound;
@@ -281,7 +285,7 @@
   function syncPrizes(v) {
     const have = readJson(prizeKey, []), ids = new Set(have.map(winId)), fresh = [];
     const add = (w) => { if (!ids.has(winId(w))) { ids.add(winId(w)); have.push(w); if (!celebrated.has(winId(w))) fresh.push(w); celebrated.add(winId(w)); } };
-    for (const w of v.won) add({ round: w.round, pattern: w.pattern, ordinal: w.ordinal, text: w.text, name: lineName(v.cfg, w.pattern, w.ordinal) });
+    for (const w of v.won) if (!isHeld(w)) add({ round: w.round, pattern: w.pattern, ordinal: w.ordinal, text: w.text, name: lineName(v.cfg, w.pattern, w.ordinal) });
     for (const l of v.lucky) if (l.won) add({ round: 1, pattern: "lucky", ordinal: l.ordinal, text: l.title, name: l.title });
     if (fresh.length) store.set(prizeKey, JSON.stringify(have));
     PRIZES = have;
@@ -655,18 +659,18 @@
     { const away = v.phase === "play" ? awayBanner(v) : ""; if (away) banners.push(away); }
     if (v.locked) banners.push(ME.role === "organizer" || ME.role === "host" ? `<div class="zbanner warn" role="status"><b>Payment pending for this game.</b> The game starts 2 minutes after the payment is confirmed. Open your console to pay. Your card is safe. Keep this page open.</div>` : `<div class="zbanner warn" role="status"><b>Waiting for the Organizer or Host to start the game.</b> Your card is safe. Keep this page open: it begins as soon as they are done.</div>`);
     else if (v.stopped) banners.push(`<div class="zbanner info">The organizer has ended this game.</div>`);
-    else if (v.paused) banners.push(`<div class="zbanner info" role="status">Game paused by the ${v.pausedBy === "host" ? "Host" : "organizer"}${v.pausedFromRound ? " at " + esc(new Date((1692803367 + (v.pausedFromRound - 1) * 3) * 1000).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })) : ""}. It restarts soon. Your card is safe.</div>`);
+    else if (v.paused) banners.push(`<div class="zbanner info" role="status">Paused by the ${v.pausedBy === "host" ? "Host" : "Organizer"}${v.pausedFromRound ? " at " + esc(new Date((1692803367 + (v.pausedFromRound - 1) * 3) * 1000).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })) : ""}. It restarts soon. Your card is safe.</div>`);
     else if (v.mode === "hold" && v.nowRound !== null) banners.push(`<div class="zbanner warn" role="status">Your connection looks slow. Your card is safe. Numbers carry on as soon as it is back.</div>`); // B08: this is the phone's own network, not the organizer
     else if (v.mode === "blind") banners.push(`<div class="zbanner warn" role="status">Your phone cannot check for a pause right now (a slow connection?). Play continues; a pause may appear late. Your card is safe.</div>`);
     if (v.phase === "ended" && !v.stopped && !v.endedByPrizes) banners.push(`<div class="zbanner ok">${v.rounds > 1 ? "All " + v.rounds + " rounds are finished." : "All 75 numbers have been called."} Thank you for taking part.</div>`);
     const sub = v.phase === "ended" || v.locked || v.brk || v.intermission || (DEMO && !DEMO.running) ? "" : v.late && v.late.secondsUntil > 0 ? "Your numbers start in " + clock(v.late.secondsUntil) : v.log.length === 0 ? (v.nextCallInSec !== null ? (v.nextCallInSec > GRACE_SECS ? "Starting in " + clock(v.nextCallInSec - GRACE_SECS) : "First number in " + clock(v.nextCallInSec)) : "Getting ready…") : v.paused || v.mode === "hold" ? "" : v.nextCallInSec !== null ? "Next number in " + v.nextCallInSec + "s" : "";
     const still = v.tickets.length ? stillToWinRows(v) : "";
     const chk = v.pendingChecks > 0 ? `<p class="zsmall">Double-checking ${v.pendingChecks} earlier number${v.pendingChecks === 1 ? "" : "s"} in the background.</p>` : "";
-    const curWins = v.won.filter((w) => w.round === v.round), winSet = new Set(curWins.flatMap((w) => w.cells));
+    const curWins = v.won.filter((w) => w.round === v.round && !isHeld(w)), winSet = new Set(curWins.flatMap((w) => w.cells));
     const ribbon = curWins.length ? `<div class="zwin" role="status">&#127881; Congratulations! You won ${curWins.map((w) => esc(lineName(v.cfg, w.pattern, w.ordinal))).join(", ")}${curWins.some((w) => w.text) ? " &middot; " + curWins.filter((w) => w.text).map((w) => esc(w.text)).join(", ") : ""}</div>` : "";
     // golden Claim button (off unless the page has ?claim=1): a mirror, same word as the common engine (Claim); auto-claim still works without it
     const wonKeys = new Set(v.won.filter((w) => w.round === v.round).map((w) => w.pattern));
-    const claimBtn = CLAIM_BTN && v.phase !== "ended" && Object.keys(v.myIdx || {}).some((k) => v.myIdx[k] >= 0 && !wonKeys.has(k)) ? `<p><button class="zbtn zgold" id="zclaim">Claim</button></p>` : "";
+    const claimBtn = CLAIM_BTN && v.phase !== "ended" && (v.won.some((w) => w.round === v.round && isHeld(w)) || Object.keys(v.myIdx || {}).some((k) => v.myIdx[k] >= 0 && !wonKeys.has(k))) ? `<p><button class="zbtn zgold" id="zclaim">Claim</button></p>` : "";
     const tix = v.tickets.map((t, i) => (v.tickets.length > 1 ? `<div class="zsmall" style="margin:${i ? 12 : 0}px 0 4px"><b>Card ${"AB"[i]}</b></div>` : "") + cardHtml(t, called, v.tickets.length > 1 ? "Card " + "AB"[i] : DEMO ? "Video card" : "Your card", winSet, v.round, i)).join("");
     const recent = v.log.slice(-6, -1).reverse(), nudge = TAP() ? missedNudge(v, called) : "";
     const sndBtn = `<button class="zsnd zsndin" id="snd" aria-pressed="${sound}">${sound ? "&#128266; Sound on" : "&#128263; Sound off"}</button>`;
@@ -716,7 +720,7 @@
     if (fresh.length) showHurray(fresh);
     document.querySelectorAll("button[data-dn]").forEach((b) => (b.onclick = () => { const n = Number(b.dataset.dn), r = Number(b.dataset.dr), ci = Number(b.dataset.dc), d = daubs(r, ci); if (!v.log.includes(n)) return; if (d.has(n)) d.delete(n); else d.add(n); store.set(daubKey(r, ci), JSON.stringify([...d])); paint(); }));
     const cl = document.getElementById("zclaim");
-    if (cl) cl.onclick = () => { cl.disabled = true; cl.textContent = "Checking…"; rt.claimNow(); };
+    if (cl) cl.onclick = () => { cl.disabled = true; cl.textContent = "Checking…"; rt.claimNow(); v.won.forEach((w) => revealedWin.add(wid(w))); paint(); };
     const s = document.getElementById("snd");
     if (s) s.onclick = async () => { sound = !sound; store.set("cbz-sound", sound ? "on" : "off"); if (window.TBAudio) { TBAudio.enabled = sound; if (sound) await TBAudio.unlock(); } paint(); };
     rxEvents(v);

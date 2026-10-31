@@ -1275,7 +1275,10 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
         return new Response(JSON.stringify({ ...(f ?? {}), locked: true }), { headers: { "content-type": "application/json", "cache-control": "public, max-age=3" } });
       if (f) { // the organizer's latest message rides along with the pause file phones already ask for, so it costs no extra requests
         const an = await env.DB.prepare("SELECT v FROM kv WHERE k=?").bind(`ann/${cid}`).first<{ v: string }>();
-        if (an) { const x = JSON.parse(an.v); return new Response(JSON.stringify({ ...f, ann: { id: x.id, text: x.text } }), { headers: { "content-type": "application/json", "cache-control": "public, max-age=3" } }); }
+        const rxr = await env.DB.prepare("SELECT v FROM kv WHERE k=?").bind(`rx/${cid}`).first<{ v: string }>(); // the Organizer's switch for the corner reactions: off | reduced | full (none set = the page decides)
+        const rxm = rxr && ["off", "reduced", "full"].includes(rxr.v) ? { rx: rxr.v } : {};
+        if (an) { const x = JSON.parse(an.v); return new Response(JSON.stringify({ ...f, ...rxm, ann: { id: x.id, text: x.text } }), { headers: { "content-type": "application/json", "cache-control": "public, max-age=3" } }); }
+        if (rxr) return new Response(JSON.stringify({ ...f, ...rxm }), { headers: { "content-type": "application/json", "cache-control": "public, max-age=3" } });
       }
       return f ? new Response(JSON.stringify(f), { headers: { "content-type": "application/json", "cache-control": "public, max-age=3" } }) : json({ registered: false }, 404);
     });
@@ -1508,7 +1511,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
       });
     }
   }
-  const m = p.match(/^\/api\/z\/([A-Za-z0-9_-]{4,40})\/(join|rehearsals|rehearsal|rehearsalclose|claims|settle|results|info|participants|erase|discard|reuse|roster|settings|publish|summary|announce|unbind|seats|names|mark|won|over|invites|life|vote|confirm|prizes|prizegiven|myprizes|reportlink|person|forget|cohost|cancel-preview|cancel|reopen|clone|leave|datareq|checkin|presence|who|override|gamelog)$/);
+  const m = p.match(/^\/api\/z\/([A-Za-z0-9_-]{4,40})\/(join|rehearsals|rehearsal|rehearsalclose|claims|settle|results|info|participants|erase|discard|reuse|roster|settings|publish|summary|announce|rxmode|unbind|seats|names|mark|won|over|invites|life|vote|confirm|prizes|prizegiven|myprizes|reportlink|person|forget|cohost|cancel-preview|cancel|reopen|clone|leave|datareq|checkin|presence|who|override|gamelog)$/);
   if (!m) return json({ error: "Not found", hint: "Read the list of what you can do at /api/z/ai-manifest. Engagement routes look like /api/z/{id}/summary, /settings, /roster, /participants, /results, /publish." }, 404);
   const [, eid, action] = m;
   const e = await env.DB.prepare("SELECT * FROM engagement WHERE id=?").bind(eid).first<any>();
@@ -1862,6 +1865,14 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     const ann = { id: randHex(4), text, at: now };
     await env.DB.prepare("INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(`ann/${eid}`, JSON.stringify(ann)).run();
     return json({ ok: true, sent: ann, reachesPhonesWithin: "about a minute, on engagements with pause available" });
+  }
+  if (action === "rxmode" && req.method === "POST") { // the Organizer's switch for the comic reactions on phones (off | reduced | full); phones show them only on pages that offer them
+    if (!can(a, e) || a.kind === "cohost") return deny(a);
+    const b = await body(req, 512);
+    if (!b || !["off", "reduced", "full"].includes(b.mode)) return json({ error: "Choose off, reduced or full." }, 400);
+    if (!(await spend(env, now))) return BUSY();
+    await env.DB.prepare("INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(`rx/${eid}`, b.mode).run();
+    return json({ ok: true, mode: b.mode });
   }
   if (action === "summary" && req.method === "GET") { // one read-back of everything saved, so the organizer's AI can confirm it with them
     if (!can(a, e)) return deny(a);
