@@ -132,3 +132,6 @@ Not changed: the shared pack's `.zf-ready.todo` class (see Run 4 answers).
 ## Engine step 1 (branch feat/bingo-on-engine-2026-10-31)
 - `vendor/game-core/` = game-core 0.1.0 at 9c6419d (`bun tools/vendor.ts <repo> --expect 0.1.0`). Nothing imports it yet; live behaviour is unchanged.
 - Blocked: the vendored `bingo/rules.ts` imports `@cgc/manifest` and `../../core/src`, which do not resolve in the vendored layout (`vendor/game-core/core/`, no `src`).
+
+## Engine step 2
+- vendor re-vendored at game-core bdecf43. `packages/shared/src/bingo-card.ts` LINES and PATTERN_RULES now come from the core Bingo module (same squares, same need counts; names, prize rules and phone quorum unchanged). Typecheck shows only the existing libphonenumber-js errors.

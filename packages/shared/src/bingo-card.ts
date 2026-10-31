@@ -90,25 +90,14 @@ export const ticketKey = (t: Card) => JSON.stringify(t);
 export type PatternId = "line" | "twolines" | "corners" | "plus" | "x" | "frame" | "stamp" | "letterL" | "letterT" | "blackout";
 export type Scope = "ticket";
 
-const rowCells = (r: number) => [0, 1, 2, 3, 4].map((c) => r * SIZE + c);
-const colCells = (c: number) => [0, 1, 2, 3, 4].map((r) => r * SIZE + c);
-const DIAG1 = [0, 6, 12, 18, 24], DIAG2 = [4, 8, 12, 16, 20];
+// the card shapes come from the common engine (vendor/game-core, Bingo rules module): one definition of every house
+import { HOUSES, HOUSE_IDS, LINES as CORE_LINES } from "../../../vendor/game-core/packages/bingo/src/card";
+
 /** The 12 lines of a card: 5 rows, 5 columns and the 2 diagonals. */
-export const LINES: readonly (readonly number[])[] = [0, 1, 2, 3, 4].map(rowCells).concat([0, 1, 2, 3, 4].map(colCells), [DIAG1, DIAG2]);
+export const LINES: readonly (readonly number[])[] = CORE_LINES;
 
 export interface PatternRule { sets: readonly (readonly number[])[]; need: number }
-export const PATTERN_RULES: Record<PatternId, PatternRule> = {
-  line: { sets: LINES, need: 1 },
-  twolines: { sets: LINES, need: 2 },
-  corners: { sets: [[0, 4, 20, 24]], need: 1 },
-  plus: { sets: [[...rowCells(2), 2, 7, 17, 22]], need: 1 },
-  x: { sets: [[...DIAG1, 4, 8, 16, 20]], need: 1 },
-  frame: { sets: [[...rowCells(0), ...rowCells(4), 5, 10, 15, 9, 14, 19]], need: 1 },
-  stamp: { sets: [[0, 1, 5, 6], [3, 4, 8, 9], [15, 16, 20, 21], [18, 19, 23, 24]], need: 1 },
-  letterL: { sets: [[...colCells(0), 21, 22, 23, 24]], need: 1 },
-  letterT: { sets: [[...rowCells(0), 7, 12, 17, 22]], need: 1 },
-  blackout: { sets: [Array.from({ length: CELLS }, (_, i) => i)], need: 1 },
-};
+export const PATTERN_RULES = Object.fromEntries(HOUSE_IDS.map((h) => [h, { sets: HOUSES[h].sets, need: HOUSES[h].need }])) as unknown as Record<PatternId, PatternRule>;
 
 export const PATTERNS: Record<PatternId, { name: string; desc: string }> = {
   line: { name: "Line", desc: "Any one row, column or diagonal. FREE counts." },
