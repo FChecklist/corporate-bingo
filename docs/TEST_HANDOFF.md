@@ -153,3 +153,7 @@ They differ, so live code is kept until the boss decides:
 - New `zc-flow-bridge.js` (loaded before pack/zc-flow.js) maps the pack's storage names `ctz-org`/`ctz-email` to Bingo's `cbz-org`/`cbz-email`, so the pack can sign in. The pack is not edited.
 - `zc-mode.js`: `NEW_SCREENS_ENABLED = true`, `DEFAULT_NEW` still false: the previous screens stay the default; the new ones open only with `?flow=new`. The "Which ID?" part stays hidden. Not yet checked against Bingo's real API in a browser: independent test needed.
 - Still to do: Host key for pause, golden Claim button, core planner (Auto prizes), per-step checks.
+
+## Engine step 6: re-vendor core 26da1ff
+- vendor/game-core re-vendored at game-core 26da1ff (adds bingo/settle.ts: settleFromLog from public log + seats, fate CB1-TIE|eid|seat|tie|house|ordinal). Not wired: live settle in beacon/game.ts still settles; flag default off. Typecheck: only the old phone.ts errors.
+- Not done: calling core settle with seats/countFrom/callRounds behind a flag; golden Claim button; Host key.
