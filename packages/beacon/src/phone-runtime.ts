@@ -320,6 +320,8 @@ export class PhoneRuntime {
   private logResets = 0;
   private serverResults: NonNullable<RuntimeView["results"]> = [];
   private claimLens: number[] = [];
+  /** The golden Claim button: a visible mirror. Sends the claims and asks for the result now; it changes no result (auto-claim still runs on its own). */
+  claimNow(): void { this.claimLens = []; this.wantSeats = true; this.lastResultPoll = -Infinity; void this.autoClaim(); }
   private async autoClaim() {
     if (!this.pid) return;
     const lens = this.logs.map((l) => l.length);

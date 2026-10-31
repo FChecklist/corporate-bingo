@@ -161,3 +161,8 @@ They differ, so live code is kept until the boss decides:
 ## Engine step 7: flagged core settle (off)
 - packages/beacon/src/game.ts: `CORE_SETTLE=false`; when on, settleAll calls `settleViaCore` -> core settleFromLog with seats (id, cards, seat number, countFrom) and callRounds. Same output shape. Default path unchanged.
 - To compare: core ordinals are 1..n and capped at the house max; live uses the actual reward-line ordinals. Equal when lines are 1..n within the cap.
+
+## Engine step 8: golden Claim button (off)
+- Shows only on `z.html?...&claim=1`. Word "Claim" (core MANIFESTS.bingo.goldenButton). Appears when this phone's card meets a house that is not yet in its won list.
+- Press: `rt.claimNow()` (phone-runtime.ts) re-sends claims and asks for results now; button shows "Checking…". No result is changed; the normal "Congratulations! You won" ribbon comes from the settle as before. Auto-claim untouched.
+- zgame.js rebuilt (`bun run build:zgame`).
