@@ -135,3 +135,10 @@ Not changed: the shared pack's `.zf-ready.todo` class (see Run 4 answers).
 
 ## Engine step 2
 - vendor re-vendored at game-core bdecf43. `packages/shared/src/bingo-card.ts` LINES and PATTERN_RULES now come from the core Bingo module (same squares, same need counts; names, prize rules and phone quorum unchanged). Typecheck shows only the existing libphonenumber-js errors.
+
+## Engine step 3: live settle vs core settle (NOT swapped, differences listed)
+Live `settleAll`/`assignOrdinals` (packages/beacon/src/game.ts) and core `bingoRules.settle` agree on: one winner per prize line, earliest call first, one win per person per house, FREE counts.
+They differ, so live code is kept until the boss decides:
+1. Fate: live = sha256 `CB1-TIE|eid|seat|tie|house|ordinal`, recomputed per ordinal; core = one number per claim (proposal: ticketAt index). A seat could win a different tie order.
+2. Live settles from the public call log and the seat list alone, with no claims (a phone offline still gets its prize); core settles only claimed houses.
+3. Live handles late joiners (`countFrom`, calls before joining count as 0), several rounds and several cards per seat; core has none of these.
