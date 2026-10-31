@@ -128,3 +128,7 @@ Not changed: the shared pack's `.zf-ready.todo` class (see Run 4 answers).
 ## 1.4.1 round 7 (skeptic audit)
 - Payment, publish/confirm and test-mail allow-list addresses go through `refusedMail` (emailkey.ts): inner spaces/invisible characters refused, cleaned value used everywhere incl. Razorpay prefill and invoice mail.
 - approvals.ts dead `cleanEmail` removed. pack/employee-id.js aligned (too-long sentence, e-mail refused, optional hint off). Upload: `either` duplicate IDs named; verify=mobile ignores a bad ID.
+
+## Engine step 1 (branch feat/bingo-on-engine-2026-10-31)
+- `vendor/game-core/` = game-core 0.1.0 at 9c6419d (`bun tools/vendor.ts <repo> --expect 0.1.0`). Nothing imports it yet; live behaviour is unchanged.
+- Blocked: the vendored `bingo/rules.ts` imports `@cgc/manifest` and `../../core/src`, which do not resolve in the vendored layout (`vendor/game-core/core/`, no `src`).
