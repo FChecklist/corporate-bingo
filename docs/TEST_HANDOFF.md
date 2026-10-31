@@ -197,3 +197,9 @@ They differ, so live code is kept until the boss decides:
 ## Engine step 16: core 0.9.8 (f27e267) vendored; brochure.pdf regenerated (1 page, new wording). Site legal pages NOT replaced by the shared text (see report).
 
 ## Engine step 17: wording sweep also applied to the page generators (tools/make-legal-pages.mjs, tools/legal/*.frag.html) so a regeneration keeps the new words.
+
+## Merge of the live release and step 18: core 0.9.11
+- Merged the live cache-safety release (7e0d1f7, release/bingo-cache-2026-10-31) into this branch (942640e); two conflicts in lines my wording sweep had already changed (guide.js API_ONLY, gameday-copy B08 regex): kept this branch's side. Core re-vendored at 0.9.11 (04dc49c; only the version file changed).
+
+## Engine step 19: sales funnel (off)
+- apps/edge/src/funnel.ts, packages/beacon/src/funnel-browser.ts (-> funnel.js, `bun run build:funnel`), hooks in worker.ts, pay.ts, lifecycle.ts, v.js; owner page owner-funnel.html/js; tests apps/edge/test/funnel.test.ts and apps/web/test/funnel-dom.test.ts. Flags audit list: docs/BINGO_FLAGS_AUDIT.md.

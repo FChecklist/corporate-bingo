@@ -21,6 +21,7 @@ import { layoutReport, layoutPeoplePart, istDate, istFull, emptyAgg, type Agg, t
 import { purgeOutbox, retryOutbox, sendReportMail, type PayEnv } from "./pay";
 import { eraseCohostsSql, mailDataDeleted, mailErasureHeadsUp } from "./cancel";
 import { creditTick } from "./credit";
+import { recordFun } from "./funnel";
 import type { D1, Env } from "./worker";
 
 export const GENESIS = 1692803367;
@@ -391,6 +392,10 @@ export async function lifecycleTick(env: LifeEnv, now: number): Promise<{ checke
         const end = await endBoundMs(env, e);
         await env.DB.prepare("INSERT INTO life(eid,end_ms,end_src) VALUES(?,?,'schedule') ON CONFLICT(eid) DO UPDATE SET end_ms=excluded.end_ms WHERE life.end_src='schedule' AND life.purged_ms IS NULL").bind(e.id, end).run();
         life = await env.DB.prepare("SELECT * FROM life WHERE eid=?").bind(e.id).first<any>();
+      }
+      if (life && e.npart && now - roundMs(e.start_round) < 14 * 86_400_000) { // sales funnel (funnel.ts): a game with people in it has started once its time has come, and is completed once it has ended; each counted once
+        if (roundMs(e.start_round) <= now) await recordFun(env as any, e.org, "game_started", e.id, now, { size: e.cap });
+        if (now >= life.end_ms) await recordFun(env as any, e.org, "game_completed", e.id, now, { size: e.cap });
       }
       if (!life || now < life.end_ms + REPORT_AFTER_MS) continue; // still being played
       await keepGameLog(env, e, life, now); // B26: the game log is saved the moment the game is over, before and apart from the report e-mail

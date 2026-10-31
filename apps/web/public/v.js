@@ -26,6 +26,12 @@
   } else sid = rnd(12);
   window.TBV = { vid: vid, sid: sid, gpc: gpc };
 
+  // Sales funnel (apps/edge/src/funnel.ts, packages/beacon/src/funnel-browser.ts): OFF until the owner has audited the numbers; flipped together with FUNNEL_ENABLED on the server.
+  // funnel.js is core's makeReporter: same-site address, no cookie, nothing stored, nothing sent with Global Privacy Control or Do Not Track. Steps wait here until it has loaded.
+  var FUNNEL = false, fq = [];
+  function fr(ev, props) { try { if (window.CBF) window.CBF.report(ev, props); else if (FUNNEL) fq.push([ev, props]); } catch (e) {} }
+  if (FUNNEL && !gpc) { var fs = doc.createElement("script"); fs.src = "/funnel.js?v=1"; fs.async = true; fs.onload = function () { while (fq.length) { var x = fq.shift(); fr(x[0], x[1]); } }; (doc.head || doc.documentElement).appendChild(fs); }
+
   var q = [], total = 0, sections = {}, inView = [], curSec = "", maxScroll = 0, visSince = Date.now(), visMs = 0, exits = 0;
   function push(e) { if (total >= MAX_PAGE_EVENTS) return; e.p = path; q.push(e); total++; if (q.length >= BATCH) flush(); }
   function send(body) {
@@ -79,6 +85,7 @@
       for (var i = 0; i < els.length; i++) { var n = nameOf(els[i]); if (n && !seen[n]) { seen[n] = 1; io.observe(els[i]); } }
     }
     push({ k: "pv" });
+    fr("viewed"); if (path === "/pay") fr("payment_page_opened");
     var sc = function () { var h = Math.max(doc.documentElement.scrollHeight, 1), y = (window.scrollY || window.pageYOffset || 0) + innerHeight; maxScroll = Math.max(maxScroll, Math.min(100, Math.round((y / h) * 100))); };
     sc(); addEventListener("scroll", sc, { passive: true });
     setInterval(function () { if (doc.visibilityState !== "hidden") flush(); }, 15000);
@@ -98,7 +105,12 @@
 
   // ---- actions: the choices a visitor makes (a handful of named ones; the server drops anything else) ----
   function shown() { var t = doc.querySelector(".pcard .tot"), m = t && t.textContent.replace(/,/g, "").match(/(₹|US\$)\s*([\d.]+)/); return m ? (m[1] === "₹" ? "INR " : "USD ") + m[2] : ""; }
-  function act(n, size, v, now) { push({ k: "act", n: n, z: size, v: v }); if (now) flush(); }
+  function act(n, size, v, now) {
+    push({ k: "act", n: n, z: size, v: v });
+    if (n === "pack" || n === "create") fr("size_chosen", { size: size || 0 });
+    if (n === "create" || n === "start_submit") fr("signup_started");
+    if (now) flush();
+  }
   doc.addEventListener("click", function (e) {
     var t = e.target && e.target.closest ? e.target : null; if (!t) return;
     var c = t.closest("[data-buy]");
