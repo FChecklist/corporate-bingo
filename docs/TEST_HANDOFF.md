@@ -189,3 +189,5 @@ They differ, so live code is kept until the boss decides:
 - Organizer on/off switch for reactions (rxmode route, `?rx=1`), reactions.css in the service-worker saved set.
 
 ## Engine step 13: re-vendor core 0.9.4 (eb6a5e8). Reaction ids used by Bingo checked present; zgame.js rebuilt.
+
+## Engine step 14: re-vendor core 0.9.5 (3e8f81b). Site code does not use the renamed retention constants. The word "erase" still appears in 51 places in pages, mails, legal text and API route names: not changed yet (needs an order).

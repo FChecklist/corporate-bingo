@@ -1,6 +1,6 @@
 # Bingo: release readiness of the common-engine work
 
-Branch `feat/bingo-on-engine-2026-10-31`. Core vendored: game-core 0.9.4 (eb6a5e8), file `vendor/game-core/CORE_VERSION`.
+Branch `feat/bingo-on-engine-2026-10-31`. Core vendored: game-core 0.9.5 (3e8f81b), file `vendor/game-core/CORE_VERSION`.
 Nothing here is deployed. Every item below is OFF by default, so the live game is unchanged until a flag is flipped.
 I have not run any test or opened any browser page for this work. "Tests that exist" means files already in the repo that touch the same code; none was written for the new parts.
 
