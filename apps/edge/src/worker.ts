@@ -1261,7 +1261,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
   }
 
   /* ---- signed pause / resume / extend / stop: the signature is the authorisation, the Worker just stores and serves one small file ---- */
-  const cm = p.match(/^\/api\/z\/([A-Za-z0-9_-]{3,40})\/control(\/key|\/hostkey|\/request|\/request\/clear)?$/);
+  const cm = p.match(/^\/api\/z\/([A-Za-z0-9_-]{3,40})\/control(\/key|\/hostkey|\/hostoffer|\/request|\/request\/clear)?$/);
   if (cm) {
     const [, cid, sub] = cm;
     if (sub && a.kind === "host" && req.headers.get("x-cb-link") === "1") return deny(a); // a Host's narrow work link may read the pause file but cannot register keys or file pause / stop / erase requests
@@ -1300,8 +1300,21 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
       if (r.ok) await mirrorControl(env, cid!);
       return r.ok ? json({ ok: true }) : json({ error: r.error }, 409);
     }
+    if (sub === "/hostoffer" && req.method === "POST") { // the Host's own console offers the public key it made; it is used only after the Organizer approves it
+      if (a.kind !== "host" || a.viaLink || !can(a, ce)) return deny(a);
+      const b = await body(req);
+      if (!b || typeof b.publicKey !== "string" || !/^[0-9a-f]{64}$/i.test(b.publicKey)) return json({ error: "Bad key." }, 400);
+      if (!(await spend(env, now))) return BUSY();
+      await env.DB.prepare("INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(`hostoffer/${cid}`, JSON.stringify({ publicKey: b.publicKey.toLowerCase(), at: now })).run();
+      return json({ ok: true });
+    }
+    if (sub === "/hostoffer" && req.method === "GET") { // only the Organizer sees it
+      if (!(a.plat || (a.kind === "master" && can(a, ce)))) return deny(a);
+      const o = await env.DB.prepare("SELECT v FROM kv WHERE k=?").bind(`hostoffer/${cid}`).first<{ v: string }>();
+      return json({ offer: o ? JSON.parse(o.v) : null });
+    }
     if (sub === "/hostkey" && req.method === "PUT") { // the organizer (master key only) registers the Host's own key; the Host signs pause and resume with it, never with the organizer key
-      if (!can(a, ce, true)) return deny(a);
+      if (!(a.plat || (a.kind === "master" && can(a, ce)))) return deny(a);
       const b = await body(req);
       if (!b || typeof b.publicKey !== "string") return json({ error: "Bad key." }, 400);
       if (!(await spend(env, now))) return BUSY();

@@ -171,3 +171,10 @@ They differ, so live code is kept until the boss decides:
 - `HOST_KEY_ENABLED=false` in packages/beacon/src/control.ts. While false, `PUT /api/z/{id}/control/hostkey` answers 409 "not available" and phones never believe a Host key.
 - When on: the organizer (master key, never a Host work link) registers the Host's own public key (must differ from the organizer key; the organizer may replace it). Phones accept a pause or resume signed by either key; extend and stop need the organizer key. `signerOf()` decides; the stored message carries `by: "organizer"|"host"`; `describeControl` lists `by` for each message (the log by role).
 - The file served to phones carries `hostKey` (public). The Host's console/work-link page that signs with this key is NOT built yet.
+
+## Engine step 10: Host signing page (off)
+- Two switches, both off: server `HOST_KEY_ENABLED` (control.ts) and the page address `?hostkey=1` on zc.html.
+- Host console (role host, not a work link): makes its own non-extractable key in its browser (`TBControl.hostOffer`), sends the public half to `POST /api/z/{id}/control/hostoffer`. Pause/Resume then sign with it (`TBControl.hostPublish`); End the game is refused for the Host.
+- Organizer console (master key): sees "Approve the Host key" (`GET .../hostoffer`), presses it, `PUT .../hostkey` registers it. A Host can no longer register the Host key (hostkey is master-only).
+- Words: "Paused by the Host/Organizer" in the console (S.pausedBy) and on phones ("Game paused by the Host/organizer", view.pausedBy from the stored `by`).
+- "Add a Host": the old console already adds Hosts in its Team block (POST /api/org/host). The new shared pack's People step has no Host row; not edited (shared pack).
