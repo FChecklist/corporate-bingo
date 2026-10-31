@@ -193,3 +193,5 @@ They differ, so live code is kept until the boss decides:
 ## Engine step 14: re-vendor core 0.9.5 (3e8f81b). Site code does not use the renamed retention constants. The word "erase" still appears in 51 places in pages, mails, legal text and API route names: not changed yet (needs an order).
 
 ## Engine step 15: wording sweep (no "erase" in what people read). See docs/WORDING_SWEEP.md. brochure.pdf must be regenerated (not done). Tests with old sentences updated, kept strict.
+
+## Engine step 16: core 0.9.8 (f27e267) vendored; brochure.pdf regenerated (1 page, new wording). Site legal pages NOT replaced by the shared text (see report).
