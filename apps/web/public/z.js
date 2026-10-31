@@ -61,6 +61,32 @@
   const HOW = Object.fromEntries(ZG.PRIZE_HOUSES.map((h) => [h.id, h.how]));
   const howLine = (key) => (HOW[key] ? `<small class="zsmall zhow" style="margin:0">${esc(HOW[key])}</small>` : "");
   const getPublic = DEMO ? DEMO.getPublic : async (url) => { let r; try { r = await fetch(url, { cache: "no-store" }); } catch { throw new Error("offline"); } if (!r.ok) throw Object.assign(new Error("http " + r.status), { status: r.status }); return r.json(); };
+  // Reaction pack (common engine): short comic words in a corner strip at fitting moments. Off unless the page has ?rx=1. It only shows words; it never changes a result.
+  const RX_ON = /[?&]rx=1(?:&|$)/.test(location.search);
+  const RX = { rx: null, t: 0, at: 0, seen: {}, prev: null };
+  function rxEvents(v) {
+    if (!RX_ON || !window.ZG || !ZG.createReactions || DEMO) return;
+    const R = RX.rx || (RX.rx = ZG.createReactions(v.pid || null)), P = RX.prev, nowMs = Date.now();
+    if (RX.at) { if (!v.paused) RX.t += nowMs - RX.at; } RX.at = nowMs; // game time: a pause freezes it
+    const go = (id, o) => { try { R.react(id, Object.assign({ who: v.pid || undefined, now: RX.t, game: "bingo" }, o || {})); } catch { /* a reaction is only decoration */ } };
+    const once = (k) => (RX.seen[k] ? false : (RX.seen[k] = true));
+    if (v.phase === "play") {
+      if (once("join")) go("hello");
+      if (v.log.length === 0 && v.nextCallInSec !== null && v.nextCallInSec <= 10 && once("count")) go("tick_tock");
+      if (P) {
+        if (v.log.length > P.n) { const last = v.log[v.log.length - 1]; if (v.tickets.some((t) => t.some((row) => row.indexOf(last) >= 0))) go("yes"); }
+        const near = ZG.keysInPlay(v.cfg.rewards).filter((k) => ZG.stillToWin(v.tickets, k, v.log) === 1).length;
+        if (near > P.near && once("near" + near + "@" + v.log.length)) go("last_chance");
+        if ((v.claimed || []).length > P.claimed) go("spot_on");
+        if (v.paused && !P.paused) go("hang_on");
+        if (!v.paused && P.paused) go("lets_go");
+        if (v.won.length > P.won) go("champion", { priority: "high" });
+        if (document.getElementById("zclaim") && !P.claimBtn) go("super");
+      }
+    }
+    RX.prev = { n: v.log.length, near: v.phase === "play" ? ZG.keysInPlay(v.cfg.rewards).filter((k) => ZG.stillToWin(v.tickets, k, v.log) === 1).length : 0, claimed: (v.claimed || []).length, paused: !!v.paused, won: v.won.length, claimBtn: !!document.getElementById("zclaim") };
+    R.tick(RX.t);
+  }
   const CLAIM_BTN = /[?&]claim=1(?:&|$)/.test(location.search); // the golden Claim button: off by default
   const rt = new ZG.PhoneRuntime(EID, DEMO ? { api, getPublic, beacon: DEMO.beacon, verify: DEMO.verify, mono: DEMO.mono, store } : { api, getPublic, beacon: {}, mono: () => performance.now(), store });
   let lastLen = 0, firstPaint = true, sound = store.get("cbz-sound") !== "off", timer = null;
@@ -693,6 +719,7 @@
     if (cl) cl.onclick = () => { cl.disabled = true; cl.textContent = "Checking…"; rt.claimNow(); };
     const s = document.getElementById("snd");
     if (s) s.onclick = async () => { sound = !sound; store.set("cbz-sound", sound ? "on" : "off"); if (window.TBAudio) { TBAudio.enabled = sound; if (sound) await TBAudio.unlock(); } paint(); };
+    rxEvents(v);
     if (v.log.length > lastLen) { if (!firstPaint && v.log.length === lastLen + 1 && sound && window.TBAudio) TBAudio.play(v.log[v.log.length - 1]); lastLen = v.log.length; }
     firstPaint = false;
     if (v.phase === "ended" && wake && !wake.released) { try { wake.release(); } catch { /* already let go */ } wake = null; } // the screen may sleep again once the game is over

@@ -178,3 +178,6 @@ They differ, so live code is kept until the boss decides:
 - Organizer console (master key): sees "Approve the Host key" (`GET .../hostoffer`), presses it, `PUT .../hostkey` registers it. A Host can no longer register the Host key (hostkey is master-only).
 - Words: "Paused by the Host/Organizer" in the console (S.pausedBy) and on phones ("Game paused by the Host/organizer", view.pausedBy from the stored `by`).
 - "Add a Host": the old console already adds Hosts in its Team block (POST /api/org/host). The new shared pack's People step has no Host row; not edited (shared pack).
+
+## Engine step 11: core 0.9.0 and Reactions (off)
+- vendor re-vendored at game-core 0.9.0 (1934ebc). Reactions: `reactions.css` copied to public (in build FILES, linked in z.html), `createReactions` in ZG; z.js `rxEvents` on `?rx=1` only. Readiness list: docs/BINGO_RELEASE_READINESS.md.
