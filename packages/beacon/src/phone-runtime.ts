@@ -199,7 +199,7 @@ export class PhoneRuntime {
     if (wasLocked && !this.locked) await this.reloadSchedule(); // paid at last: the start time has moved, read it again
     if (!body?.pubKey) { this.tracker?.failed(now); return; }
     if (!this.tracker) {
-      const cfg: ControlConfig = { pubKey: body.pubKey, maxPauseRounds: body.maxPauseRounds, leadRounds: body.leadRounds };
+      const cfg: ControlConfig = { pubKey: body.pubKey, ...(typeof body.hostKey === "string" ? { hostKey: body.hostKey } : {}), maxPauseRounds: body.maxPauseRounds, leadRounds: body.leadRounds };
       this.controlFast = body.leadRounds === SAFETY_FAST.leadRounds;
       const safety = ALL_SAFETIES.find((s) => s.leadRounds === body.leadRounds) ?? SAFETY_STANDARD;
       if (safety !== SAFETY_FAST && safety !== SAFETY_STANDARD) { this.pollBaseMs = Math.round(safety.pollMaxSec * 750); this.pollJitterMs = Math.round(safety.pollMaxSec * 250); }

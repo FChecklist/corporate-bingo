@@ -54,7 +54,7 @@ import { AUDIT_SCHEMA, auditRequest, analyzeChain, loadRows, logAccess, setHold,
 import { VISIT_SCHEMA, beaconRoute, linkVisitor, parseRange, recordFunnelForOrg, visitsJourney, visitsSummary, type VisitEnv } from "./visits";
 import { knownDial } from "./phonekit";
 import { WINNERS_SCHEMA, acceptVotes, auditAi, confirmPrize, listAiAudit, listPrizes, markGiven, myPrizes, overridePrize } from "./winners";
-import { PAUSE_MAX_PARTICIPANTS, safetyForCap, publishControl, readPublished, registerKey, type KV } from "../../../packages/beacon/src/control";
+import { PAUSE_MAX_PARTICIPANTS, safetyForCap, publishControl, readPublished, registerKey, registerHostKey, type KV } from "../../../packages/beacon/src/control";
 import { QUICKNET } from "../../../packages/beacon/src/index";
 
 export interface D1Result<T = any> { results?: T[]; meta?: { changes?: number } }
@@ -1261,7 +1261,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
   }
 
   /* ---- signed pause / resume / extend / stop: the signature is the authorisation, the Worker just stores and serves one small file ---- */
-  const cm = p.match(/^\/api\/z\/([A-Za-z0-9_-]{3,40})\/control(\/key|\/request|\/request\/clear)?$/);
+  const cm = p.match(/^\/api\/z\/([A-Za-z0-9_-]{3,40})\/control(\/key|\/hostkey|\/request|\/request\/clear)?$/);
   if (cm) {
     const [, cid, sub] = cm;
     if (sub && a.kind === "host" && req.headers.get("x-cb-link") === "1") return deny(a); // a Host's narrow work link may read the pause file but cannot register keys or file pause / stop / erase requests
@@ -1297,6 +1297,15 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
       const safety = safetyForCap(ce.cap, b.profile === "fast");
       if (!safety) return json({ error: `Pause is available for engagements of up to ${PAUSE_MAX_PARTICIPANTS.toLocaleString("en-IN")} participants. Larger ones run without it, which keeps every phone's traffic off the free plan's daily allowance.` }, 409);
       const r = await registerKey(kv, cid!, b.publicKey, safety);
+      if (r.ok) await mirrorControl(env, cid!);
+      return r.ok ? json({ ok: true }) : json({ error: r.error }, 409);
+    }
+    if (sub === "/hostkey" && req.method === "PUT") { // the organizer (master key only) registers the Host's own key; the Host signs pause and resume with it, never with the organizer key
+      if (!can(a, ce, true)) return deny(a);
+      const b = await body(req);
+      if (!b || typeof b.publicKey !== "string") return json({ error: "Bad key." }, 400);
+      if (!(await spend(env, now))) return BUSY();
+      const r = await registerHostKey(kv, cid!, b.publicKey);
       if (r.ok) await mirrorControl(env, cid!);
       return r.ok ? json({ ok: true }) : json({ error: r.error }, 409);
     }

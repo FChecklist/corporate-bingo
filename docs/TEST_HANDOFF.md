@@ -166,3 +166,8 @@ They differ, so live code is kept until the boss decides:
 - Shows only on `z.html?...&claim=1`. Word "Claim" (core MANIFESTS.bingo.goldenButton). Appears when this phone's card meets a house that is not yet in its won list.
 - Press: `rt.claimNow()` (phone-runtime.ts) re-sends claims and asks for results now; button shows "Checking…". No result is changed; the normal "Congratulations! You won" ribbon comes from the settle as before. Auto-claim untouched.
 - zgame.js rebuilt (`bun run build:zgame`).
+
+## Engine step 9: Host key for Pause/Resume (off)
+- `HOST_KEY_ENABLED=false` in packages/beacon/src/control.ts. While false, `PUT /api/z/{id}/control/hostkey` answers 409 "not available" and phones never believe a Host key.
+- When on: the organizer (master key, never a Host work link) registers the Host's own public key (must differ from the organizer key; the organizer may replace it). Phones accept a pause or resume signed by either key; extend and stop need the organizer key. `signerOf()` decides; the stored message carries `by: "organizer"|"host"`; `describeControl` lists `by` for each message (the log by role).
+- The file served to phones carries `hostKey` (public). The Host's console/work-link page that signs with this key is NOT built yet.
