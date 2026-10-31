@@ -142,3 +142,9 @@ They differ, so live code is kept until the boss decides:
 1. Fate: live = sha256 `CB1-TIE|eid|seat|tie|house|ordinal`, recomputed per ordinal; core = one number per claim (proposal: ticketAt index). A seat could win a different tie order.
 2. Live settles from the public call log and the seat list alone, with no claims (a phone offline still gets its prize); core settles only claimed houses.
 3. Live handles late joiners (`countFrom`, calls before joining count as 0), several rounds and several cards per seat; core has none of these.
+
+## Engine step 4: survey of the remaining engine pieces (no code change)
+- Retention: already 20 h (`PURGE_AFTER_MS`, lifecycle.ts) = core `ERASE_AFTER_MS`. Nothing to change.
+- Pause/Resume: exists as a signed control file (`/api/z/:id/control`). It needs the organizer's own browser key; a Host's work link can read the pause file but cannot pause. Spec 410 lets Organizer AND Host pause: needs a decision on how a Host signs.
+- Claim button: phones claim automatically (`autoClaim`, phone-runtime.ts); there is no golden button. A manual "Claim" press would change the game; needs a decision.
+- Six-step flow: the console (zc.js) has its own steps; a rewrite onto core `FLOW` is a large UI change, not started.
