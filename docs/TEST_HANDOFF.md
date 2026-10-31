@@ -195,3 +195,5 @@ They differ, so live code is kept until the boss decides:
 ## Engine step 15: wording sweep (no "erase" in what people read). See docs/WORDING_SWEEP.md. brochure.pdf must be regenerated (not done). Tests with old sentences updated, kept strict.
 
 ## Engine step 16: core 0.9.8 (f27e267) vendored; brochure.pdf regenerated (1 page, new wording). Site legal pages NOT replaced by the shared text (see report).
+
+## Engine step 17: wording sweep also applied to the page generators (tools/make-legal-pages.mjs, tools/legal/*.frag.html) so a regeneration keeps the new words.
