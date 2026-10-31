@@ -6,7 +6,7 @@
 // Who may do what:
 //   platform key  (env.ORGANIZER_SECRET)  - us: issues organizer keys, runs the daily purge, and can act on any engagement (also single-tenant/local mode).
 //   master key    - the organizer's own console: everything for that organizer's engagements, including publishing results, erasing, registering the pause key.
-//   AI key        - the organizer's external AI assistant: everything a person could do in the console EXCEPT publishing results, erasing data and
+//   AI key        - the organizer's external AI assistant: everything a person could do in the console EXCEPT publishing results, deleting data and
 //                   registering/using the pause signing key (pausing needs the organizer's own browser; the AI can only ask, see /control/request).
 //                   So an AI can never decide who wins, and never change what the public beacon decides. Every AI call is written to an audit trail (winners.ts).
 //   Winners: nobody posts them. Phones report what they worked out and a result is accepted when several different phones agree (winners.ts, quorumFor).
@@ -370,7 +370,7 @@ const JOIN_WRITES = 9;
 
 const CORS = { "access-control-allow-origin": "*", "access-control-allow-headers": "content-type, x-organizer, x-partner, authorization, x-cb-vid, x-cb-vs", "access-control-allow-methods": "GET, POST, PUT, PATCH, OPTIONS", "access-control-max-age": "86400" };
 /** Phones load the app from Pages and call this Worker from another origin, so every answer carries open CORS (no cookies are used anywhere). */
-/** The message an organizer pastes into any AI chat: two short lines and the short link (/ai/<key>), which opens the complete manual. The key is only inside the link. The AI key cannot pay, publish, erase, pause or settle. */
+/** The message an organizer pastes into any AI chat: two short lines and the short link (/ai/<key>), which opens the complete manual. The key is only inside the link. The AI key cannot pay, publish, delete data, pause or settle. */
 export const aiMessage = (origin: string, key: string) => aiPaste(origin, key);
 /** Records the Terms version an organizer is working under (one row per organizer and version; the tick itself is stored in consent_log, consent.ts). */
 async function recordTerms(env: Env, org: string, now: number, via: string): Promise<void> {
@@ -452,7 +452,7 @@ A game that is not paid for does not begin. If you no longer want this game, you
     subject: `Payment pending for your game ${o.id}: it starts in ${o.label}`,
     text: `Your game ${o.id} starts ${o.when}, in about ${o.label}. It is not paid yet, and a game that is not paid for does not begin.
 
-You can pay at any time until the guest data is erased (within 24 hours after the game was meant to end). If you pay late, the first number comes 2 minutes after the payment is confirmed.
+You can pay at any time until the guest data is auto-deleted (within 24 hours after the game was meant to end). If you pay late, the first number comes 2 minutes after the payment is confirmed.
 
 Pay now (about 2 minutes): ${o.origin}/pay.html?e=${o.id}`,
   };
@@ -746,7 +746,7 @@ export const AI_MANIFEST = {
     { do: "Read back everything saved for one engagement (start time in the organizer's time, speed, limit, tickets, every reward, every break, rounds, head-count, and whether it is a draft, published or paid). Use it to confirm the details with the organizer after every change", call: "GET /api/z/{id}/summary" },
     { do: "List engagements and head-counts", call: "GET /api/history" },
     { do: "Create an engagement. It is saved as a free draft that participants cannot see yet; nothing is paid at this step", call: "POST /api/z {id, startRound, callSeconds (6|9|12|15), cap, closed?}  -> {ok, draft, openUrl}" },
-    { do: "When everything is set up, tell the organizer it is ready. Publishing is free but only the organizer can do it (they confirm their email and mobile number), and the game does not begin until it is paid for (pay at any time until the guest data is erased; a late payment starts the game 2 minutes after it is confirmed). This returns a link: give it to the organizer and help them through every step, but never try to publish or pay yourself", call: "POST /api/z/{id}/publish -> {published:false, needsOrganizer:true, consoleUrl} (the organizer opens consoleUrl, confirms their details and presses Publish; afterwards the same call returns payUrl, the payment page, and shareUrl, the link for guests)" },
+    { do: "When everything is set up, tell the organizer it is ready. Publishing is free but only the organizer can do it (they confirm their email and mobile number), and the game does not begin until it is paid for (pay at any time until the guest data is auto-deleted; a late payment starts the game 2 minutes after it is confirmed). This returns a link: give it to the organizer and help them through every step, but never try to publish or pay yourself", call: "POST /api/z/{id}/publish -> {published:false, needsOrganizer:true, consoleUrl} (the organizer opens consoleUrl, confirms their details and presses Publish; afterwards the same call returns payUrl, the payment page, and shareUrl, the link for guests)" },
     { do: "Change start time, speed, cap, invite-only, cards per participant (1 or 2; the field is called tickets), how the card marks (mark: auto or tap), reward lines and brand moments (5 per card: opening, during the game, closing; 1 card = 5, 2 cards = 10) and rounds (1 to 5 games, each with new numbers and new cards) before the first number", call: "PATCH /api/z/{id}/settings {startRound?, callSeconds?, cap?, closed?, tickets?, mark?, rounds?, rewards?: [{pattern: <a house id from choices.rewards>, ordinal?: 1 up to the house maximum, text}], breaks?: [{after?: 1-74 numbers called (leave it out: the software spreads them evenly), seconds?: 15-600 in steps of 3 (default 60), kind: file|youtube|slides|speech|lucky, title, mediaUrl?: https link (not for lucky), winners?: 1|3|5|10 (lucky only, default 3), style?: draw|scratch (lucky only; scratch shows a scratch card on phones, the winners are drawn the same fair way)}], opening?: [{kind: file|youtube|slides|speech, title, mediaUrl?, seconds?: 15-120}], closing?: [{kind: file|youtube|slides|speech, title, mediaUrl?}]}. IMPORTANT: rewards, breaks and every list you send REPLACE what was saved, they are not merged, so always send the complete list (to change one reward, read the summary, change it, send them all). A media link must be https; for kind youtube it must be a YouTube link; for file it must be a direct link the phones can open (a video, audio, image or PDF file), which we cannot check for you. A reward line is ONE winner of ONE house: for three winners of the Line send three lines with ordinal 1, 2 and 3. Houses, names and how each is won are in the manual. Asking for more winners than a house allows is refused with a plain message. A lucky draw is a break: {after: 60, seconds: 60, kind: lucky, title: Lucky draw, winners: 3}. Worked example: PATCH /api/z/{id}/settings {startRound: 33146812, callSeconds: 9, cap: 250, tickets: 2, rounds: 1, rewards: [{pattern: line, ordinal: 1, text: Gift hamper}, {pattern: corners, ordinal: 1, text: Coffee voucher}, {pattern: blackout, ordinal: 1, text: Tablet}, {pattern: blackout, ordinal: 2, text: Voucher 50}], breaks: [{after: 30, seconds: 90, kind: youtube, title: Anniversary film, mediaUrl: https://www.youtube.com/watch?v=...}, {after: 60, seconds: 60, kind: lucky, title: Lucky draw, winners: 3}]}" },
     { do: "Participants: the OWNER loads the invite list in the Participants card of their console. Names and mobile numbers never pass through the AI (a roster call from an AI key answers 403). Set the limit with settings.", call: "(owner, in the console)" },
     { do: "Reuse an earlier engagement's people", call: "POST /api/z/{id}/reuse {from}" },
@@ -771,8 +771,8 @@ export const AI_MANIFEST = {
     "Building and publishing are free. Only the organizer publishes (they confirm their email and mobile number), and only the organizer pays; you never do either.",
     "Price is per engagement, by size: the smallest pack that covers the limit (see `packs`, the price in rupees is the whole amount: no GST is added). The limit does not have to match a pack size; people beyond the limit cannot join.",
     "The organizer pays on the payment page, online through Razorpay (the page shows the methods available). It takes about 2 minutes, and an invoice is emailed. The payment page names the seller, IT Services by Rajat Agarwal. Credit from an earlier cancelled game can pay for it (the Pay step offers it first).",
-    "No payment, no game. There is no separate payment cut-off: the game can be paid at any time until the guests' data is erased (within 24 hours after the game was meant to end). Until it is paid the Organizer and Hosts see \"Payment pending for this game\" and everyone else sees \"Waiting for the Organizer or Host to start the game.\" Nothing is charged and there is no penalty.",
-    "If the organizer pays late, even hours later, the first number comes 2 minutes after the payment is confirmed, for everyone already waiting, and they can also choose a new start time first (at most 30 days ahead while it is not paid for). After the guest data is erased the game is closed (\"This game did not start. Your details have been erased.\"): nobody can join or pay, and the Organizer can create a new game like it.",
+    "No payment, no game. There is no separate payment cut-off: the game can be paid at any time until the guests' data is auto-deleted (within 24 hours after the game was meant to end). Until it is paid the Organizer and Hosts see \"Payment pending for this game\" and everyone else sees \"Waiting for the Organizer or Host to start the game.\" Nothing is charged and there is no penalty.",
+    "If the organizer pays late, even hours later, the first number comes 2 minutes after the payment is confirmed, for everyone already waiting, and they can also choose a new start time first (at most 30 days ahead while it is not paid for). After the guest data is auto-deleted the game is closed (\"This game did not start. Your details have been auto-deleted.\"): nobody can join or pay, and the Organizer can create a new game like it.",
     "If they never pay, nothing is owed. They can create a new engagement whenever they like. The settings of a game that did not start stay for 30 days, then they are forgotten (as unpublished drafts are).",
     "We do not give refunds. If you cancel a paid game before it starts, your payment stays as credit for your next game for 365 days. Unused credit lapses at the end of day 365. The credit stays in the organizer's account. Unused places are not credited once the game has started. Rules and privacy are at /legal.html.",
   ],
@@ -781,7 +781,7 @@ export const AI_MANIFEST = {
     "Pay. Payment is always the organizer's own act on the payment page (payUrl in the summary).",
     "Publish: the organizer confirms their own e-mail and mobile number and presses Publish. You prepare everything and hand over consoleUrl.",
     "Choose, publish, change or remove winners, numbers, tickets or anyone's reward (nobody can, not even the organizer: the software decides, and a result stands only when several different phones report exactly the same winners)",
-    "Erase participant data (you may ASK; the organizer confirms)",
+    "Delete participant data (you may ASK; the organizer confirms)",
     "Pause, resume or stop a running game (you may ASK; only the organizer's own browser holds that signing key)",
     "Create or retire the organizer's own sign-in keys, change their e-mail or delete the account, or sign in with Google",
     "Make a pay link that anyone can open (POST /api/z/{id}/paylink answers 403 to an AI key: only the Organizer, a Host or a Co-host makes one)",
@@ -1328,7 +1328,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     if (sub === "/request" && req.method === "POST") { // the AI (or organizer) asks; the organizer's browser approves by signing
       if (!can(a, ce)) return deny(a);
       const b = await body(req);
-      if (!b || !["pause", "resume", "stop", "erase"].includes(b.action)) return json({ error: "Ask for pause, resume, stop or erase." }, 400);
+      if (!b || !["pause", "resume", "stop", "erase"].includes(b.action)) return json({ error: "Ask for pause, resume, stop or delete." }, 400);
       if (!(await spend(env, now))) return BUSY();
       if (b.action === "erase") { // the AI may ASK to delete all participant data; only the organizer's own confirmation in their console does it
         await nudge(env, cid!, `delreq-${day(now)}`, now, `Your AI assistant asked to delete all participant data: engagement ${cid}`, `Your AI assistant asked to delete all participant data for ${cid}. Nothing is deleted yet.\n\nTo confirm, press Confirm in your console: ${(env as PayEnv).PUBLIC_ORIGIN ?? ""}/zc.html?e=${cid}\n\nNot you? Press Dismiss.`);
@@ -1548,8 +1548,8 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
   const isDraft = unpaid && !(await isPublished(env, e));
   const payment = await paymentOf(env, e, unpaid, now);
   const cancelled = !!e.cancelled_ms; // a cancelled game can only be read (and its guests' data erased on request): nobody joins, nothing is changed, published or paid
-  const didNotStart = !!e.unplayed_ms; // a game nobody paid for whose time and 23 hours went by: its guest data is erased and it is closed. Nobody joins, nobody pays; settings stay 30 days so a new game can be made like it.
-  const DNS_MSG = "This game did not start. Your details have been erased.";
+  const didNotStart = !!e.unplayed_ms; // a game nobody paid for whose time and 23 hours went by: its guest data is auto-deleted and it is closed. Nobody joins, nobody pays; settings stay 30 days so a new game can be made like it.
+  const DNS_MSG = "This game did not start. Your details have been auto-deleted.";
   if (didNotStart && req.method === "POST" && action === "join") return json({ error: DNS_MSG, code: "did-not-start", didNotStart: true }, 403);
   if (didNotStart && req.method !== "GET" && !["erase", "forget", "person", "cancel", "clone", "leave", "datareq"].includes(action!)) return json({ error: DNS_MSG, code: "did-not-start", didNotStart: true }, 409);
   if (e.rehearsal_of && req.method === "POST" && action === "join" && (await rehearsalFinished(env, e, now))) return json({ error: OVER_MSG, code: "rehearsal-over", realId: e.rehearsal_of }, 410); // an ended rehearsal takes nobody in; the page offers the real game
@@ -1902,8 +1902,8 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     const origin = (env as PayEnv).PUBLIC_ORIGIN ?? new URL(req.url).origin;
     const payUrl = `${origin}/pay.html?e=${eid}`, shareUrl = `${origin}/z.html?e=${eid}`;
     if (a.kind === "ai" && can(a, e)) return json({ ok: true, published: !isDraft, needsOrganizer: isDraft, ...(isDraft ? { consoleUrl: `${origin}/zc.html?e=${eid}` } : { payUrl, shareUrl }), message: isDraft
-      ? "Everything is ready. Please give this link to the organizer: they open it, confirm their email and mobile number and press Publish. Publishing is free. After that the game does not begin until it is paid for (any time until the guest data is erased; a late payment starts the game 2 minutes after it is confirmed). The organizer does both themself: the AI never publishes or pays."
-      : unpaid ? "It is published. The game does not begin until it is paid for (any time until the guest data is erased; a late payment starts it 2 minutes after confirmation). Give the organizer this link to pay: they do it themself." : "Already published and paid." });
+      ? "Everything is ready. Please give this link to the organizer: they open it, confirm their email and mobile number and press Publish. Publishing is free. After that the game does not begin until it is paid for (any time until the guest data is auto-deleted; a late payment starts the game 2 minutes after it is confirmed). The organizer does both themself: the AI never publishes or pays."
+      : unpaid ? "It is published. The game does not begin until it is paid for (any time until the guest data is auto-deleted; a late payment starts it 2 minutes after confirmation). Give the organizer this link to pay: they do it themself." : "Already published and paid." });
     if (!can(a, e, true)) return deny(a);
     if (!isDraft) { // already published (for example the game was paid for first): the organizer's confirmed e-mail and mobile number are still kept if they have none on file, because the end-of-game report is sent to that e-mail
       const pb0 = await body(req); const ce = typeof pb0?.email === "string" ? refusedMail(pb0.email) ?? "" : "", cp = String(pb0?.phone ?? "").replace(/\D/g, "");
@@ -1932,7 +1932,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     await recordConsent(env.DB, { subject: e.org ?? "platform", kind: "K1", ref: eid!, now });
     await recordFunnelForOrg(env as VisitEnv, e.org, "published", now);
     await sendMail(env as PayEnv, env.DB, cEmail, paid ? `Your engagement ${eid} is published and paid` : `Your engagement ${eid} is published: payment pending (it starts ${istTime(startMs)})`,
-      `Your engagement ${eid} is live.\n\nShare this link: ${shareUrl}\n\n${paid ? "" : `Payment pending: the game does not begin until it is paid for. You can pay at any time until the guest data is erased; if you pay late, the first number comes 2 minutes after the payment is confirmed (about 2 minutes to pay): ${payUrl}\n\n`}Big screen for the room: ${origin}/big.html?e=${eid}`, now);
+      `Your engagement ${eid} is live.\n\nShare this link: ${shareUrl}\n\n${paid ? "" : `Payment pending: the game does not begin until it is paid for. You can pay at any time until the guest data is auto-deleted; if you pay late, the first number comes 2 minutes after the payment is confirmed (about 2 minutes to pay): ${payUrl}\n\n`}Big screen for the room: ${origin}/big.html?e=${eid}`, now);
     return json({ ok: true, published: true, paid, startMs, payUrl, shareUrl, confirmed: { email: cEmail, phone: cPhone.slice(-10) } });
   }
   if (action === "gamelog" && req.method === "GET") { // B26: what happened and when (no names, no numbers of people), for the organizer and Hosts; ?format=csv downloads it

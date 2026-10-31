@@ -477,7 +477,7 @@ describe("F. exceptions: what can go wrong", () => {
       expect(await (await call(m, p, body, o.ai)).status).toBe(403);
     expect((await call("POST", "/api/checkout", { eid: "AI-1", org: "X", email: "x@x.com" }, o.ai)).status).not.toBe(200);
   });
-  test("UC-51 erasing removes the people, and the 365-day purge removes the flags and contact details too", async () => {
+  test("UC-51 deleting removes the people, and the 365-day purge removes the flags and contact details too", async () => {
     const o = await organizer(); await call("POST", "/api/z", eng("ERASE-1"), o.h); await call("POST", "/api/z/ERASE-1/publish", contact, o.h);
     for (let i = 1; i <= 3; i++) await call("POST", "/api/z/ERASE-1/join", { phone: phone(i) });
     expect((await j(await call("POST", "/api/z/ERASE-1/erase", {}, o.h))).erased).toBe(3);

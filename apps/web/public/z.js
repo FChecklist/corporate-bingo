@@ -146,7 +146,7 @@
     <p class="spriv"><a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a></p></div>`;
   };
   const cancelledView = () => `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard" role="status"><h2>This game was cancelled</h2><p class="zsmall" style="margin:0">${esc((INFO.cancelled && INFO.cancelled.message) || "The organizer cancelled this game.")} There is nothing to do on this page. Thank you for your interest.</p></div>`;
-  const dnsView = () => `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard" role="status"><h2>This game did not start</h2><p class="zsmall" style="margin:0">This game did not start. Your details have been erased. There is nothing to do on this page. Thank you for your interest.</p></div>`;
+  const dnsView = () => `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard" role="status"><h2>This game did not start</h2><p class="zsmall" style="margin:0">This game did not start. Your details have been auto-deleted. There is nothing to do on this page. Thank you for your interest.</p></div>`;
   const removedView = () => `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard" role="status"><h2>You have been removed from this game</h2><p class="zsmall" style="margin:0">This phone no longer plays in this game. If you think this is a mistake, please ask the person who invited you.</p></div>`;
   // what the server's "me" answer says about this card: removed, and (for a guest invited straight by the organizer's side) whether they may invite
   const ME = { at: -Infinity, role: null, removed: false, canInvite: false, per: 0, used: 0, loaded: false };

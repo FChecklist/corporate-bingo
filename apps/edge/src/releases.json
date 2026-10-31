@@ -40,7 +40,7 @@
     "changes": [
       "Joining: an employee ID or mobile number is checked against the organizer's list, a stranger waits for the organizer's yes, one phone cannot play as another (device proof on every card action), the same person joining twice gets the same card",
       "A join that gets no answer (slow link, busy moment) is asked again by itself, safe because the same person always gets the same card",
-      "Permissions: a Co-host who has not accepted the terms cannot pay, an erase is refused while the game is being played, a Host's narrow link cannot change controls",
+      "Permissions: a Co-host who has not accepted the terms cannot pay, a delete is refused while the game is being played, a Host's narrow link cannot change controls",
       "Simpler console: the rarely used 'How many rounds' choice is hidden, never disabled; one game is one round",
       "A demo link (zc.html?pass=) is used once, also when the console opens straight into a game",
       "Players' data is deleted 20 hours after the end (the promise stays 24 hours) and a lazy tick runs the housekeeping when the scheduled job is late",

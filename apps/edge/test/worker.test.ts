@@ -280,7 +280,7 @@ describe("roster, history, erase and 365-day retention", () => {
     expect(r2.copied).toBe(0);
     expect((await call("POST", "/api/z/ENG3/reuse", { from: "ENG3" }, org)).status).toBe(400);
   });
-  test("erase removes the people, claims and results of one engagement and leaves the others alone", async () => {
+  test("delete removes the people, claims and results of one engagement and leaves the others alone", async () => {
     const pid = ((await (await join(1)).json()) as any).pid;
     await call("POST", "/api/z/ENG1/claims", { pid, claims: [{ pattern: "line", idx: 4 }] });
     await settleByPhones(call, "ENG1", [{ pattern: "line", idx: 4, pids: [pid] }], [pid]);
@@ -308,7 +308,7 @@ describe("roster, history, erase and 365-day retention", () => {
     expect(raw.query("SELECT id FROM engagement ORDER BY id").all()).toEqual([{ id: "EDGE" }, { id: "ENG1" }]);
     expect((raw.query("SELECT COUNT(*) c FROM participant WHERE eid='OLD1'").get() as any).c).toBe(0);
   });
-  test("a day over the write budget does not erase half-way: erase says busy and changes nothing", async () => {
+  test("a day over the write budget does not delete half-way: delete says busy and changes nothing", async () => {
     for (let i = 0; i < 5; i++) await join(i);
     env.DAILY_WRITE_BUDGET = "6";
     expect((await call("POST", "/api/z/ENG1/erase", {}, org)).status).toBe(503);
@@ -362,7 +362,7 @@ describe("organizers, their AI assistant, and what the AI may not do", () => {
     expect((await call("GET", "/api/z/BYAI1/claims", undefined, asA())).status).toBe(200);
     expect((await call("POST", "/api/z/MINE1/reuse", { from: "BYAI1" }, asA())).status).toBe(200);
   });
-  test("the AI can NOT publish results, erase data, register the pause key, or mint keys", async () => {
+  test("the AI can NOT publish results, delete data, register the pause key, or mint keys", async () => {
     expect((await call("POST", "/api/z/MINE1/settle", { results: [{ pattern: "blackout", idx: 5, pids: ["x"] }] }, asA())).status).toBe(403);
     expect((await call("POST", "/api/z/MINE1/erase", {}, asA())).status).toBe(403);
     expect((await call("PUT", "/api/z/MINE1/control/key", { publicKey: "aa".repeat(32) }, asA())).status).toBe(403);
@@ -762,7 +762,7 @@ describe("rounds in the store", () => {
     await post([{ pattern: "lucky", round: 1, idx: 20, pids: [p] }]);
     expect(((await (await call("GET", "/api/z/RND04/results")).json()) as any).results.some((x: any) => x.pattern === "lucky")).toBe(true);
   });
-  test("erase removes every round's claims and results", async () => {
+  test("delete removes every round's claims and results", async () => {
     await call("POST", "/api/z", { id: "RND05", startRound: FUT, callSeconds: 9, cap: 50, rounds: 2 }, org);
     const pid = ((await (await join(1, "RND05")).json()) as any).pid;
     await call("POST", "/api/z/RND05/claims", { pid, claims: [{ pattern: "line", idx: 20, round: 2 }] });

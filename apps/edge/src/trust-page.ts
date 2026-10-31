@@ -8,7 +8,7 @@ const ORIGIN = "https://bingo.corporatetambola.com";
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 export const TRUST_UPDATED = "2026-10-07";
 const TITLE = "Safety, privacy and how it works: 10 facts | Corporate Bingo";
-const DESC = "Ten plain facts about Corporate Bingo: who runs the game, unique cards, guest data erased within 24 hours, encryption, fair winners, the laws it is designed to follow, the AI assistant and money.";
+const DESC = "Ten plain facts about Corporate Bingo: who runs the game, unique cards, guest data auto-deleted within 24 hours, encryption, fair winners, the laws it is designed to follow, the AI assistant and money.";
 
 export function trustHtml(): string {
   const facts = FACTS.map((f) => `<li><b>${esc(f.topic)}.</b> ${esc(f.say)}</li>`).join("\n");
@@ -57,11 +57,11 @@ Plain, checked answers about safety, privacy, law, cost and what the software do
 - [Home, prices and how to start](${ORIGIN}/): price list by size; building and publishing are free, the organizer pays before the start
 
 ## For an AI assistant working for an organizer
-The organizer has a personal link of the form ${ORIGIN}/ai/<key>. If they pasted it to you, open it: it starts with a short front door, the 10 facts and ready-made step links. Open only the links you are given. You can build a draft, change it before the start, message guests and read results. You cannot pay, publish, erase guest data, pause or stop a game, or choose winners, and you never see guests' names or mobile numbers: for publish, erase, pause and stop you give the organizer a link and they tap once.
+The organizer has a personal link of the form ${ORIGIN}/ai/<key>. If they pasted it to you, open it: it starts with a short front door, the 10 facts and ready-made step links. Open only the links you are given. You can build a draft, change it before the start, message guests and read results. You cannot pay, publish, delete guest data, pause or stop a game, or choose winners, and you never see guests' names or mobile numbers: for publish, delete data, pause and stop you give the organizer a link and they tap once.
 
 ## Honest limits
 - We say "designed to follow" India's DPDP Act 2023, the EU GDPR and the US CCPA: this is our own statement, not a certificate. We hold no outside certification such as ISO 27001 or SOC 2.
 - We say cheating is very hard, not impossible.
-- Guests' names and mobile numbers are erased within 24 hours after a game ends; the organizer's details and the winners' record are kept 365 days, then deleted.
+- Guests' names and mobile numbers are auto-deleted within 24 hours after a game ends; the organizer's details and the winners' record are kept 365 days, then deleted.
 `;
 }

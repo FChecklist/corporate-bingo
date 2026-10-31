@@ -55,7 +55,7 @@ def landing():
         ("Who gives the prizes?", "You do, the organizer. Corporate Bingo is software only. We never hold or pay prize money."),
         ("Who decides the winners?", "The software only. Phones work out winners from public random numbers, and a win counts only when enough phones agree. Nobody can choose or change a winner."),
         ("How does the game play?", "You pick the prizes, such as Line, Four Corners, X or Blackout. A number is shown and spoken every few seconds, like G 52. The centre square is FREE. The game ends when every prize is won or all 75 numbers are called."),
-        ("What happens to the data?", "Player names are erased within 24 hours after the game ends. We keep the winners record and the organizer’s details for 365 days. Designed to follow the EU GDPR, US privacy laws and India’s DPDP Act."),
+        ("What happens to the data?", "Player names are auto-deleted within 24 hours after the game ends. We keep the winners record and the organizer’s details for 365 days. Designed to follow the EU GDPR, US privacy laws and India’s DPDP Act."),
     ]
     faq = ('<section class="ck-sec" id="faq" aria-labelledby="fh"><div class="ck-wrap"><div class="ck-sec-head"><span class="ck-kicker">Questions</span><h2 id="fh">Good to know</h2></div><div class="faq">'
            + "".join(f"<details><summary>{esc(q)}</summary><p>{esc(a)}</p></details>" for q, a in faq_items) + '</div></div></section>')
@@ -112,7 +112,7 @@ GUIDE_SECTIONS = [
     ("run", "Running the game", ["Share one link in Slack, Teams, Zoom chat, e-mail or WhatsApp.", "Pick the gap between calls: 6, 9, 12 or 15 seconds.", "Show the big-screen page on a projector or in a shared video call."]),
     ("prizes", "Prizes", ["You provide the prizes and hand them over.", "Corporate Bingo is software only. We never hold or pay prize money.", "Winners confirm their details on their own phone. Tick “Prize given” in your console."]),
     ("data", "Your players’ data", ["Tell your players what you do with their details.", "Names and numbers are deleted within 24 hours after the game. Your report link works for 19 hours, so open it before then.", "To delete earlier, use your console."]),
-    ("pay", "Payment", ["Build and publish for free. The game does not begin until it is paid for.", "You can pay at any time until the guest data is erased. A late payment starts the game 2 minutes after it is confirmed.", "To cancel, tap Cancel this game in your console.", "We do not give refunds. If you cancel a paid game before it starts, your payment stays as credit for your next game for 365 days. Unused credit lapses at the end of day 365.", "Once the start time has passed, a paid game cannot be cancelled.", "Want another game like this one? Tap Create a new game like this one. Your credit is offered first on the Pay step."]),
+    ("pay", "Payment", ["Build and publish for free. The game does not begin until it is paid for.", "You can pay at any time until the guest data is auto-deleted. A late payment starts the game 2 minutes after it is confirmed.", "To cancel, tap Cancel this game in your console.", "We do not give refunds. If you cancel a paid game before it starts, your payment stays as credit for your next game for 365 days. Unused credit lapses at the end of day 365.", "Once the start time has passed, a paid game cannot be cancelled.", "Want another game like this one? Tap Create a new game like this one. Your credit is offered first on the Pay step."]),
     ("helpdesk", "Someone to set it up for you", ["A Help Desk person can prepare a game in your account. You allow them first, and you can stop them at any time.", "They can create and change the game. They cannot publish, pay, see your sign-in keys or close your account.", "When it is ready they ask you to publish. You get an e-mail with a summary and publish with one tap.", "After you publish, they become a Host of that game. They do not use one of your 5 Host places.", 'Find a helper, or become one: <a href="/helpdesk">Help Desk</a>.']),
 ]
 
@@ -143,7 +143,7 @@ def brochure():
         ("Fair for everyone", "The software, not a person, decides the winners from public random numbers that many phones check."),
         ("Your team can help", "You, up to 5 Hosts and any number of Co-hosts. One payment is enough."),
         ("Players pay nothing", "You give the prizes. We provide the software and never hold or pay prize money."),
-        ("Player details erased in 24 hours", "Designed to follow the EU GDPR, US privacy laws and India’s DPDP Act."),
+        ("Player details auto-deleted in 24 hours", "Designed to follow the EU GDPR, US privacy laws and India’s DPDP Act."),
     ]
     cards = "".join(f'<li class="ck-card"><h3>{esc(a)}</h3><p>{esc(b)}</p></li>' for a, b in pts)
     body = (slim_hero("Brochure", "Corporate Bingo on one page.", "Print it, send it to your team, or keep it for your next event.",

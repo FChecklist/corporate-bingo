@@ -115,7 +115,7 @@ describe("U6 / D7: what do you hold about me, correct it, delete me", () => {
     const m = mails().find((x) => x.to_addr === orgMail && /data request/i.test(x.subject))!; expect(m.body).toContain("Maya Lopez"); expect(m.body).toContain("correct");
     expect((raw.query("SELECT note FROM data_request").get() as any).note).toBe("My name is spelled Maya Lopez");
   });
-  test("erasure removes the player at once with the same code as leaving, the request is closed, and both mails say so", async () => {
+  test("auto-deletion removes the player at once with the same code as leaving, the request is closed, and both mails say so", async () => {
     await game("RQ-4"); const a = await joinAs("RQ-4", 1, "Maya Lopez"); await joinAs("RQ-4", 2);
     const r = await ask("RQ-4", a, dev(1), "erasure"); expect(r.status).toBe(200);
     const b = await j(r); expect(b.erased).toBe(true); expect(b.status).toBe("done"); expect(b.message).toMatch(/deleted/i);

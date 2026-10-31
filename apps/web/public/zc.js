@@ -82,7 +82,7 @@
     [7, "Check and publish", "orange", "Check everything. Then publish, free.", "Almost there. One last look."],
     [8, "Pay", "lime", "Pay once, before the start time.", "Last thing: payment."],
     [9, "Game day", "violet", "Run the game. Message your guests.", "It is game day."],
-    [10, "After the game", "red", "Get your report. Erase data if you want.", "That was fun. Here is what is left."],
+    [10, "After the game", "red", "Get your report. Delete data if you want.", "That was fun. Here is what is left."],
   ];
   const COH = [
     [1, "Today's game", "blue", "See the game and its payment.", "Hi. Here is the game."],
@@ -689,7 +689,7 @@
       const warn = `<p class="zc-cw-warn"><b>You are cancelling the game.</b> You need to confirm 3 times before the game is cancelled.</p>`;
       let inner;
       if (n === 1) inner = `<p><b>Do you want to cancel ${esc(name)}?</b></p>${C.preview && C.preview.paid ? `<p class="zc-small" id="norefund">There is no refund. Your payment stays as credit for your next game, for 365 days.</p>` : ""}<div class="zc-chips"><button type="button" class="zc-btn zc-btn-s zc-btn-alt" id="cancelback">No, keep my game</button><button type="button" class="zc-btn zc-btn-s zc-btn-alt" id="cancelresched">Change the date instead</button><button type="button" class="zc-btn zc-btn-s zc-btn-bad" id="cancel1">Yes, go to the 2nd confirmation</button></div>`;
-      else if (n === 2) inner = `<p><b>This is what happens.</b></p><p class="zc-small" id="cancelwhat">${C.preview && C.preview.credit ? esc(creditText(C.preview.credit)) + " " : ""}Guests will be told. Their names and numbers will be erased. You cannot undo this.</p><label class="zc-check" for="cancelagree"><input type="checkbox" id="cancelagree"${C.agree ? " checked" : ""}> I understand that cancelling cannot be undone</label><div class="zc-chips zc-gap"><button type="button" class="zc-btn zc-btn-s zc-btn-alt" id="cancelprev">Go back</button><button type="button" class="zc-btn zc-btn-s zc-btn-bad" id="cancel2"${C.agree ? "" : " disabled"}>Submit</button></div>`;
+      else if (n === 2) inner = `<p><b>This is what happens.</b></p><p class="zc-small" id="cancelwhat">${C.preview && C.preview.credit ? esc(creditText(C.preview.credit)) + " " : ""}Guests will be told. Their names and numbers will be deleted. You cannot undo this.</p><label class="zc-check" for="cancelagree"><input type="checkbox" id="cancelagree"${C.agree ? " checked" : ""}> I understand that cancelling cannot be undone</label><div class="zc-chips zc-gap"><button type="button" class="zc-btn zc-btn-s zc-btn-alt" id="cancelprev">Go back</button><button type="button" class="zc-btn zc-btn-s zc-btn-bad" id="cancel2"${C.agree ? "" : " disabled"}>Submit</button></div>`;
       else inner = `<p><b>This will cancel ${esc(name)} for good.</b></p><div class="zc-chips"><button type="button" class="zc-btn zc-btn-s zc-btn-alt" id="cancelback">No, keep my game</button><button type="button" class="zc-btn zc-btn-s zc-btn-bad" id="cancel3"${C.busy ? " disabled" : ""}>Yes, ${esc(name)} is cancelled</button></div>`;
       b = `<div class="zc-cwarn" id="cancelpanel" role="alertdialog" aria-labelledby="cancelhead" aria-describedby="cancelwarn"><div class="zc-small zc-nomargin" id="cancelprog">Step ${n} of 3</div><h4 id="cancelhead">${head}</h4><div id="cancelwarn">${warn}</div>${inner}</div>`;
     }
@@ -731,12 +731,12 @@
   // ---------- games that wait for a payment, or did not start ----------
   const didNotStart = () => !!((S.info && S.info.didNotStart) || (S.sum && S.sum.didNotStart) || (S.coh && S.coh.didNotStart));
   const erasureMsOf = () => Number((S.sum && S.sum.erasureMs) || (S.info && S.info.erasureMs) || (S.coh && S.coh.erasureMs) || 0);
-  const erasureLine = () => { const m = erasureMsOf(); return m && !didNotStart() && !payState().paid && !isCancelled() ? `<p class="zc-small" id="erasureline">Guest data will be erased on ${esc(dmy(m))} if the game does not start.</p>` : ""; };
-  const didNotStartBlock = () => `<div class="zc-alert" id="didnotstart" role="status"><h3>This game did not start.</h3><p>Guest details have been erased.</p>${cloneButton()}</div>`;
+  const erasureLine = () => { const m = erasureMsOf(); return m && !didNotStart() && !payState().paid && !isCancelled() ? `<p class="zc-small" id="erasureline">Guest data will be auto-deleted on ${esc(dmy(m))} if the game does not start.</p>` : ""; };
+  const didNotStartBlock = () => `<div class="zc-alert" id="didnotstart" role="status"><h3>This game did not start.</h3><p>Guest details have been auto-deleted.</p>${cloneButton()}</div>`;
   /** "Create a new game like this one": the panel (one place at the top) and what it does. */
   function clonePanel() {
     const K = S.clone; if (!K) return "";
-    return `<div class="zc-alert" id="clonepanel" role="group" aria-label="Create a new game like this one"><h3>Create a new game like this one</h3>${small("The settings, prizes and brand are copied. The date, the payment, the guests and the Co-hosts are not.")}${K.hasPeople ? `<label class="zc-check" for="clonepeople"><input type="checkbox" id="clonepeople"${K.withPeople ? " checked" : ""}> Also bring my people list from the old game</label>` : small("The old guest list has been erased, so add your people again.")}${K.err ? `<p class="zc-small zc-warnt" role="status">${esc(K.err)}</p>` : ""}<div class="zc-chips zc-gap"><button type="button" class="zc-btn zc-btn-s" id="clonego"${K.busy ? " disabled" : ""}>Create the new game</button><button type="button" class="zc-btn zc-btn-s zc-btn-alt" id="cloneno">Not now</button></div></div>`;
+    return `<div class="zc-alert" id="clonepanel" role="group" aria-label="Create a new game like this one"><h3>Create a new game like this one</h3>${small("The settings, prizes and brand are copied. The date, the payment, the guests and the Co-hosts are not.")}${K.hasPeople ? `<label class="zc-check" for="clonepeople"><input type="checkbox" id="clonepeople"${K.withPeople ? " checked" : ""}> Also bring my people list from the old game</label>` : small("The old guest list has been auto-deleted, so add your people again.")}${K.err ? `<p class="zc-small zc-warnt" role="status">${esc(K.err)}</p>` : ""}<div class="zc-chips zc-gap"><button type="button" class="zc-btn zc-btn-s" id="clonego"${K.busy ? " disabled" : ""}>Create the new game</button><button type="button" class="zc-btn zc-btn-s zc-btn-alt" id="cloneno">Not now</button></div></div>`;
   }
   const hasOldPeople = () => !(S.life && S.life.purged) && (((S.people || []).length > 0) || ((S.pp.list || []).length > 0));
   /** Step 8: the only place a price is shown (and the Co-host's own Payment step, and the pay pages). */
@@ -777,7 +777,7 @@
       const who = (r) => { const w = P.find((q) => q.pattern === r.pattern && q.ordinal === r.ordinal && (q.round || 1) === 1); return w ? (S.shield ? "Card " + esc(String(w.seat)) : esc(w.name || "Participant")) : "Card " + esc(String((/^(\d+)x/.exec(r.pid) || [0, "?"])[1])); };
       return `<h4>Ranking: top winners</h4><ol class="zc-rank" id="rankList">${rows.map((r) => `<li><b>${esc(ZG.rankName(r.rank))}</b> ${esc(NAMES[r.pattern] || r.pattern)}${r.text ? " (" + esc(r.text) + ")" : ""}: ${who(r)}${r.note ? `<br><small class="zc-small zc-nomargin">${esc(r.note)}</small>` : ""}</li>`).join("")}</ol>`;
     })();
-    return `<div class="zc-block"><h3>Prizes handed over</h3>${rankHtml}${rows || small("No winner is confirmed yet.")}${small("After the game each winner confirms their name and mobile number on their own phone. Anything they change is shown here together with what they joined with. Tick \"Prize given\" when you hand the prize over: the date is kept. The winners record and your details as Organizer and Host are kept for 365 days. Co-host details are erased with the guests.")}</div>`;
+    return `<div class="zc-block"><h3>Prizes handed over</h3>${rankHtml}${rows || small("No winner is confirmed yet.")}${small("After the game each winner confirms their name and mobile number on their own phone. Anything they change is shown here together with what they joined with. Tick \"Prize given\" when you hand the prize over: the date is kept. The winners record and your details as Organizer and Host are kept for 365 days. Co-host details are auto-deleted with the guests.")}</div>`;
   }
   function statsBlock() {
     if (!S.started || S.draft) return "";
@@ -830,7 +830,7 @@
       ${rowl("Complete report: a link is e-mailed to you, and the PDF is built on your own device", `<b>${l.reportSent ? "link sent" : l.purged ? "not sent" : "after the game ends"}</b>`)}
       ${rowl("Your details as Organizer and Host, and the winners record", `<b>kept until ${esc(dayIst(l.fullDeleteAtMs))}</b>`)}` : "";
     const rpt = !S.shield && S.life && S.life.reportSent && !S.life.purged ? `<div class="zc-chips zc-gap"><button type="button" class="zc-btn zc-btn-s" id="rptopen">Open the report now</button><button type="button" class="zc-btn zc-btn-s zc-btn-alt" id="rptnew">New report link</button></div>` : "";
-    return small("Within 24 hours of the game ending we send you the report, then delete every participant's name and number. Your details as Organizer and Host, and the winners record, are kept for 365 days. Co-host details are erased with the guests.") + when2 + rpt
+    return small("Within 24 hours of the game ending we send you the report, then delete every participant's name and number. Your details as Organizer and Host, and the winners record, are kept for 365 days. Co-host details are auto-deleted with the guests.") + when2 + rpt
       + `<div class="zc-block" id="gamelogblock"><h3>Game log</h3>${small("What happened and when: every call, pause, prize and the end. Card numbers only, no names. It is saved by us when the game ends, whether or not the report e-mail arrives, and kept for 365 days.")}<div class="zc-chips zc-gap"><button type="button" class="zc-btn zc-btn-s" id="dlgamelog">Download the game log</button></div>${S.gameLogNote ? `<p class="zc-small" role="status">${esc(S.gameLogNote)}</p>` : ""}</div>`
       + `<div class="zc-chips zc-gap"><button type="button" class="zc-btn zc-btn-s zc-btn-bad" id="erase">Delete all participant data now</button></div>`
       + small("You tap once to confirm. You can also e-mail us from your registered address and then confirm it here. The report is e-mailed first when the game has already ended.")
@@ -860,7 +860,7 @@
     ["Can I change things later?", "Yes, until the game starts. Open the step and change it."],
     ["How do I add a video?", "Open Brand moments and paste the link. Tap Test it to see what guests see."],
     ["What do guests see?", "A card on their phone. No app to install."],
-    ["Is my guests' data safe?", "It is encrypted. Names and numbers are erased within 24 hours after the game."],
+    ["Is my guests' data safe?", "It is encrypted. Names and numbers are auto-deleted within 24 hours after the game."],
     ["What is a lucky draw?", "A draw during the game. The software picks the winners from everyone playing."],
     ["How do I stop the game?", "Open Game day and tap Pause or End. Organizer and Hosts can do this."],
     ["Who can do what?", "The Organizer can do everything, including the account (keys, e-mail). A Host can do everything in the game except the account and adding Hosts. A Co-host invites people and can pay. Open step 5 to see it."],
@@ -898,7 +898,7 @@
   function payNote() {
     if (!inGame() || role() === "partner" || payState().paid || isCancelled() || didNotStart() || S.draft) return ""; // a draft has nothing to pay yet: publishing (step 7) comes first
     if (payState().confirming) return `<div class="zc-paynote" id="paynote" role="note"><b>Confirming your payment...</b> This takes a moment. The game starts only after the bank says yes. Nothing more to do.</div>`;
-    return `<div class="zc-paynote" id="paynote" role="note"><b>A payment is pending for this game.</b> Just one of you needs to make it: the Organizer, a Host or a Co-host. Guests pay nothing. It is for this one game only, with no commitment and no repeat charges.${erasureMsOf() && role() !== "cohost" ? ` <span id="erasurestrip">Guest data will be erased on ${esc(dmy(erasureMsOf()))} if the game does not start.</span>` : ""}</div>`;
+    return `<div class="zc-paynote" id="paynote" role="note"><b>A payment is pending for this game.</b> Just one of you needs to make it: the Organizer, a Host or a Co-host. Guests pay nothing. It is for this one game only, with no commitment and no repeat charges.${erasureMsOf() && role() !== "cohost" ? ` <span id="erasurestrip">Guest data will be auto-deleted on ${esc(dmy(erasureMsOf()))} if the game does not start.</span>` : ""}</div>`;
   }
   function aiStrip() {
     return ""; // the AI work link is not offered to the organizer or the host: the screens themselves do the work
@@ -916,7 +916,7 @@
     const c = S.cfg, inf = S.info; if (!c || !inf) return "";
     const t = c.tickets, used = (c.opening || []).length + (c.breaks || []).length + (c.closing || []).length, T = S.team;
     return [`${c.name || "Your game"}, ${when(inf.startMs)}`, `Up to ${inf.cap}, ${t} card${t === 1 ? "" : "s"}, ${inf.callSeconds} seconds`, `${(c.rewards || []).length} prizes`, `${used} of ${5 * t} moments`,
-      T ? `${pl((T.hosts || []).length, "Host", "Hosts")}, ${pl((T.cohosts || []).length, "Co-host", "Co-hosts")}` : "", S.draft ? "Guest link ready after publishing" : "Guest link ready", S.draft ? "Not published yet" : "Published", S.draft ? "Publish first" : isCancelled() ? "Cancelled" : payState().paid ? "Paid. The game is on" : payState().confirming ? "Confirming your payment..." : "Payment pending", S.started ? (gameEnded() ? "The game is over" : "The game is on") : "Opens when the game starts", S.life && S.life.purged ? "Report sent, data erased" : S.life && S.life.reportSent ? "Report sent. Data is erased 24 h after the end" : "Your report, then erasing data"][n - 1] || "";
+      T ? `${pl((T.hosts || []).length, "Host", "Hosts")}, ${pl((T.cohosts || []).length, "Co-host", "Co-hosts")}` : "", S.draft ? "Guest link ready after publishing" : "Guest link ready", S.draft ? "Not published yet" : "Published", S.draft ? "Publish first" : isCancelled() ? "Cancelled" : payState().paid ? "Paid. The game is on" : payState().confirming ? "Confirming your payment..." : "Payment pending", S.started ? (gameEnded() ? "The game is over" : "The game is on") : "Opens when the game starts", S.life && S.life.purged ? "Report sent, data auto-deleted" : S.life && S.life.reportSent ? "Report sent. Data is auto-deleted 24 h after the end" : "Your report, then auto-deletion"][n - 1] || "";
   }
   // "About this step": a short, always-visible write-up under each talking line (docs/ROLES_AND_CONSOLE_SPEC_4.md, A). At most 5 short lines each.
   const ABOUT = {
@@ -929,7 +929,7 @@
     7: ["Look through your game and change what you need.", "Publishing is free. Guests can join after you publish.", "You can cancel before the start time. We do not give refunds: a paid game becomes credit for your next game for 365 days. Or change the date instead.", "Press \"See what guests see\" to look at a sample card."],
     8: ["Pay once, before the start time. You see the price here.", "The Organizer, a Host or a Co-host can pay. A game for 10 people or fewer has nothing to pay.", "Paid late? The game starts 2 minutes after your payment is confirmed.", "A paid game cannot be cancelled after the start time. Before it, your payment stays as credit for 365 days.", "\"Copy payment link\" makes a link anyone can open to pay for this game."],
     9: ["Run the game from here. Pause, resume or end it.", "Send a message to every phone.", "Tick a prize when you hand it over.", "Only the Organizer and Host can remove a person during the game."],
-    10: ["A few minutes after the game, a report link is e-mailed to the Organizer.", "Guest names and numbers are erased within 24 hours.", "We keep the winners and the Organizer's and Hosts' details for 365 days.", "You can erase guest data earlier."],
+    10: ["A few minutes after the game, a report link is e-mailed to the Organizer.", "Guest names and numbers are auto-deleted within 24 hours.", "We keep the winners and the Organizer's and Hosts' details for 365 days.", "You can delete guest data earlier."],
   };
   const ABOUT_COH = { 1: ["You can see the game and what you may do."], 2: ["Add your people. Each gets their own WhatsApp link. You can bring up to your limit."], 3: ["One payment is enough. If someone has paid, you will see Paid.", "\"Copy payment link\" makes a link anyone can open to pay for this game."] };
   const aboutBox = (n) => { const L = (role() === "cohost" ? ABOUT_COH : ABOUT)[n]; return L ? `<div class="zc-about" id="about${n}"><b>About this step</b>${L.map((x) => `<span>${esc(x)}</span>`).join("")}</div>` : ""; };
@@ -968,8 +968,8 @@
     const ai = S.aiMsg
       ? `<textarea class="zc-in zc-ta zlink" id="aimsg" rows="4" readonly aria-label="Your AI work link">${esc(S.aiMsg)}</textarea><div class="zc-chips zc-gap"><button type="button" class="zc-btn zc-btn-s" id="aicopy">Copy my AI work link</button></div>${aiOptions(S.aiMsg)}<div class="zc-chips zc-gap"><button type="button" class="zc-mini" id="aifresh">Get a fresh AI link</button><button type="button" class="zc-mini" id="aireplace">Replace my AI link</button><button type="button" class="zc-mini zc-danger" id="airevoke">Stop this link</button></div><p class="zc-small"><b>Fresh link</b>: e-mailed, works 24 hours. <b>Replace</b>: stops every old link.</p>`
       : `<button type="button" class="zc-btn zc-btn-s" id="aimake">Get my AI work link</button>`;
-    return `<div class="zc-block"><h3>Let your free AI assistant do the work</h3><p class="zc-small">Copy your AI work link and paste it into <b>ChatGPT, Gemini, Grok, Claude, DeepSeek, Z.ai</b> or any AI chat. It sets everything up. You keep four things: payment, Publish, erasing data, pause or stop.</p>${ai}
-      <h4>An AI in your web browser, or do it yourself</h4>${small("Use an AI that works in your web browser (Claude in Chrome, Gemini in Chrome, ChatGPT Atlas, Perplexity Comet): tick <b>My AI works in my web browser</b> in the AI Assistant box, so it never sees a guest's name or number, then ask it to open this page and set up your game with the Quick setup form. It stops at Publish, erase, pause and stop, and it never pays.")}
+    return `<div class="zc-block"><h3>Let your free AI assistant do the work</h3><p class="zc-small">Copy your AI work link and paste it into <b>ChatGPT, Gemini, Grok, Claude, DeepSeek, Z.ai</b> or any AI chat. It sets everything up. You keep four things: payment, Publish, deleting data, pause or stop.</p>${ai}
+      <h4>An AI in your web browser, or do it yourself</h4>${small("Use an AI that works in your web browser (Claude in Chrome, Gemini in Chrome, ChatGPT Atlas, Perplexity Comet): tick <b>My AI works in my web browser</b> in the AI Assistant box, so it never sees a guest's name or number, then ask it to open this page and set up your game with the Quick setup form. It stops at Publish, delete data, pause and stop, and it never pays.")}
       <div class="zc-chips"><a class="zc-chip" href="/zc.html?quick=1">Quick setup form (date and time pickers)</a><a class="zc-chip" href="/demo.html" target="_blank" rel="noopener">Try the free 70-second demo</a></div></div>`;
   }
   function acctHtml() {
@@ -984,7 +984,7 @@
     return `<section class="zc-card zc-acct" id="acct"><button type="button" class="zc-sech" data-acct="1" aria-expanded="${open}" style="background:var(--surface-1)"><span class="zc-num zc-num-dark">A</span><span class="zc-syntx"><b>Your account</b><br><span class="zc-hint">These are for the Organizer only: your AI link, sign-in keys and records. Closing your account deletes your games.</span></span><span class="zc-st">${open ? "&#9650;" : "&#9660;"}</span></button>${open ? `<div class="zc-secb">${aiBlock()}${credits}${keys}${sugs}${audit}${close}</div>` : ""}</section>`;
   }
   // ---------- notes above the steps ----------
-  const ACTTEXT = { publish: "Publishing is free. Check your e-mail and mobile number, then press \"Confirm and publish\" yourself.", erase: "Press \"Delete all participant data now\" only if you want every guest's name and number erased. It cannot be undone.", pause: "Press \"Pause\" to pause the running game for everyone.", stop: "Press \"End the game\" only if the game should end for everyone. It cannot be undone." };
+  const ACTTEXT = { publish: "Publishing is free. Check your e-mail and mobile number, then press \"Confirm and publish\" yourself.", erase: "Press \"Delete all participant data now\" only if you want every guest's name and number deleted. It cannot be undone.", pause: "Press \"Pause\" to pause the running game for everyone.", stop: "Press \"End the game\" only if the game should end for everyone. It cannot be undone." };
   const actBanner = () => (ACT && ACTTEXT[ACT] && eid && canRun() ? `<div class="zc-toast" role="status" id="actbanner"><b>Your AI assistant brought you here.</b> ${ACTTEXT[ACT]} Nobody but you can press it.</div>` : "");
   const ACTSTEP = { publish: 7, erase: 10, pause: 9, stop: 9 };
   /** The AI helper switch: one small line inside the AI Assistant box (Organizer only). Off by default. The shield behaviour itself is unchanged. */
@@ -1022,7 +1022,7 @@
   function cohostView() {
     if (S.coh && S.coh.roleAccepted === false) return roleAcceptView();
     const side = `<aside class="zc-side"><div class="zc-me"><span class="zc-num zc-num-dark">C</span><span><span class="zc-muted">You are</span><br><b>Co-host</b></span></div><div class="zc-small zc-nomargin">Your game at a glance</div>${synHtml()}</aside>`;
-    return frame(`<div class="zc-body">${side}<div class="zc-main"><div id="zc-top"></div>${S.note ? `<div class="zc-toast" role="status">${esc(S.note)}</div>` : ""}${S.cohErr && !S.coh ? `<div class="zc-toast" role="status">${esc(S.cohErr)}</div>` : ""}<div class="zc-small zc-rolenote">${esc(ROLE_NOTE.cohost)}</div>${S.coh && S.coh.waitingFor && !didNotStart() ? `<div class="zc-toast" role="status" id="cohwaiting">Waiting for the Organizer or Host to start the game.</div>` : ""}${S.coh && didNotStart() ? `<div class="zc-alert" id="didnotstart" role="status"><h3>This game did not start.</h3><p>Guest details have been erased.</p></div>` : ""}${nextHtml()}${steps().map(secHtml).join("")}${helpHtml()}</div></div>`, true);
+    return frame(`<div class="zc-body">${side}<div class="zc-main"><div id="zc-top"></div>${S.note ? `<div class="zc-toast" role="status">${esc(S.note)}</div>` : ""}${S.cohErr && !S.coh ? `<div class="zc-toast" role="status">${esc(S.cohErr)}</div>` : ""}<div class="zc-small zc-rolenote">${esc(ROLE_NOTE.cohost)}</div>${S.coh && S.coh.waitingFor && !didNotStart() ? `<div class="zc-toast" role="status" id="cohwaiting">Waiting for the Organizer or Host to start the game.</div>` : ""}${S.coh && didNotStart() ? `<div class="zc-alert" id="didnotstart" role="status"><h3>This game did not start.</h3><p>Guest details have been auto-deleted.</p></div>` : ""}${nextHtml()}${steps().map(secHtml).join("")}${helpHtml()}</div></div>`, true);
   }
   const loadingView = () => frame(`<div class="zc-body"><div class="zc-main"><div class="zc-toast" role="status">${esc(S.note || "Loading…")}</div>${eid && isOrg() ? "" : ""}</div></div>`, false);
   /** "Your games": every game of this person (Organizer: the games they made; Host: the games they help with), always on the screen, newest first. */
@@ -1657,12 +1657,12 @@
     // after the game
     if ($("rptnew")) $("rptnew").onclick = async () => { if (!confirm("Make a new report link? The old link, including the one in your e-mail, stops working at once.")) return; try { const r = await call("POST", `/api/z/${eid}/reportlink`, {}); if (r.url) window.open(r.url, "_blank", "noopener"); S.note = "New report link made. The old one has stopped."; } catch (e) { S.note = e.message; } refreshEng(); };
     if ($("rptopen")) $("rptopen").onclick = async () => { try { const r = await call("GET", `/api/z/${eid}/reportlink`); if (r.url) window.open(r.url, "_blank", "noopener"); else S.note = "The report is not ready yet."; } catch (e) { S.note = e.message; } redraw(); };
-    if ($("erase")) $("erase").onclick = async () => { if (!confirm("Delete every participant's name and mobile number now? This cannot be undone. The winners record stays.")) return; try { const r = await call("POST", `/api/z/${eid}/erase`, {}); S.note = r.erased + " participants erased."; } catch (e) { S.note = e.message; } refreshEng(); };
+    if ($("erase")) $("erase").onclick = async () => { if (!confirm("Delete every participant's name and mobile number now? This cannot be undone. The winners record stays.")) return; try { const r = await call("POST", `/api/z/${eid}/erase`, {}); S.note = r.erased + " participants deleted."; } catch (e) { S.note = e.message; } refreshEng(); };
     if ($("reqok")) $("reqok").onclick = async () => {
       const r = S.reqs[0];
       if (r.action === "erase") { // your confirmation is what deletes, not the AI's request
         if (!confirm("Delete every participant's name and mobile number now? This cannot be undone. The winners record stays.")) return;
-        try { const x = await call("POST", `/api/z/${eid}/erase`, {}); S.note = x.erased + " participants erased."; await call("POST", `/api/z/${eid}/control/request/clear`, {}); } catch (e) { S.note = e.message; }
+        try { const x = await call("POST", `/api/z/${eid}/erase`, {}); S.note = x.erased + " participants deleted."; await call("POST", `/api/z/${eid}/control/request/clear`, {}); } catch (e) { S.note = e.message; }
         return refreshEng();
       }
       try { const x = await TBControl.publish(eid, { token: secret, base: BASE, prefix: "/api/z" }, r.action, r.action === "pause" ? { pauseForRounds: 600 } : {}); S.ctlNote = x.status === 200 ? r.action + " sent." : (x.data && x.data.error) || "Not accepted."; await call("POST", `/api/z/${eid}/control/request/clear`, {}); } catch (e) { S.ctlNote = e.message; }

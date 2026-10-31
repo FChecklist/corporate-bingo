@@ -73,7 +73,7 @@ export async function cloneGame(env: Env, e: any, b: any, now: number, origin: s
   if (b?.withPeople === true) {
     const r = await copyPeople(env, e.id, id, e.cap, now, spend);
     peopleCopied = r.copied;
-    if (!r.copied) peopleNote = r.busy ? "It is very busy right now. Add your people again in a few minutes." : "The old guest list has been erased, so add your people again.";
+    if (!r.copied) peopleNote = r.busy ? "It is very busy right now. Add your people again in a few minutes." : "The old guest list has been auto-deleted, so add your people again.";
   }
   let cfg: any = {}; try { cfg = e.config ? JSON.parse(e.config) : {}; } catch { cfg = {}; }
   const copied = [

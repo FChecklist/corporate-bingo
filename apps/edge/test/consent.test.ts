@@ -218,8 +218,8 @@ describe("7. the record holds no account, IP address, browser or phone data", ()
   });
 });
 
-describe("erasure and records", () => {
-  test("the participant's rows are erased with the participant's data; the organizer's rows stay", async () => {
+describe("auto-deletion and records", () => {
+  test("the participant's rows are auto-deleted with the participant's data; the organizer's rows stay", async () => {
     await published("CON-13");
     await call("POST", "/api/z/CON-13/join", { name: "Maya Lopez", device: dev(4), consent: ticks("K4") });
     expect(rows("K4")).toHaveLength(1);

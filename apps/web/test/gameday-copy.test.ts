@@ -74,7 +74,7 @@ describe("B09 + B28: game day (step 9)", () => {
 describe("B08, B15, B33: the phone page", () => {
   const z = readFileSync(join(PUB, "z.js"), "utf8");
   test("B08: a pause says the time and that the card is safe; a slow connection is its own sentence, not the organizer's", () => {
-    expect(z).toMatch(/Game paused by the organizer[^`]*It restarts soon\. Your card is safe\./);
+    expect(z).toMatch(/Paused by the \${v\.pausedBy === "host" \? "Host" : "Organizer"}[^`]*It restarts soon\. Your card is safe\./);
     expect(z).toMatch(/Your connection looks slow\. Your card is safe\./);
     expect(z).not.toMatch(/Checking with the organizer/);
     expect(z).not.toMatch(/Cannot reach the organizer's controls/);
