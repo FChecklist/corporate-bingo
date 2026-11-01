@@ -22,7 +22,7 @@ const LEGAL_PAGES = ["terms.html", "legal.html", "refund-policy.html", "about.ht
 
 describe("the document pages", () => {
   const DOCS: Record<string, string[]> = {
-    "terms.html": ["Corporate Bingo — Terms and Conditions", "IT SERVICES BY RAJAT AGARWAL", `Version ${TERMS_VERSION}`, "We make software. We do not run the games.", "Players pay us nothing", "within twenty-four (24) hours after the Game ends", "no refund", "Consent boxes and records", "Grievance Officer", "Section 8(2)"],
+    "terms.html": ["Corporate Bingo — Terms and Conditions", "IT SERVICES BY RAJAT AGARWAL", `Version ${TERMS_VERSION}`, "Corporate Bingo is software. The organizer runs the games.", "Players pay nothing", "within twenty-four (24) hours after the Game ends", "no refund", "Consent boxes and records", "Grievance Officer", "Section 8(2)"],
     "legal-position.html": ["Corporate Bingo — Legal Position Statement", "IT SERVICES BY RAJAT AGARWAL", `Version ${TERMS_VERSION}`, "Statement 1", "Online Gaming Act", "Undertakings given by IT Services"],
     "dpa.html": ["controller", "processor", "All player data is deleted within 24 hours", "365 days", "without undue delay", "/subprocessors.html"],
     "subprocessors.html": ["Cloudflare", "Resend", "Razorpay", "Google", "drand", "YouTube"],
@@ -59,8 +59,8 @@ describe("the document pages", () => {
       if (f === "terms.html" || f === "legal-position.html") t = t.replace(/lottery tickets?|purchase of a ticket|purchasing tickets|purchases any ticket|selling of tickets|sells no ticket|game card\/board or ticket|ticket or chance|a ticket/gi, ""); // the legal text names the thing it says nobody buys
       expect([f, /tambola|housie|early five|full house|top line|\bIST\b|90 numbers|\bticket/i.test(t)]).toEqual([f, false]);
     }
-    for (const f of ["index.html", "guide.html"]) expect([f, /we never hold or pay prize money|we never hold prizes/i.test(rd(f))]).toEqual([f, true]);
-    expect(rd("terms.html")).toMatch(/We do not hold, take or give any money or prize/);
+    for (const f of ["index.html", "guide.html"]) expect([f, /prize money always stays with the organizer/i.test(rd(f))]).toEqual([f, true]);
+    expect(rd("terms.html")).toMatch(/No money or prize is held, taken or given by Corporate Bingo/);
   });
   test("the legal pages carry no draft or review language", () => {
     for (const f of LEGAL_PAGES) expect([f, /\bdraft\b/i.test(rd(f))]).toEqual([f, false]);
