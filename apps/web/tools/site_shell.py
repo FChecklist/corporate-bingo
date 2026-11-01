@@ -121,7 +121,7 @@ def footer():
             '<li><a href="/dpa">Data processing terms</a></li><li><a href="/refund-policy">Refund policy</a></li><li><a href="/legal-position">Legal position</a></li>'
             '<li><a href="/pricing">Price list</a></li><li><a href="/about">About</a></li><li><a href="/contact">Contact</a></li></ul></div>\n'
             '</div>\n'
-            '<div class="ck-legal"><p><a href="https://itservices-rajat-agarwal.pages.dev" target="_blank" rel="noopener">IT Services by Rajat Agarwal</a> is the trade name of Rajat Agarwal, an individual running a sole proprietorship in India. B-1105, Shipra Krishna Vista, Indirapuram, Ghaziabad, Uttar Pradesh, 201014, India. GST is not charged. Payments are collected by IT Services by Rajat Agarwal.</p>'
+            '<div class="ck-legal"><p><a href="https://itservices-rajat-agarwal.pages.dev" target="_blank" rel="noopener">IT Services by Rajat Agarwal</a> is the trade name of Rajat Agarwal, an individual running a sole proprietorship in India. GST is not charged. Payments are collected by IT Services by Rajat Agarwal.</p>'
             '<p>&copy; 2026 Rajat Agarwal. All rights reserved.</p>'
             '<p class="ck-version" id="siteVersion">' + version_line() + '</p></div>\n'
             '</div></footer>')
