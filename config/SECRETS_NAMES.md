@@ -54,3 +54,5 @@ Where things are set:
 | `ANALYZE_AI_MODEL` | Model name for that endpoint | Optional Pages variable | setting |
 | `TARGET` | The scheduled job: the web address it calls | `apps/cron/wrangler.toml` | setting |
 | `AI_LINK_MAIL_AT_SIGNUP` | Switch for the AI work-link welcome e-mail sent when an account is made; the live site turns it off because the AI link is hidden in the console | wrangler var | setting |
+| `CLAIM_HOLD` | Switch (on when set to 1): while a claim is checked the game waits for everyone, then goes on for everyone. Off unless set | wrangler var | setting |
+| `ID_ONLY` | Switch (on when set to 1): joining by name, location and an ID only; no mobile number is asked for or kept. Off unless set | wrangler var | setting |
