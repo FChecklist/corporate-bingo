@@ -222,15 +222,17 @@ describe("pause, resume and stop", () => {
     const st = resolveControl(cfgOf(f), f.messages);
     const iv = st.intervals[0]!;
     const lenAtStart = ps[0]!.rt.view().log.length;
-    let during = new Set<number>();
+    let during = new Set<number>(); const restarts = new Set<number>();
     for (let i = 0; i < 200; i++) {
       await step(ps);
       const now = roundAt(D.utc());
       if (now >= iv.start && now < iv.end) during.add(ps[0]!.rt.view().log.length);
       if (now >= iv.start && now < iv.end) for (const p of ps) { expect(p.rt.view().paused).toBe(true); expect(p.rt.view().pausedFromRound).toBe(iv.start); } // B08: the page can say at what time the pause began
       if (now >= iv.end) expect(ps[0]!.rt.view().pausedFromRound).toBeNull();
+      { const rs = ps[0]!.rt.view().restartsInSec; if (now >= iv.start && now < iv.end) { if (rs !== null) { restarts.add(rs); expect(rs >= 1 && rs <= 5).toBe(true); } if (now === iv.start) expect(rs).toBeNull(); } else expect(rs).toBeNull(); } // 'Restarts in N seconds': only in the last 5 seconds of a pause
     }
     const dl = [...during];
+    expect(restarts.size).toBeGreaterThan(0);
     expect(Math.max(...dl) - Math.min(...dl)).toBe(0); // no number appeared during the pause
     const ref = reference(st);
     for (const p of ps) expect(p.rt.view().log).toEqual(ref);
