@@ -58,6 +58,7 @@ import { knownDial } from "./phonekit";
 import { WINNERS_SCHEMA, acceptVotes, auditAi, confirmPrize, listAiAudit, listPrizes, markGiven, myPrizes, overridePrize } from "./winners";
 import { PAUSE_MAX_PARTICIPANTS, safetyForCap, publishControl, readPublished, registerKey, registerHostKey, type KV } from "../../../packages/beacon/src/control";
 import { QUICKNET } from "../../../packages/beacon/src/index";
+import { claimHolds, startClaimHold } from "./claimhold";
 
 export interface D1Result<T = any> { results?: T[]; meta?: { changes?: number } }
 export interface D1Stmt { bind(...v: unknown[]): D1Stmt; run(): Promise<D1Result>; all<T = any>(): Promise<D1Result<T>>; first<T = any>(): Promise<T | null> }
@@ -1280,7 +1281,8 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     if (sub && a.kind === "host" && req.headers.get("x-cb-link") === "1") return deny(a); // a Host's narrow work link may read the pause file but cannot register keys or file pause / stop / erase requests
     const kv = d1kv(env);
     if (!sub && req.method === "GET") return sharedRead(req, 1, async () => { // the pause file every phone asks for every few seconds: one answer per place per second is shared by all of them (far fewer database reads); a pause reaches phones at most a second later
-      const f = await readPublished(kv, cid!);
+      const f0 = await readPublished(kv, cid!);
+      const holds = f0 ? await claimHolds(env, cid!, now) : []; /* claim holds ride in the file phones already poll */ const f = f0 && holds.length ? { ...f0, holds } : f0;
       const ge = await env.DB.prepare("SELECT id, pack, start_round, cancelled_ms, unplayed_ms FROM engagement WHERE id=?").bind(cid).first<{ id: string; pack: number | null; start_round: number; cancelled_ms: number | null; unplayed_ms: number | null }>();
       if (ge?.cancelled_ms) return new Response(JSON.stringify({ ...(f ?? {}), cancelled: true }), { headers: { "content-type": "application/json", "cache-control": "public, max-age=3" } }); // phones and the big screen: "This game was cancelled by the organizer"
       if (ge?.unplayed_ms) return new Response(JSON.stringify({ ...(f ?? {}), didNotStart: true }), { headers: { "content-type": "application/json", "cache-control": "public, max-age=3" } }); // "This game did not start. Your details have been erased."
@@ -1858,6 +1860,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
       const r = await env.DB.prepare("INSERT OR IGNORE INTO claim(eid,pid,pattern,round,idx,at_ms) VALUES(?,?,?,?,?,?)").bind(eid, b.pid, c.pattern, round, c.idx, now).run();
       stored += r.meta?.changes ?? 0; // a claim sent twice is stored once
     }
+    if (stored && (await startClaimHold(env, eid!, now))) await mirrorControl(env, eid!); /* the game waits for everyone while the claim is checked (flag CLAIM_HOLD) */
     return json({ ok: true, stored });
   }
   if (action === "results" && req.method === "GET") {

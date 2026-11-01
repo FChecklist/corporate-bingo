@@ -642,7 +642,7 @@
   function callCard(v, last, recent, sub) {
     const secs = v.nextCallInSec, running = v.phase === "play" && !v.locked && !v.paused && !v.brk && !v.intermission && v.log.length > 0;
     const tone = v.phase === "ended" ? "end" : v.paused || v.locked ? "pause" : running ? (secs !== null && secs <= 3 ? "go" : "soon") : "wait";
-    const chip = v.phase === "ended" ? "Game over" : v.paused ? "Paused" : v.locked ? "Waiting to start" : !v.log.length ? "Get ready" : running && secs !== null ? "Next number in " + secs + "s" : "Numbers coming";
+    const chip = v.phase === "ended" ? "Game over" : v.claimHold ? "Claim being checked" : v.paused ? "Paused" : v.locked ? "Waiting to start" : !v.log.length ? "Get ready" : running && secs !== null ? "Next number in " + secs + "s" : "Numbers coming";
     const what = v.phase === "ended" ? "" : TAP() ? "Tap a number on your card when it is called." : "Your card marks every number for you.";
     const total = v.late ? "since you joined" : "of 75";
     return `<div class="zcard zcall"><div class="zchiprow"><span class="zchip2 ${tone}">${esc(chip)}</span><span class="zchip2 plain"><b data-count="${v.log.length}" data-ck="called">${v.log.length}</b>&nbsp;${total} called</span></div>
@@ -659,6 +659,7 @@
     { const away = v.phase === "play" ? awayBanner(v) : ""; if (away) banners.push(away); }
     if (v.locked) banners.push(ME.role === "organizer" || ME.role === "host" ? `<div class="zbanner warn" role="status"><b>Payment pending for this game.</b> The game starts 2 minutes after the payment is confirmed. Open your console to pay. Your card is safe. Keep this page open.</div>` : `<div class="zbanner warn" role="status"><b>Waiting for the Organizer or Host to start the game.</b> Your card is safe. Keep this page open: it begins as soon as they are done.</div>`);
     else if (v.stopped) banners.push(`<div class="zbanner info">The organizer has ended this game.</div>`);
+    else if (v.claimHold) banners.push(`<div class="zbanner info" role="status"><b>A claim is being checked.</b> The game waits for everyone and carries on in a moment. Your card is safe.</div>`);
     else if (v.paused) banners.push(`<div class="zbanner info" role="status">Paused by the ${v.pausedBy === "host" ? "Host" : "Organizer"}${v.pausedFromRound ? " at " + esc(new Date((1692803367 + (v.pausedFromRound - 1) * 3) * 1000).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })) : ""}. It restarts soon. Your card is safe.</div>`);
     else if (v.mode === "hold" && v.nowRound !== null) banners.push(`<div class="zbanner warn" role="status">Your connection looks slow. Your card is safe. Numbers carry on as soon as it is back.</div>`); // B08: this is the phone's own network, not the organizer
     else if (v.mode === "blind") banners.push(`<div class="zbanner warn" role="status">Your phone cannot check for a pause right now (a slow connection?). Play continues; a pause may appear late. Your card is safe.</div>`);
@@ -670,7 +671,7 @@
     const ribbon = curWins.length ? `<div class="zwin" role="status">&#127881; Congratulations! You won ${curWins.map((w) => esc(lineName(v.cfg, w.pattern, w.ordinal))).join(", ")}${curWins.some((w) => w.text) ? " &middot; " + curWins.filter((w) => w.text).map((w) => esc(w.text)).join(", ") : ""}</div>` : "";
     // golden Claim button (off unless the page has ?claim=1): a mirror, same word as the common engine (Claim); auto-claim still works without it
     const wonKeys = new Set(v.won.filter((w) => w.round === v.round).map((w) => w.pattern));
-    const claimBtn = CLAIM_BTN && v.phase !== "ended" && (v.won.some((w) => w.round === v.round && isHeld(w)) || Object.keys(v.myIdx || {}).some((k) => v.myIdx[k] >= 0 && !wonKeys.has(k))) ? `<p><button class="zbtn zgold" id="zclaim">Claim</button></p>` : "";
+    const claimBtn = CLAIM_BTN && v.phase !== "ended" && (v.won.some((w) => w.round === v.round && isHeld(w)) || Object.keys(v.myIdx || {}).some((k) => v.myIdx[k] >= 0 && !wonKeys.has(k))) ? `<p><button class="zbtn zgold" id="zclaim">${v.claimHold ? "Claim being checked" : v.nextCallInSec !== null && v.nextCallInSec > 0 && !v.paused ? "Claim now in " + v.nextCallInSec + " seconds" : "Claim"}</button></p>` : "";
     const tix = v.tickets.map((t, i) => (v.tickets.length > 1 ? `<div class="zsmall" style="margin:${i ? 12 : 0}px 0 4px"><b>Card ${"AB"[i]}</b></div>` : "") + cardHtml(t, called, v.tickets.length > 1 ? "Card " + "AB"[i] : DEMO ? "Video card" : "Your card", winSet, v.round, i)).join("");
     const recent = v.log.slice(-6, -1).reverse(), nudge = TAP() ? missedNudge(v, called) : "";
     const sndBtn = `<button class="zsnd zsndin" id="snd" aria-pressed="${sound}">${sound ? "&#128266; Sound on" : "&#128263; Sound off"}</button>`;
