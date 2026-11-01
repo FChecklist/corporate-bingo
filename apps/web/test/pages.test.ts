@@ -510,7 +510,7 @@ describe("phone page", () => {
   test("the join page has the two Terms boxes, and a small Privacy Policy link to the privacy section of the legal page", async () => {
     const o = await organizer(); await make(o, "UI-PRIV"); await publish(o, "UI-PRIV");
     const p = await phone(o, "UI-PRIV"); await p.waitFor((x) => /Join the game/.test(x));
-    quietPrivacy(p.win.document); expect(p.$("#go")).toBeTruthy(); expect(p.win.document.body.textContent).toContain("Players are 18 or older."); expect(p.win.document.querySelectorAll(".spriv").length).toBe(2);
+    expect(p.$("#go")).toBeTruthy(); expect(p.win.document.querySelectorAll('input[type="checkbox"]').length).toBe(0); expect(p.win.document.body.textContent).toContain("Playing is free."); expect(p.win.document.body.textContent).not.toMatch(/18 or older/); expect(p.win.document.querySelectorAll(".spriv").length).toBe(2);
     for (const f of ["z.css", "app.css"]) expect(readFileSync(new URL("../public/" + f, import.meta.url), "utf8")).toMatch(/.spriv{[^}]*font-size:12px[^}]*font-weight:400/);
     expect(readFileSync(new URL("../public/legal.html", import.meta.url), "utf8")).toContain('id="privacy"');
   });
