@@ -114,7 +114,7 @@ def footer():
             '<p><button class="ck-mode" type="button" data-ck-mode>Dark</button></p></div>\n'
             '<div><h2>The games</h2><ul><li><a href="https://housie.corporatetambola.com/">Tambola</a></li><li><a href="https://bingo.corporatetambola.com/">Bingo</a></li>'
             '<li><a href="https://tictactoe.corporatetambola.com/">Tic Tac Toe</a></li><li><a href="https://snakes.corporatetambola.com/">Snakes and Ladders</a></li>'
-            '<li><a href="https://luck.corporatetambola.com/">Luck by Chance</a></li><li><a href="https://home.corporatetambola.com/contact">Lucky Draw: tell us you want it</a></li></ul></div>\n'
+            '<li><a href="https://luck.corporatetambola.com/">Luck by Chance</a></li><li><a href="https://home.corporatetambola.com/contact">Lucky Draw: ask for it</a></li></ul></div>\n'
             '<div><h2>This site</h2><ul><li><a href="/how-it-works">How it works</a></li><li><a href="/zc.html?demo=1">Free demo game</a></li><li><a href="/guide">Guide</a></li>'
             '<li><a href="/brochure">Brochure</a></li><li><a href="/partner">Refer &amp; earn</a></li><li><a href="/#login">Log in</a></li></ul></div>\n'
             '<div><h2>Legal and help</h2><ul><li><a href="/terms">Terms</a></li><li><a href="/privacy">Privacy notice</a></li><li><a href="/subprocessors">Sub-processors</a></li>'

@@ -55,7 +55,7 @@ def landing():
         ("Who gives the prizes?", "You do, the organizer. Corporate Bingo is software only. We never hold or pay prize money."),
         ("Who decides the winners?", "The software only. Phones work out winners from public random numbers, and a win counts only when enough phones agree. Nobody can choose or change a winner."),
         ("How does the game play?", "You pick the prizes, such as Line, Four Corners, X or Blackout. A number is shown and spoken every few seconds, like G 52. The centre square is FREE. The game ends when every prize is won or all 75 numbers are called."),
-        ("What happens to the data?", "Player names are auto-deleted within 24 hours after the game ends. We keep the winners record and the organizer’s details for 365 days. Designed to follow the EU GDPR, US privacy laws and India’s DPDP Act."),
+        ("What happens to the data?", "Player names are auto-deleted within 24 hours after the game ends. The winners record and the organizer’s details are kept for 365 days. Designed to follow the EU GDPR, US privacy laws and India’s DPDP Act."),
     ]
     faq = ('<section class="ck-sec" id="faq" aria-labelledby="fh"><div class="ck-wrap"><div class="ck-sec-head"><span class="ck-kicker">Questions</span><h2 id="fh">Good to know</h2></div><div class="faq">'
            + "".join(f"<details><summary>{esc(q)}</summary><p>{esc(a)}</p></details>" for q, a in faq_items) + '</div></div></section>')
