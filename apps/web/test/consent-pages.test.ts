@@ -55,7 +55,7 @@ describe("K1 publish on the console", () => {
     const o = await organizer(); await make(o, "CP-PUB");
     const p = await page(o, "/zc?e=CP-PUB", "zc.html", ["zgame.js", "control.js", "zc.js"], { "cbz-org": o.token, "cbz-aimsg": o.aiMessage, "cbz-email": "boss@acme.com" });
     await p.waitFor((x) => /Hello\. Let us start/.test(x)); p.click('.zc-dot[data-open="7"]');
-    await p.waitFor((x) => /Publish \(free\)/.test(x)); p.click("#publishopen");
+    await p.waitFor((x) => /Publish \(free\)/.test(x)); p.click("#publishopen"); await new Promise((r) => setTimeout(r, 60)); if (p.$("#pubanyway")) p.click("#pubanyway");
     await p.waitFor((x) => /Confirm and publish/.test(x));
     const doc = p.win.document;
     expect(doc.querySelectorAll('[data-cbc="K1"] input').length).toBe(0);

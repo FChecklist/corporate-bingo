@@ -3,9 +3,9 @@
   const $ = TB.$, esc = TB.esc, ic = TB.ic;
   const nf = (n) => Number(n).toLocaleString("en-IN");
   const S = { cur: TB.guessCurrency(), pack: 1000 };
-  const DEMO = "demo"; // the first choice in both size lists: a demo game, a real game for 10 people at Rs 0; every other step is the same
+  const DEMO = "demo"; // the first choice in both size lists: a demo game, a real game for 10 people at ₹ 0; every other step is the same
   const isDemo = () => S.pack === DEMO;
-  const packOptions = (sel) => `<option value="${DEMO}" ${sel === DEMO ? "selected" : ""}>Demo game · 10 people · Rs 0</option>` + TB.PACKS.map(([n]) => `<option value="${n}" ${n === sel ? "selected" : ""}>Up to ${nf(n)} players</option>`).join("");
+  const packOptions = (sel) => `<option value="${DEMO}" ${sel === DEMO ? "selected" : ""}>Demo game · 10 people · ₹ 0</option>` + TB.PACKS.map(([n]) => `<option value="${n}" ${n === sel ? "selected" : ""}>Up to ${nf(n)} players</option>`).join("");
   const FREE = { on: true, cap: 1e9 }; // the process: sign in, build the engagement, pay only when publishing
   let ORDER = null;
 
@@ -23,10 +23,10 @@
     $("pack").innerHTML = packOptions(S.pack); $("pack").value = String(S.pack);
     { const pb = $("payBtn"), bt = pb && pb.querySelector(".bt"); if (bt) bt.innerHTML = isDemo() ? "Start your demo game" : "Create your Corporate Bingo <small>(closed-group corporate bingo)</small>"; }
     if (isDemo()) { // the demo game: the same process (sign in, then the draft), nothing to pay
-      if ($("heroBrk")) $("heroBrk").innerHTML = `<span>Total <b>Rs 0</b></span><span>Demo game · 10 people</span>`;
-      $("packs").innerHTML = `<div class="pcard"><div class="pwho"><label for="pack2">How many players?</label><div class="selwrap"><select id="pack2" aria-label="Number of players">${packOptions(S.pack)}</select><svg class="ic chev"><use href="#i-chev"/></svg></div></div><div class="pmain"><div class="pamt"><span class="tot"><small>Demo game</small> Rs 0</span></div><button type="button" class="btn pcta" data-demo="1" aria-label="Start your demo game">Start your demo game ${ic("arrow")}</button></div><ul class="pperks"><li><span class="tick" aria-hidden="true">&#10003;</span>Up to 10 people, nothing to pay</li><li><span class="tick" aria-hidden="true">&#10003;</span>A real game with every feature</li><li><span class="tick" aria-hidden="true">&#10003;</span>Need more people? Make a new game for the size you need</li></ul></div>`;
+      if ($("heroBrk")) $("heroBrk").innerHTML = `<span>Total <b>₹ 0</b></span><span>Demo game · 10 people</span>`;
+      $("packs").innerHTML = `<div class="pcard"><div class="pwho"><label for="pack2">How many players?</label><div class="selwrap"><select id="pack2" aria-label="Number of players">${packOptions(S.pack)}</select><svg class="ic chev"><use href="#i-chev"/></svg></div></div><div class="pmain"><div class="pamt"><span class="tot"><small>Demo game</small> ₹ 0</span></div><button type="button" class="btn pcta" data-demo="1" aria-label="Start your demo game">Start your demo game ${ic("arrow")}</button></div><ul class="pperks"><li><span class="tick" aria-hidden="true">&#10003;</span>Up to 10 people, nothing to pay</li><li><span class="tick" aria-hidden="true">&#10003;</span>A real game with every feature</li><li><span class="tick" aria-hidden="true">&#10003;</span>Need more people? Make a new game for the size you need</li></ul></div>`;
       if ($("pack2")) $("pack2").value = String(S.pack);
-      $("priceNote").textContent = "A demo game is for up to 10 people and costs Rs 0. Sign in with your e-mail and build it the same way as any game."; return;
+      $("priceNote").textContent = "A demo game is for up to 10 people and costs ₹ 0. Sign in with your e-mail and build it the same way as any game."; return;
     }
     if ($("heroBrk")) $("heroBrk").innerHTML = breakdown(S.pack, S.cur);
     { // one price card: the organizer picks the size, then sees the festive price (never a list of every pack)
