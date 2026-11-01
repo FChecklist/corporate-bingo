@@ -277,8 +277,8 @@ export async function peopleRoute(c: Ctx): Promise<Response> {
 async function listPeople(c: Ctx, who: Caller): Promise<Response> {
   const limit = Math.min(Math.max(Number(c.url.searchParams.get("limit")) || 200, 1), 500), offset = Math.max(Number(c.url.searchParams.get("offset")) || 0, 0);
   const rows = await (who.all
-    ? c.env.DB.prepare(`SELECT ${PERSON_COLS} FROM person WHERE eid=? ORDER BY added_ms, id LIMIT ? OFFSET ?`).bind(c.eid, limit, offset)
-    : c.env.DB.prepare(`SELECT ${PERSON_COLS} FROM person WHERE eid=? AND inviter=? ORDER BY added_ms, id LIMIT ? OFFSET ?`).bind(c.eid, who.id, limit, offset)).all<PersonRow>();
+    ? c.env.DB.prepare(`SELECT ${PERSON_COLS} FROM person WHERE eid=? ORDER BY added_ms, rowid LIMIT ? OFFSET ?`).bind(c.eid, limit, offset)
+    : c.env.DB.prepare(`SELECT ${PERSON_COLS} FROM person WHERE eid=? AND inviter=? ORDER BY added_ms, rowid LIMIT ? OFFSET ?`).bind(c.eid, who.id, limit, offset)).all<PersonRow>();
   const label = await labelsOf(c);
   const people: PersonView[] = [];
   for (const r of rows.results ?? []) people.push(await viewOf(c, r, label, who.all));
