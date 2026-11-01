@@ -167,9 +167,9 @@ export class PhoneRuntime {
   }
 
   /** Joins with a mobile number. The same number again returns the same participant (and the same ticket). */
-  async join(phone: string, name?: string, invite?: { from?: number; cat?: string }, empId?: string): Promise<boolean> {
+  async join(phone: string, name?: string, invite?: { from?: number; cat?: string }, empId?: string, location?: string): Promise<boolean> {
     try {
-      const r = await this.deps.api("POST", `/api/z/${this.eid}/join`, { phone, name, ...(empId ? { empId } : {}), device: this.device(), ...(invite && Number.isInteger(invite.from) ? { from: invite.from, cat: invite.cat } : {}) });
+      const r = await this.deps.api("POST", `/api/z/${this.eid}/join`, { phone, name, ...(empId ? { empId } : {}), ...(location ? { location } : {}), device: this.device(), ...(invite && Number.isInteger(invite.from) ? { from: invite.from, cat: invite.cat } : {}) });
       this.scheduledRound = r.startRound; this.startRound = r.startRound + GRACE_ROUNDS; this.callSeconds = r.callSeconds; this.trackClaims = r.trackClaims !== false;
       if (r.tickets !== undefined || r.rewards !== undefined || r.breaks !== undefined || r.rounds !== undefined || r.opening !== undefined || r.closing !== undefined) this.readCfg(r);
       this.deps.store.set(this.key("pid"), r.pid);
@@ -177,7 +177,7 @@ export class PhoneRuntime {
       this.adopt(r.pid); this.error = null;
       return true;
     } catch (e: any) {
-      this.error = e?.status === 423 || e?.code === "invite-full" ? String(e.message || "This ticket is already on another phone.") : e?.status === 409 ? "This engagement is full." : e?.status === 400 ? "Enter a valid mobile number." : e?.status === 503 ? "It is a busy day. Please try again in a few minutes." : "Could not join. Check your connection and try again.";
+      this.error = e?.status === 423 || e?.code === "invite-full" ? String(e.message || "This ticket is already on another phone.") : e?.status === 409 ? "This engagement is full." : e?.status === 400 ? (/^need-(id|name|location)$/.test(e.code || e.body?.code || "") ? String(e.message) : "Enter a valid mobile number.") : e?.status === 503 ? "It is a busy day. Please try again in a few minutes." : "Could not join. Check your connection and try again.";
       return false;
     }
   }

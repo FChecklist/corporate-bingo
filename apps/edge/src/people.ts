@@ -7,6 +7,7 @@
 //   - Removing a person before the game frees the place; during the game the seat stays in the public seat list (winners must be identical on every phone) and is only blocked.
 // Names and numbers are sealed at rest (pii.ts) and never reach an AI key (every route here refuses an AI, and anything arriving through an AI work link).
 // The Worker (worker.ts) owns routing, `join` and `settings`; this file owns the schema, the cleaning of numbers and the people / waiting / me routes.
+import { idOnlyNow } from "./idonly";
 import { openPii, openText, sealPii, sealText } from "./pii";
 import { emailKey } from "./emailkey";
 import { consentMissing, recordConsent } from "./consent";
@@ -298,8 +299,16 @@ async function addPeople(c: Ctx, who: Caller, b: any): Promise<Response> {
   if (c.now >= await c.endBound()) return c.json({ error: "The game has ended, so no one can be added." }, 409);
   const invalid: { raw: string; why: string; name?: string; id?: string }[] = []; let duplicates = 0; const sameAfterCleaning: { raw: string; as: string }[] = []; const duplicateRows: { raw: string; name: string; why: string }[] = []; const DUP_WHY = "Already on the list."; const typedOf = (x: any): string => String(x?.empId ?? x?.employeeId ?? x?.phone ?? "").slice(0, 120); // the same employee ID typed two ways in one list: named, never dropped silently
   const seen = new Set<string>(); const todo: { typed?: string; name: string; digits: string; ph: string; empId?: string; idHash?: string }[] = [];
-  const vf = verifyOf(c.e);
-  for (const x of b.people) {
+  const vf = idOnlyNow() ? { mode: "id" as const, employeesOnly: true, idKind: "emp" as const } : verifyOf(c.e);
+  // ID-only joining: a family member is added by name. They join under the guest's own ID (E1001 becomes E1001F1, E1001F2 ...), and adding them is the guest's confirmation.
+  let famOwner = "", famN = 0;
+  if (idOnlyNow() && who.id.startsWith("s:")) {
+    const own = await c.env.DB.prepare("SELECT p.pii AS pii FROM participant p JOIN seat s ON s.eid=p.eid AND s.pid=p.pid WHERE s.eid=? AND s.seq=?").bind(c.eid, Number(who.id.slice(2))).first<{ pii: string | null }>();
+    famOwner = (await openPii(c.env, own?.pii))?.empId ?? "";
+    famN = (await c.env.DB.prepare("SELECT COUNT(*) AS c FROM person WHERE eid=? AND inviter=?").bind(c.eid, who.id).first<{ c: number }>())?.c ?? 0;
+  }
+  for (let xi = 0; xi < b.people.length; xi++) {
+    const x = famOwner && !(b.people[xi]?.empId ?? b.people[xi]?.employeeId) ? { ...b.people[xi], empId: `${famOwner}F${++famN}`, phone: "" } : b.people[xi];
     const raw = `${cleanName(x?.name)} ${String(x?.phone ?? "")}`.trim().slice(0, 100);
     const empRaw = x?.empId ?? x?.employeeId, emp = normId(empRaw, vf.idKind, c.e?.created_ms);
     if (emp === null && vf.mode !== "mobile") { invalid.push({ raw, name: cleanName(x?.name), id: String(x?.empId ?? x?.employeeId ?? "").slice(0, 120), why: badIdMessage(empRaw, vf.idKind, c.e?.created_ms) }); continue; }
@@ -519,7 +528,7 @@ async function listWaiting(c: Ctx, who: Caller): Promise<Response> {
   const label = await labelsOf(c), out = [];
   for (const r of await waitingRows(c, who, 200)) {
     const p = await openPii(c.env, r.pii), first = (p?.name ?? "").trim().split(/\s+/)[0] ?? "";
-    out.push({ id: r.id, firstName: first, last4: (p?.phone ?? "").slice(-4), via: r.via, at: r.at_ms, ...(who.all ? { inviter: label(r.inviter), overLimit: !!r.overlimit, ...(p?.empId ? { empId: p.empId } : {}) } : {}) }); // the Employee ID is shown to the Organizer and the Hosts only (they decide whether this person is an employee)
+    out.push({ id: r.id, firstName: first, last4: (p?.phone ?? "").slice(-4), ...(who.all || idOnlyNow() ? { name: (p?.name ?? "").trim(), ...(p?.loc ? { loc: p.loc } : {}), ...(p?.empId ? { empId: p.empId } : {}) } : {}), via: r.via, at: r.at_ms, ...(who.all ? { inviter: label(r.inviter), overLimit: !!r.overlimit, ...(p?.empId ? { empId: p.empId } : {}) } : {}) }); // the Employee ID is shown to the Organizer and the Hosts only (they decide whether this person is an employee)
   }
   return c.json({ waiting: out });
 }
@@ -635,7 +644,7 @@ export async function waitingWho(c: { env: Env; e: any; eid: string }, inviter: 
 }
 
 /** Joins a person's request to wait. Used by the Worker's `join`. Returns the existing request when the number already asked. */
-export async function addWaiting(c: { env: Env; eid: string; e: any; now: number }, o: { ph: string; digits: string; name: string | null; empId?: string | null; via: "personal-link" | "common-link" | "direct"; inviter: string; overlimit: boolean }): Promise<{ id: string; status: string } | { full: true }> {
+export async function addWaiting(c: { env: Env; eid: string; e: any; now: number }, o: { ph: string; digits: string; name: string | null; empId?: string | null; loc?: string | null; via: "personal-link" | "common-link" | "direct"; inviter: string; overlimit: boolean }): Promise<{ id: string; status: string } | { full: true }> {
   const db = c.env.DB;
   const have = await db.prepare("SELECT id, status, at_ms FROM waiting WHERE eid=? AND ph=?").bind(c.eid, o.ph).first<{ id: string; status: string; at_ms: number }>();
   const rules = approvalRulesOn(c.e);
@@ -646,12 +655,12 @@ export async function addWaiting(c: { env: Env; eid: string; e: any; now: number
   if (have && stale) { // asking again after 30 minutes: the same request starts a new wait
     const chain2 = o.overlimit ? ",o," : await chainOf(db, c.eid, o.inviter);
     await db.prepare("UPDATE waiting SET status='waiting', at_ms=?, decided_by=NULL, decided_ms=NULL, via=?, inviter=?, chain=?, overlimit=?, pii=? WHERE eid=? AND id=? AND status IN ('waiting','lapsed')")
-      .bind(c.now, o.via, o.inviter, chain2, o.overlimit ? 1 : 0, await sealPii(c.env as any, { phone: o.digits, name: o.name, empId: o.empId }), c.eid, have.id).run();
+      .bind(c.now, o.via, o.inviter, chain2, o.overlimit ? 1 : 0, await sealPii(c.env as any, { phone: o.digits, name: o.name, empId: o.empId, loc: o.loc }), c.eid, have.id).run();
     return { id: have.id, status: "waiting" };
   }
   const id = randHex(6), chain = o.overlimit ? ",o," : await chainOf(db, c.eid, o.inviter);
   await db.prepare("INSERT OR IGNORE INTO waiting(eid,id,ph,pii,via,inviter,chain,overlimit,status,at_ms) VALUES(?,?,?,?,?,?,?,?,'waiting',?)")
-    .bind(c.eid, id, o.ph, await sealPii(c.env as any, { phone: o.digits, name: o.name, empId: o.empId }), o.via, o.inviter, chain, o.overlimit ? 1 : 0, c.now).run();
+    .bind(c.eid, id, o.ph, await sealPii(c.env as any, { phone: o.digits, name: o.name, empId: o.empId, loc: o.loc }), o.via, o.inviter, chain, o.overlimit ? 1 : 0, c.now).run();
   return (await db.prepare("SELECT id, status FROM waiting WHERE eid=? AND ph=?").bind(c.eid, o.ph).first<{ id: string; status: string }>()) ?? { id, status: "waiting" };
 }
 

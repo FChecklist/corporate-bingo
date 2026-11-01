@@ -37,6 +37,7 @@
     if ("brand" in r && !(fromJoin && INFO.brand)) { INFO.brand = cleanBrand(r.brand); if (!DEMO && EID && INFO.brand && INFO.brand.logo !== undefined) { try { store.set("cbz:" + EID + ":brand", JSON.stringify(INFO.brand)); } catch { /* storage full or blocked: the strip just is not kept */ } } } // a join answer carries the brand without its logo: never let it replace the full one read from info
     if ("joinPhone" in r) INFO.joinPhone = r.joinPhone === true;
     if ("roomMode" in r) { INFO.quiet = r.roomMode === true; if (INFO.quiet && store.get("cbz-sound") === null) { sound = false; if (window.TBAudio) TBAudio.enabled = false; } } // B14: everyone is in one room and the big screen says the numbers: phones start silent unless the person turned sound on
+    if ("idOnly" in r || "verify" in r) INFO.idOnly = r.idOnly === true; // ID-only joining: name, location and an ID; no mobile number anywhere
     if ("verify" in r) { INFO.verify = r.verify === "id" || r.verify === "both" ? r.verify : "mobile"; INFO.empOnly = r.employeesOnly === true; INFO.idKind = r.idKind === "email" ? "email" : "emp"; INFO.idClean = r.idClean === true; }
     if ("rehearsal" in r) INFO.rehearsal = r.rehearsal && typeof r.rehearsal === "object" ? r.rehearsal : null; // a rehearsal: its pages carry the REHEARSAL block and, once it is over, the calm "over" page
     if (r.didNotStart === true) INFO.dns = true; else if ("startRound" in r && !fromJoin) INFO.dns = false;
@@ -107,7 +108,7 @@
   const paintBrand = () => document.querySelectorAll(".zbrand").forEach((el) => { if (!el.classList.contains("zdef")) el.style.background = el.dataset.bg; el.style.color = el.dataset.fg; }); // set from the script, so a strict style policy never blocks the colour
 
   // ---------- joining: a personal link needs no number; a number may be asked for; a request may have to wait to be let in; a person may have been removed ----------
-  const J = { k4: {}, consent: null, mode: "", phone: "", emp: "", name: "", wid: "", who: "", timer: null, polling: false, note: "" };
+  const J = { k4: {}, consent: null, mode: "", phone: "", emp: "", name: "", loc: "", wid: "", who: "", timer: null, polling: false, note: "" };
   const inviteOf = () => (INVITE_FROM ? { from: INVITE_FROM, cat: INVITE_CAT } : undefined);
   // What the organizer asked people to give to get in: the usual way (name, and a mobile number if the organizer asked), an employee ID, or a mobile number and an employee ID. Employees only: no way in without the ID.
   const joinWho = (personal, needPhone) => {
@@ -129,10 +130,20 @@
     if (J.mode === "waiting") return `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard zwait" role="status"><h2>Please wait a moment</h2><p style="margin:0 0 6px">${J.note ? esc(J.note) : `Your request to join has gone to ${J.who ? esc(J.who) : "the organizer"}.`}</p><p class="zsmall" style="margin:0">Keep this page open. As soon as you are let in, your card appears here.</p></div>`;
     if (J.mode === "declined" || J.mode === "lapsed") return `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard" role="status"><h2>${J.mode === "declined" ? "Your request was not accepted" : "This request has run out"}</h2><p class="zsmall" style="margin:0 0 8px">${J.mode === "declined" ? "You are not on the list for this game. Please ask the person who invited you." : "Nobody answered in time. You can ask again."}</p>${J.mode === "lapsed" ? `<button class="zbtn s" id="again" type="button">Ask again</button>` : ""}</div>`;
     const personal = !!TOKEN && J.mode !== "needPhone"; // a personal link is made for one person: nothing to type unless the server asks
+    if (INFO.idOnly && !personal) return `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div>
+    <div class="zcard zform zjoin"><h2>Join the game</h2>
+    <p class="zgoalline" style="margin:0 0 6px">Enter your details and ask to join. The Organizer will confirm it is you.</p>${INVITE_FROM ? `<div class="zbanner ok" style="margin:0 0 8px">A colleague invited you. Join with your own details to get your own card.</div>` : ""}
+    <label for="nm">Your name</label><input id="nm" autocomplete="name" maxlength="60" value="${esc(J.name)}">
+    <label for="loc">Your location</label><input id="loc" autocomplete="off" maxlength="60" value="${esc(J.loc)}">
+    <label for="emp">Employee, Associate, Vendor or Member ID</label><input id="emp" autocomplete="off" autocapitalize="characters" maxlength="60" value="${esc(J.emp)}"><p class="zsmall" id="empHint" aria-live="polite" style="margin:2px 0 0"></p>
+    ${msg ? `<div class="zbanner bad" role="alert">${esc(msg)}</div>` : ""}
+    <button class="zbtn" id="go">Ask to join the game</button>
+    <p class="zsmall">No mobile number or e-mail address is needed. What is typed here is deleted within 24 hours after the game.</p>
+    ${DEMO ? "" : CBConsent.html("K4")}</div>`;
     const needPhone = J.mode === "needPhone" || INFO.joinPhone; // the organizer asked guests to give a mobile number, or the link was already opened elsewhere
     return `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div>
     <div class="zcard zform zjoin"><h2>Join the game</h2>
-    <ol class="zsteps" aria-label="How to join"><li><b>1</b><span>Tick the boxes</span></li><li><b>2</b><span>${personal ? "Press the button" : "Type your name"}</span></li><li><b>3</b><span>${personal ? "Watch your card" : "Get your card"}</span></li></ol>
+    <ol class="zsteps" aria-label="How to join"><li><b>1</b><span>${personal ? "Press the button" : "Type your name"}</span></li><li><b>2</b><span>${personal ? "Watch your card" : "Get your card"}</span></li></ol>
     <p class="zgoalline" style="margin:0 0 6px">A card fills up as numbers are called. Complete a pattern to win a prize. No need to shout Bingo: the software checks every card.</p>${INVITE_FROM ? `<div class="zbanner ok" style="margin:0 0 8px">A colleague invited you. Join with your name to get your own card.</div>` : ""}
     ${J.mode === "needPhone" ? `<div class="zbanner info" role="status" style="margin:0 0 8px">${J.note ? esc(J.note) : "This link was already opened on another phone. Please type your mobile number to get your card."}</div>` : ""}
     ${DEMO ? "" : CBConsent.html("K4")}
@@ -141,8 +152,8 @@
     ${joinWho(personal, needPhone)}
     ${msg ? `<div class="zbanner bad" role="alert">${esc(msg)}</div>` : ""}
     <button class="zbtn" id="go" ${DEMO ? "" : 'data-needs="K4" disabled aria-disabled="true"'}>Get my card</button>
-    <p class="zsmall">We use your name for your card and, if you win, to hand over your prize. Your organizer sees it. Other players do not.</p>
-    <p class="spriv">Players are 18 or older. Playing is free: you never pay, and no prize money is held or paid by us.</p>
+    <p class="zsmall">Your name is used for your card and, if you win, to hand over your prize. Your organizer sees it. Other players do not.</p>
+    <p class="spriv">Playing is free. You never pay to play.</p>
     <p class="spriv"><a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a></p></div>`;
   };
   const cancelledView = () => `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard" role="status"><h2>This game was cancelled</h2><p class="zsmall" style="margin:0">${esc((INFO.cancelled && INFO.cancelled.message) || "The organizer cancelled this game.")} There is nothing to do on this page. Thank you for your interest.</p></div>`;
@@ -164,13 +175,13 @@
   }
   // The waiting screen survives a reload: what the person typed and the waiting number are kept on this phone only until they are let in, declined, removed or start again.
   const WAITKEY = "cbz-wait-" + EID;
-  const saveWait = () => { try { store.set(WAITKEY, JSON.stringify({ wid: J.wid, who: J.who, note: J.note, phone: J.phone, emp: J.emp, name: J.name, at: Date.now() })); } catch {} };
+  const saveWait = () => { try { store.set(WAITKEY, JSON.stringify({ wid: J.wid, who: J.who, note: J.note, phone: J.phone, emp: J.emp, name: J.name, loc: J.loc, at: Date.now() })); } catch {} };
   const clearWait = () => { try { localStorage.removeItem(WAITKEY); } catch {} try { store.set(WAITKEY, ""); } catch {} };
   function restoreWait() {
     if (DEMO || J.mode) return;
     let w = null; try { w = JSON.parse(store.get(WAITKEY) || "null"); } catch { w = null; }
     if (!w || !w.wid || Date.now() - Number(w.at || 0) > 7 * 86400000) { clearWait(); return; }
-    J.mode = "waiting"; J.wid = String(w.wid); J.who = String(w.who || ""); J.note = String(w.note || ""); J.phone = String(w.phone || ""); J.emp = String(w.emp || ""); J.name = String(w.name || "");
+    J.mode = "waiting"; J.wid = String(w.wid); J.who = String(w.who || ""); J.note = String(w.note || ""); J.phone = String(w.phone || ""); J.emp = String(w.emp || ""); J.name = String(w.name || ""); J.loc = String(w.loc || "");
     waitPoll();
   }
   function waitPoll() {
@@ -188,7 +199,7 @@
   }
   /** Joins with what is typed (or just the token). Shows a card, or the calm screen that fits the answer. */
   async function doJoin() {
-    const ok = await rt.join(J.phone, J.name, inviteOf(), J.emp);
+    const ok = await rt.join(INFO.idOnly ? "" : J.phone, J.name, inviteOf(), J.emp, INFO.idOnly ? J.loc : undefined);
     if (ok) {
       J.mode = ""; clearInterval(J.timer); clearWait();
       if (TOKEN) { try { const u = new URLSearchParams(location.search); u.delete("t"); history.replaceState(null, "", location.pathname + (u.toString() ? "?" + u : "")); } catch {} } // the personal token leaves the address bar once it has done its job
@@ -328,25 +339,25 @@
     } catch { /* never in the way of the game */ }
   }
   // ---------- after the game, a winner confirms the name the prize goes to (the organizer and co-host see any change, with the original) ----------
-  const CF = { loaded: false, loading: false, name: "", phone: "", confirmed: false, editing: false, edited: false, prizes: [], note: "", last: 0, busy: false };
+  const CF = { loaded: false, loading: false, name: "", phone: "", empId: "", confirmed: false, editing: false, edited: false, prizes: [], note: "", last: 0, busy: false };
   const myDevice = () => store.get("cbz:device") || "";
   async function loadCf(v) {
     if (DEMO || v.phase !== "ended" || !PRIZES.length || !v.pid || CF.loading || (CF.loaded && CF.confirmed) || Date.now() - CF.last < 15000) return;
     CF.last = Date.now(); CF.loading = true;
     try {
       const r = await api("GET", `/api/z/${EID}/myprizes?pid=${encodeURIComponent(v.pid)}&device=${encodeURIComponent(myDevice())}`);
-      CF.prizes = r.prizes || []; if (!CF.edited) { CF.name = r.name || ""; CF.phone = r.phone || ""; } CF.confirmed = !!r.confirmed; CF.loaded = CF.prizes.length > 0;
+      CF.prizes = r.prizes || []; if (!CF.edited) { CF.name = r.name || ""; CF.phone = r.phone || ""; CF.empId = r.empId || ""; } CF.confirmed = !!r.confirmed; CF.loaded = CF.prizes.length > 0;
     } catch { /* tried again shortly */ }
     CF.loading = false;
   }
   function confirmCard(v) {
     if (DEMO || v.phase !== "ended" || !PRIZES.length) return "";
     if (!CF.loaded) return `<div class="zcard"><h2>Confirm where your prize goes</h2><p class="zsmall">Waiting for your result to be confirmed by the other phones. This takes a moment.</p></div>`;
-    if (CF.confirmed && !CF.editing) return `<div class="zcard"><h2>Details confirmed</h2><p style="margin:4px 0"><b>${esc(CF.name)}</b> &middot; ${esc(CF.phone)}</p><p class="zsmall">Your organizer has these details. <button class="zsnd" id="cfedit">Change</button></p></div>`;
+    if (CF.confirmed && !CF.editing) return `<div class="zcard"><h2>Details confirmed</h2><p style="margin:4px 0"><b>${esc(CF.name)}</b>${INFO.idOnly ? (CF.empId ? " &middot; " + esc(CF.empId) : "") : " &middot; " + esc(CF.phone)}</p><p class="zsmall">Your organizer has these details. <button class="zsnd" id="cfedit">Change</button></p></div>`;
     return `<div class="zcard zform"><h2>Confirm your prize details</h2>
       <p class="zsmall" style="margin:0 0 6px">Your organizer will use this name to hand over your prize. Please check them and correct anything that is wrong. If you change them, your organizer and co-host will see both what you joined with and what you changed it to.</p>
       <label for="cfnm">Your name</label><input id="cfnm" autocomplete="name" maxlength="60" value="${esc(CF.name)}">
-      <label for="cfph">Your mobile number (optional)</label><input id="cfph" inputmode="tel" autocomplete="tel" value="${esc(CF.phone)}">
+      ${INFO.idOnly ? "" : `<label for="cfph">Your mobile number (optional)</label><input id="cfph" inputmode="tel" autocomplete="tel" value="${esc(CF.phone)}">`}
       ${CF.note ? `<div class="zbanner ${CF.note.startsWith("Thank") ? "ok" : "bad"}" role="alert">${esc(CF.note)}</div>` : ""}
       <button class="zbtn" id="cfgo"${CF.busy ? " disabled" : ""}>Confirm</button></div>`;
   }
@@ -357,7 +368,7 @@
     if (ph) ph.oninput = () => { CF.phone = ph.value; CF.edited = true; };
     if (go) go.onclick = async () => {
       CF.busy = true; CF.note = ""; paint();
-      try { const r = await api("POST", `/api/z/${EID}/confirm`, { pid: v.pid, device: myDevice(), name: CF.name, phone: CF.phone }); CF.confirmed = true; CF.editing = false; CF.edited = false; CF.note = ""; CF.last = 0; }
+      try { const r = await api("POST", `/api/z/${EID}/confirm`, { pid: v.pid, device: myDevice(), name: CF.name, ...(INFO.idOnly ? {} : { phone: CF.phone }) }); CF.confirmed = true; CF.editing = false; CF.edited = false; CF.note = ""; CF.last = 0; }
       catch (e) { CF.note = (e && e.message) || "Could not save. Please try again."; }
       CF.busy = false; paint();
     };
@@ -512,17 +523,18 @@
   function mineCard(v) {
     if (DEMO || !ME.canInvite) return "";
     const left = Math.max(0, MI.limit - MI.used);
-    const counter = !MI.loaded ? "Getting your list…" : MI.limit ? `You can invite up to <b>${MI.limit}</b> people. You have invited <b>${MI.used}</b>${left ? `, so <b>${left}</b> ${left === 1 ? "place is" : "places are"} left` : ". You have used all your places"}.` : "";
+    const IO = !!INFO.idOnly, counter = !MI.loaded ? "Getting your list…" : IO ? "You and up to 4 family members." : MI.limit ? `You can invite up to <b>${MI.limit}</b> people. You have invited <b>${MI.used}</b>${left ? `, so <b>${left}</b> ${left === 1 ? "place is" : "places are"} left` : ". You have used all your places"}.` : "";
     const started = v.log.length > 0 || !!v.late || v.phase === "ended"; // a guest can take a name off their list only before the game starts
     const rows = MI.people.map((p) => {
       const wa = waOk(p.waLink), gone = p.status === "removed";
-      return `<div class="zrow zmi"><span>${esc(p.name || "Guest")}<br><small class="zsmall" style="margin:0">${esc(p.maskedPhone || "")} · ${gone ? "Removed" : p.status === "joined" ? "Joined" : "Invited"}</small></span>
+      return `<div class="zrow zmi"><span>${esc(p.name || "Guest")}<br><small class="zsmall" style="margin:0">${IO ? "" : esc(p.maskedPhone || "") + " · "}${gone ? "Removed" : p.status === "joined" ? "Joined" : "Invited"}</small></span>
         <span class="zmia">${!gone && p.status !== "joined" && wa ? `<a class="zbtn s" target="_blank" rel="noopener" href="${esc(wa)}" style="text-decoration:none;display:inline-flex;align-items:center">Send on WhatsApp</a>` : ""}
-        ${!gone && p.status !== "joined" ? `<button class="zbtn s alt" type="button" data-mire="${esc(p.id)}">Send a new link</button>` : ""}
+        ${!gone && p.status !== "joined" && IO && p.link ? `<button class="zbtn s alt" type="button" data-micopy="${esc(p.link)}">Copy link</button>` : ""}
+        ${!gone && p.status !== "joined" && !IO ? `<button class="zbtn s alt" type="button" data-mire="${esc(p.id)}">Send a new link</button>` : ""}
         ${!gone && !started ? (MI.ask === p.id ? `<button class="zbtn s" type="button" data-miyes="${esc(p.id)}">Yes, remove</button><button class="zbtn s alt" type="button" data-mino="1">No</button>` : `<button class="zbtn s alt" type="button" data-mirm="${esc(p.id)}">Remove</button>`) : ""}</span></div>`;
     }).join("");
-    return `<div class="zcard zinvite" id="mine"><h2>My invites</h2><p class="zsmall" style="margin:0 0 8px">${counter}</p>${rows}
-      ${MI.loaded && !left && MI.limit ? "" : `<div class="zform"><label for="mi-name">Name</label><input id="mi-name" autocomplete="off" maxlength="60" value="${esc(MI.name)}"><label for="mi-phone">Mobile number</label><input id="mi-phone" inputmode="tel" autocomplete="off" value="${esc(MI.phone)}" placeholder="98765 43210">${CBConsent.html("K6")}<button class="zbtn s" id="mi-add" type="button" data-needs="K6" disabled aria-disabled="true"${MI.busy ? ' data-hold="1"' : ""}>Add to my invites</button></div>`}
+    return `<div class="zcard zinvite" id="mine"><h2>${IO ? "Bring your family" : "My invites"}</h2>${IO ? `<p class="zsmall" style="margin:0 0 4px">Add family members by name. They join under your ID, and you confirm them.</p>` : ""}<p class="zsmall" style="margin:0 0 8px">${counter}</p>${rows}
+      ${MI.loaded && !left && MI.limit ? "" : `<div class="zform"><label for="mi-name">${IO ? "Family member's name" : "Name"}</label><input id="mi-name" autocomplete="off" maxlength="60" value="${esc(MI.name)}">${IO ? "" : `<label for="mi-phone">Mobile number</label><input id="mi-phone" inputmode="tel" autocomplete="off" value="${esc(MI.phone)}" placeholder="98765 43210">`}${CBConsent.html("K6")}<button class="zbtn s" id="mi-add" type="button" data-needs="K6" disabled aria-disabled="true"${MI.busy ? ' data-hold="1"' : ""}>${IO ? "Add" : "Add to my invites"}</button></div>`}
       ${MI.note ? `<div class="zbanner ${MI.bad ? "bad" : "ok"}" role="status" style="margin-top:8px">${esc(MI.note)}</div>` : ""}</div>`;
   }
   function bindMine(v) {
@@ -537,18 +549,19 @@
     };
     if (add) CBConsent.wire(document, "K6", MI.k6); // the person who adds a name and number ticks that they may use them
     if (add) add.onclick = () => {
-      const name = (nm.value || "").trim(), phone = (ph.value || "").trim();
+      const name = (nm.value || "").trim(), phone = ph ? (ph.value || "").trim() : "";
       if (!CBConsent.all(document, "K6")) { MI.bad = true; MI.note = "Please tick the box to continue."; return paint(); }
       const consent = CBConsent.payload(document, "K6");
       if (name.length < 2) { MI.bad = true; MI.note = "Please type their name."; return paint(); }
-      if (phone.replace(/\D/g, "").length < 10) { MI.bad = true; MI.note = "Please type their mobile number."; return paint(); }
+      if (!INFO.idOnly && phone.replace(/\D/g, "").length < 10) { MI.bad = true; MI.note = "Please type their mobile number."; return paint(); }
       act(async () => {
-        const r = await api("POST", `/api/z/${EID}/people${miQ(v)}`, { people: [{ name, phone }], me: v.pid, consent });
+        const r = await api("POST", `/api/z/${EID}/people${miQ(v)}`, { people: [INFO.idOnly ? { name } : { name, phone }], me: v.pid, consent });
         if (r.invalid && r.invalid.length) throw new Error("That number does not look right. Please check it.");
         if (r.duplicates) throw new Error("That number is already invited.");
         MI.name = ""; MI.phone = "";
       }, "Added. Press Send on WhatsApp next to their name.");
     };
+    document.querySelectorAll("[data-micopy]").forEach((b) => (b.onclick = async () => { try { await navigator.clipboard.writeText(b.dataset.micopy); b.textContent = "Copied"; } catch { b.textContent = "Press and hold the link to copy"; } }));
     document.querySelectorAll("[data-mire]").forEach((b) => (b.onclick = () => act(async () => { await api("POST", `/api/z/${EID}/people/${encodeURIComponent(b.dataset.mire)}/resend${miQ(v)}`, { me: v.pid }); }, "A new link is ready. Press Send on WhatsApp.")));
     document.querySelectorAll("[data-mirm]").forEach((b) => (b.onclick = () => { MI.ask = b.dataset.mirm; paint(); }));
     document.querySelectorAll("[data-mino]").forEach((b) => (b.onclick = () => { MI.ask = ""; paint(); }));
@@ -744,7 +757,7 @@
       go.disabled = true;
       if (window.TBAudio) TBAudio.unlock();
       const ph = document.getElementById("ph"), nm = document.getElementById("nm"), em = document.getElementById("emp");
-      J.phone = ph ? ph.value : J.phone; J.emp = em ? em.value.trim() : J.emp; J.name = nm ? nm.value.trim() : J.name;
+      J.phone = ph ? ph.value : J.phone; J.emp = em ? em.value.trim() : J.emp; J.name = nm ? nm.value.trim() : J.name; const lc = document.getElementById("loc"); J.loc = lc ? lc.value.trim() : J.loc;
       await doJoin(); // shows the card screen at once on success: the first tick may take a few seconds on a slow network
     };
   }

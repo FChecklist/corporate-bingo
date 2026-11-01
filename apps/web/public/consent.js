@@ -1,4 +1,4 @@
-/* The agreement notice (vanilla JS, no build). Owner decision 1 Nov 2026: NO tick-boxes anywhere. Going ahead (sign-in, publishing, joining) is the act; one small gentle line with three links
+/* The agreement notice (vanilla JS, no build). No tick-boxes anywhere. Going ahead (sign-in, publishing, joining) is the act; one small gentle line with three links
    sits where the boxes used to be, and the request still carries the version so the server keeps its proof (apps/edge/src/consent.ts: version, sha256 of the shown line, time; nothing personal). */
 (function () {
   const C = (window.CBConsent = {});

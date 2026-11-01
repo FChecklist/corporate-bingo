@@ -59,6 +59,7 @@ import { WINNERS_SCHEMA, acceptVotes, auditAi, confirmPrize, listAiAudit, listPr
 import { PAUSE_MAX_PARTICIPANTS, safetyForCap, publishControl, readPublished, registerKey, registerHostKey, type KV } from "../../../packages/beacon/src/control";
 import { QUICKNET } from "../../../packages/beacon/src/index";
 import { claimHolds, startClaimHold } from "./claimhold";
+import { cleanPlace, idOnlyNow, setIdOnly } from "./idonly";
 
 export interface D1Result<T = any> { results?: T[]; meta?: { changes?: number } }
 export interface D1Stmt { bind(...v: unknown[]): D1Stmt; run(): Promise<D1Result>; all<T = any>(): Promise<D1Result<T>>; first<T = any>(): Promise<T | null> }
@@ -105,7 +106,7 @@ const tracks = (e: { cap: number }) => e.cap <= CLAIM_TRACKING_MAX_CAP;
 const brandOut = (c: EngagementCfg, withLogo: boolean) => (c.brand ? { brand: withLogo ? c.brand : { name: c.brand.name, color: c.brand.color, ...(c.brand.logo ? { hasLogo: true } : {}) } } : {});
 /** When the game really ended: the phones' confirmed end, or the scheduled end RECOMPUTED now from the current schedule and only once it has passed (never a future time, never a stale stored value). A cancelled game has none; an erase is not an end. */
 const endedAtOf = async (env: Env, e: any, now: number): Promise<{ endedAtMs?: number }> => { try { if (e.cancelled_ms) return {}; const l = await env.DB.prepare("SELECT end_ms, end_src FROM life WHERE eid=?").bind(e.id).first<{ end_ms: number | null; end_src: string | null }>(); if (l && l.end_src === "phones" && Number(l.end_ms) > 0) return { endedAtMs: Number(l.end_ms) }; const bound = await endBoundMs(env, e); return Number.isFinite(bound) && bound > 0 && now >= bound ? { endedAtMs: bound } : {}; } catch { return {}; } };
-const pub = (e: any, withLogo = false) => { const c = cfgOf(e); return { ...(c.mark ? { mark: c.mark } : {}), joinPhone: c.join === "phone", tickets: c.tickets, rewards: c.rewards, breaks: c.breaks, rounds: c.rounds, invites: c.invites, opening: c.opening, closing: c.closing, ...(c.name ? { name: c.name } : {}), verify: c.verify ?? "mobile", employeesOnly: !!c.employeesOnly, idKind: c.idKind === "email" ? "email" : "emp", idClean: Number(e.created_ms) >= EMP_CLEAN_FROM_MS, roomMode: !!c.roomMode, ...brandOut(c, withLogo) }; };
+const pub = (e: any, withLogo = false) => { const c = cfgOf(e); return { ...(c.mark ? { mark: c.mark } : {}), joinPhone: c.join === "phone", tickets: c.tickets, rewards: c.rewards, breaks: c.breaks, rounds: c.rounds, invites: c.invites, opening: c.opening, closing: c.closing, ...(c.name ? { name: c.name } : {}), verify: idOnlyNow() ? "id" : c.verify ?? "mobile", employeesOnly: idOnlyNow() || !!c.employeesOnly, ...(idOnlyNow() ? { idOnly: true } : {}), idKind: c.idKind === "email" ? "email" : "emp", idClean: Number(e.created_ms) >= EMP_CLEAN_FROM_MS, roomMode: !!c.roomMode, ...brandOut(c, withLogo) }; };
 const cfgJson = (c: EngagementCfg) => JSON.stringify({ rewards: c.rewards, breaks: c.breaks, rounds: c.rounds, invites: c.invites, opening: c.opening, closing: c.closing, ...(c.name ? { name: c.name } : {}), ...(c.brand ? { brand: c.brand } : {}), ...(c.mark ? { mark: c.mark } : {}), ...(c.join ? { join: c.join } : {}), ...(c.tz ? { tz: c.tz } : {}), ...(c.verify ? { verify: c.verify } : {}), ...(c.employeesOnly ? { employeesOnly: true } : {}), ...(c.idKind === "email" ? { idKind: "email" } : {}), ...(c.roomMode ? { roomMode: true } : {}) });
 
 /** Privacy and lifecycle: sealed personal data, the role / inviter / invite kind / source of a seat, when each game ended, the winners record that outlives the personal data, and the votes that tell us a game is over. */
@@ -541,6 +542,7 @@ async function signInResult(env: Env, req: Request, acct: { org: string } | null
 }
 
 export async function handle(req: Request, env: Env, now = Date.now(), waitUntil?: (p: Promise<unknown>) => void): Promise<Response> {
+  setIdOnly(env);
   const off = await maintenanceGate(req, env, now).catch(() => null);
   if (off) return off;
   let res: Response;
@@ -1653,12 +1655,16 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
       if (!tok || tok.status === "removed") return json({ error: "This link is not valid any more. Please ask the person who invited you to send it again.", code: "link-gone" }, 404);
       tokPii = await openPii(env, tok.pii);
     }
-    const typedGiven = typeof b?.phone === "string" ? b.phone.trim() !== "" : b?.phone != null;
-    let typedDigits = digitsOf(b?.phone), typedPh = await phoneHash(b?.phone);
+    const typedGiven = !idOnlyNow() && (typeof b?.phone === "string" ? b.phone.trim() !== "" : b?.phone != null); // ID-only joining: a mobile number is never read, taken or kept
+    let typedDigits = idOnlyNow() ? null : digitsOf(b?.phone), typedPh = idOnlyNow() ? null : await phoneHash(b?.phone);
     if (typedDigits) typedDigits = keptPhone(b?.phone); // kept with its country: 91 + 10 digits for India, +<code><number> for any other country
     if (typedGiven && !typedPh) return json({ error: "Enter a valid mobile number." }, 400);
     // What the organizer asked people to give: a mobile number (default), an employee ID, or both. An outsider (a vendor, a customer, a family member) has no ID and gives what a guest gives.
-    const vf = verifyOf(e), empNorm = normId(b?.empId, vf.idKind, (e as any)?.created_ms);
+    const idOnly1 = idOnlyNow(), vf = idOnly1 ? { mode: "id" as const, employeesOnly: true, idKind: "emp" as const } : verifyOf(e), empNorm = normId(b?.empId, vf.idKind, (e as any)?.created_ms);
+    if (idOnly1 && !tok && !empNorm) return json({ error: "Please type your Employee, Associate, Vendor or Member ID.", code: "need-id" }, 400);
+    const place = idOnly1 ? cleanPlace(b?.location) : null, typedNm = idOnly1 ? cleanName(b?.name) : null;
+    if (idOnly1 && !tok && (typedNm ?? "").length < 2) return json({ error: "Please type your name.", code: "need-name" }, 400);
+    if (idOnly1 && !tok && !place) return json({ error: "Please type your location.", code: "need-location" }, 400);
     if (empNorm === null) return json({ error: badIdMessage(b?.empId, vf.idKind, (e as any)?.created_ms), code: "bad-id" }, 400);
     const dev = typeof b?.device === "string" && /^[0-9a-f]{16,64}$/.test(b.device) ? (await sha(`dev|${eid}|${b.device}`)).slice(0, 32) : null; // one card, one device: the phone's own random id, only its hash is kept
     if (vf.employeesOnly && vf.mode !== "mobile" && vf.mode !== "either" && !empNorm && !tok) return json({ error: vf.mode === "id" ? "Enter your employee ID." : "Enter your employee ID and your mobile number.", code: "need-id" }, 400);
@@ -1755,7 +1761,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
       if (await joinOverLimit(env, req, now)) return json({ error: "It is busy right now. Please try again in a few minutes.", code: "busy" }, 429);
       if (!(await spend(env, now, 2))) return json({ error: "It is very busy right now. Please try again in a few minutes.", code: "busy" }, 503);
       if (!ck) await k4(await pidOf(ph)); // the person ticked to ask to come in; the row goes with the rest of their data
-      const w = await addWaiting({ env, eid: eid!, e, now }, { ph, digits: digits ?? "", empId: empNorm || null, name: lateName || tokPii?.name || null, via, inviter: target, overlimit });
+      const w = await addWaiting({ env, eid: eid!, e, now }, { ph, digits: digits ?? "", empId: empNorm || null, loc: place, name: lateName || tokPii?.name || null, via, inviter: target, overlimit });
       if ("full" in w) return json({ error: "Many people are waiting for an answer right now. Please try again a little later.", code: "waiting-full" }, 429);
       if (w.status === "declined") return json({ error: "This game could not add you. Please talk to whoever invited you.", code: "declined", declined: true, wid: w.id }, 403);
       const who = await waitingWho({ env, e, eid: eid! }, overlimit ? "o" : target);
@@ -1765,13 +1771,13 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
         : json({ error: `This engagement is by invitation. ${msg}`, code: "waiting", waiting: true, wid: w.id, with: who }, 403);
     };
     let inviter: string | null = null, role: string | null = null, guardId: string | null = null, guardLimit: number | null = null, pii: string;
-    if (pr) { inviter = pr.inviter; role = pr.role; const pp = await openPii(env, pr.pii); digits = pp?.phone || digits; const addName = !!(lateName && pp && !pp.name), addPhone = !!(extraDigits && pp && !pp.phone); pii = addName || addPhone ? await sealPii(env, { phone: addPhone ? extraDigits! : pp!.phone, name: addName ? lateName : pp!.name, ...(pp!.empId ? { empId: pp!.empId } : {}) }) : pr.pii; }
+    if (pr) { inviter = pr.inviter; role = pr.role; const pp = await openPii(env, pr.pii); digits = pp?.phone || digits; const addName = !!(lateName && pp && !pp.name), addPhone = !!(extraDigits && pp && !pp.phone); const addLoc = !!(place && pp && !pp.loc); pii = addName || addPhone || addLoc ? await sealPii(env, { phone: addPhone ? extraDigits! : pp!.phone, name: addName ? lateName : pp!.name, ...(pp!.empId ? { empId: pp!.empId } : {}), ...(addLoc ? { loc: place } : pp!.loc ? { loc: pp!.loc } : {}) }) : pr.pii; }
     else {
       if (e.closed || idMiss) return wait(false, null); // "Only people on a list" (or an employee ID not on the list): the person waits for an answer
       const limit = await limitOfInviter({ env, eid: eid!, e, invites: inviteCfg ?? { on: false, per: 4 } }, target);
       if (limit !== null && (await listCount(env.DB, eid!, target)) >= limit) return wait(true, limit);
       inviter = target; if (limit !== null) { guardId = target; guardLimit = limit; }
-      pii = await sealPii(env, { phone: digits ?? "", name: lateName || tokPii?.name || null, empId: vf.mode !== "mobile" && empNorm ? empNorm : null });
+      pii = await sealPii(env, { phone: digits ?? "", name: lateName || tokPii?.name || null, empId: vf.mode !== "mobile" && empNorm ? empNorm : null, loc: place });
     }
     if (await joinOverLimit(env, req, now, e.pack ?? 0)) return json({ error: "It is busy right now. Please try again in a few minutes.", code: "busy" }, 429);
     if (!(await spend(env, now, JOIN_WRITES))) return json({ error: "It is very busy right now. Please try again in a few minutes.", code: "busy" }, 503);
@@ -1914,7 +1920,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
       credit: creditNow ? creditNow.activeTotalInr : null, creditExpiresMs: creditNow ? creditNow.nextExpiryMs : null, creditApplied: creditNow ? await creditAppliedFor(env.DB, e.id) : null,
       status: didNotStart ? "did not start (closed)" : cancelled ? "cancelled by the organizer" : isDraft ? "draft" : unpaid ? (locked ? "published, NOT PAID, held because the start time passed" : "published, payment due before the start") : "published and paid",
       startsAtIST: istTime(roundMs(e.start_round), tzOfRow(e)), tz: tzOfRow(e), startMs: roundMs(e.start_round), startRound: e.start_round, callSeconds: e.call_seconds, limit: e.cap, closed: !!e.closed, whoCanJoin: e.closed ? "list" : "anyone", coHostLimit: e.cohost_limit ?? COHOST_LIMIT_DEFAULT, guestInvites: cfgOf(e).invites,
-      tickets: c.tickets, rounds: c.rounds, rewards: c.rewards, breaks: c.breaks, opening: c.opening, closing: c.closing, invites: c.invites, verify: c.verify ?? "mobile", employeesOnly: !!c.employeesOnly, idKind: c.idKind === "email" ? "email" : "emp", idClean: Number(e.created_ms) >= EMP_CLEAN_FROM_MS, brandMomentsAllowed: brandMomentsFor(c.tickets), participants: n, ...(c.name ? { name: c.name } : {}), ...(c.brand ? { brand: c.brand } : {}),
+      tickets: c.tickets, rounds: c.rounds, rewards: c.rewards, breaks: c.breaks, opening: c.opening, closing: c.closing, invites: c.invites, verify: idOnlyNow() ? "id" : c.verify ?? "mobile", employeesOnly: idOnlyNow() || !!c.employeesOnly, ...(idOnlyNow() ? { idOnly: true } : {}), idKind: c.idKind === "email" ? "email" : "emp", idClean: Number(e.created_ms) >= EMP_CLEAN_FROM_MS, brandMomentsAllowed: brandMomentsFor(c.tickets), participants: n, ...(c.name ? { name: c.name } : {}), ...(c.brand ? { brand: c.brand } : {}),
       paid: !unpaid, payment, ...(unpaid ? { pack: PACKS.find((x) => x[0] >= e.cap)?.[0] ?? null, priceInr: PACKS.find((x) => x[0] >= e.cap) ? price(PACKS.find((x) => x[0] >= e.cap)![0], "INR").total : null, priceUsd: PACKS.find((x) => x[0] >= e.cap) ? price(PACKS.find((x) => x[0] >= e.cap)![0], "USD").total : null, startsAt: istTime(roundMs(e.start_round), tzOfRow(e)), payUntil: istTime(await erasureOf(env, e), tzOfRow(e)) } : { pack: e.pack }),
       gameMinutes: Math.round((75 * e.call_seconds * c.rounds + c.breaks.reduce((t: number, b: any) => t + b.seconds, 0) + (c.rounds - 1) * 90) / 60),
       links, nextSteps, consoleUrl: `${origin}/zc.html?e=${e.id}`, ...(isDraft ? {} : { shareUrl: `${origin}/z.html?e=${e.id}` }), ...(unpaid && !isDraft ? { payUrl: `${origin}/pay.html?e=${e.id}` } : {}) });

@@ -4,6 +4,7 @@
 // (the kinds only, never a list); the prizes (house, winner position, prize text); the brand moments (kind, place, length, title, lucky-draw size and style, never a media address);
 // the company name and colours; the pack bought; and, once the game has run, only COUNTS: how many people joined, checked in, how many winner positions were given, how it ended.
 // It is written again at every lifecycle pass (so a later change of a rule is kept) and one last time just before the game's own rows are deleted. Nothing deletes it.
+import { idOnlyNow } from "./idonly";
 import type { D1 } from "./worker";
 
 export const GAME_RECORD_SCHEMA: string[] = [
@@ -23,7 +24,7 @@ export function settingsOf(e: { closed?: number | null; id: string; start_round:
   return {
     gameId: e.id, startRound: e.start_round, callSeconds: e.call_seconds, cap: e.cap, ticketsPerPerson: e.tickets, pack: e.pack, demo: c.demo === true, cancelled: !!e.cancelled_ms,
     tieRule: c.ties === "share" ? "share" : "next", rounds: num(c.rounds) ?? 1, callMode: c.callMode === "host" ? "host" : "auto",
-    whoCanJoin: e.closed ? "list" : "anyone", verify: c.verify === "id" || c.verify === "either" || c.verify === "both" ? c.verify : "mobile", employeesOnly: c.employeesOnly === true,
+    whoCanJoin: e.closed ? "list" : "anyone", verify: idOnlyNow() ? "id" : c.verify === "id" || c.verify === "either" || c.verify === "both" ? c.verify : "mobile", employeesOnly: idOnlyNow() || c.employeesOnly === true, ...(idOnlyNow() ? { idOnly: true } : {}),
     invites: c.invites && typeof c.invites === "object" ? { on: c.invites.on === true, per: num(c.invites.per), categories: Array.isArray(c.invites.cats) ? c.invites.cats.slice(0, 10).map((x: unknown) => text(x, 20)) : [] } : null,
     prizes: (Array.isArray(c.rewards) ? c.rewards : []).slice(0, 300).map((r: any) => ({ house: text(r?.pattern, 20), scope: r?.scope === "two_ticket" ? "two_ticket" : "card", position: num(r?.ordinal), prize: text(r?.text, 80) })),
     breaks: brandSlots(c.breaks), opening: brandSlots(c.opening), closing: brandSlots(c.closing),
