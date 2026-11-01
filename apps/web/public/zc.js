@@ -114,6 +114,7 @@
   }
   /** A game for 10 people or fewer is Rs 0: a real game in every other way, so no screen marks it. */
   const DEMO_CAP = 10;
+  var DEMO_GAME = false; // FLAG (OFF): the free demo game, labelled "Demo" on every screen. Flip together with DEMO_GAME in apps/edge/src/demo.ts after the audit.
   const isFree10 = () => { const c = Number((S.info && S.info.cap) || (S.sum && S.sum.limit) || (S.coh && S.coh.cap) || 0); return c > 0 && c <= DEMO_CAP; };
   const payLabel = (p) => (p.paid && isFree10() ? "Rs 0 · nothing to pay" : p.paid ? "Paid" : p.confirming ? "Confirming your payment..." : S.draft ? "Draft · not published yet" : "Payment pending for this game");
   const isCancelled = () => !!(S.cancelDone || (S.sum && (S.sum.cancelled || S.sum.status === "cancelled")) || (S.coh && S.coh.cancelled) || (S.info && S.info.cancelled));
@@ -985,12 +986,13 @@
   }
   // ---------- notes above the steps ----------
   const ACTTEXT = { publish: "Publishing is free. Check your e-mail and mobile number, then press \"Confirm and publish\" yourself.", erase: "Press \"Delete all participant data now\" only if you want every guest's name and number deleted. It cannot be undone.", pause: "Press \"Pause\" to pause the running game for everyone.", stop: "Press \"End the game\" only if the game should end for everyone. It cannot be undone." };
+  const demoBanner = () => (DEMO_GAME && S.info && S.info.demo ? `<div class="zc-toast" role="status" id="demobanner"><b>Demo.</b> This is a free demo game for up to ${DEMO_CAP} people. It uses the same rules as a real game. The guests' data is erased within 24 hours of the end, like any game.</div>` : "");
   const actBanner = () => (ACT && ACTTEXT[ACT] && eid && canRun() ? `<div class="zc-toast" role="status" id="actbanner"><b>Your AI assistant brought you here.</b> ${ACTTEXT[ACT]} Nobody but you can press it.</div>` : "");
   const ACTSTEP = { publish: 7, erase: 10, pause: 9, stop: 9 };
   /** The AI helper switch: one small line inside the AI Assistant box (Organizer only). Off by default. The shield behaviour itself is unchanged. */
   const shieldSwitch = () => `<div class="zc-shield"><label class="zc-check" for="shield"><input type="checkbox" id="shield" ${S.shield ? "checked" : ""}> My AI works in my web browser: hide guest names and numbers</label>${S.shield ? `<div class="zc-small zc-nomargin">On. This page shows no guest name or mobile number. Switch it off to load your guest list or look up a guest.</div>` : ""}</div>`;
   function alertZone() {
-    let h = actBanner() + clonePanel();
+    let h = demoBanner() + actBanner() + clonePanel();
     if (S.cloneNew === eid && S.draft && canRun()) h += `<div class="zc-toast" role="status" id="newgamenote">This is a new game. Nothing is paid or published yet.</div>`;
     if (didNotStart() && inGame() && canRun()) h += didNotStartBlock();
     if (isCancelled() && inGame()) h += `<div class="zc-toast" role="status" id="cancelnote">This game was cancelled. Guests can see this. Nothing more is needed.</div>`;
@@ -1333,8 +1335,9 @@
   }
 
   // ---------- quick setup: make the draft ----------
+  let wantDemo = false; // set by startNew(true) only while DEMO_GAME is on
   async function makeDraft(r, id, hasName) {
-    const res = await call("POST", "/api/z", { id, ...(r.name ? { name: r.name } : {}), startRound: ZG.roundAt(r.startMs), callSeconds: r.speed, cap: r.cap, tickets: r.tickets, mark: r.mark, join: r.join, tz: r.tz, rounds: r.rounds, rewards: r.rewards, whoCanJoin: r.who });
+    const res = await call("POST", "/api/z", { ...(wantDemo ? { demo: true } : {}), id, ...(r.name ? { name: r.name } : {}), startRound: ZG.roundAt(r.startMs), callSeconds: r.speed, cap: r.cap, tickets: r.tickets, mark: r.mark, join: r.join, tz: r.tz, rounds: r.rounds, rewards: r.rewards, whoCanJoin: r.who });
     return res;
   }
   async function afterCreate(id, r) {
@@ -1365,7 +1368,8 @@
   async function startNew(demo) {
     const saved = S.f; S.f = quickDefault(); if (demo) S.f.cap = String(DEMO_CAP); const rr = quickRead(); S.f = saved;
     const id = randId();
-    await makeDraft({ ...rr, name: "" }, id);
+    wantDemo = !!(demo && DEMO_GAME);
+    try { await makeDraft({ ...rr, name: "" }, id); } finally { wantDemo = false; }
     const k = await afterCreate(id, rr);
     S.note = "Your draft is saved. Open each step and tap your choices." + (k.ok || !k.reason ? "" : " Pause control is unavailable: " + k.reason);
     refreshEng();

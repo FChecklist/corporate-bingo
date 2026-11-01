@@ -442,8 +442,9 @@ describe("invoice carries Razorpay's own record (owner list 2026-10-10)", () => 
   });
 });
 
+const OWNER = { "x-organizer": "plat" }; // the Rs 1 test is for the owner only (worker.ts); who else is turned away is proved in demo-rs1.test.ts
 describe("Payment Testing page (Rs 1 / US$ 1, buys nothing)", () => {
-  const start = (o: Record<string, unknown> = {}) => call("POST", "/api/payments/paytest", { name: "Asha Rao", email: "asha@acme.in", country: "IN", ...o });
+  const start = (o: Record<string, unknown> = {}) => call("POST", "/api/payments/paytest", { name: "Asha Rao", email: "asha@acme.in", country: "IN", ...o }, OWNER);
   const payIt = async (r: any, payId = "pay_T1") => {
     rz.payments[payId] = { id: payId, order_id: r.razorpay.orderId, status: "captured", amount: r.razorpay.amount, currency: r.razorpay.currency, method: "upi", vpa: "asha@okicici", created_at: Math.floor(T / 1000) };
     return call("POST", "/api/payments/verify", { paymentId: r.paymentId, razorpay_order_id: r.razorpay.orderId, razorpay_payment_id: payId, razorpay_signature: hmac("sek", `${r.razorpay.orderId}|${payId}`) });
@@ -464,7 +465,7 @@ describe("Payment Testing page (Rs 1 / US$ 1, buys nothing)", () => {
     expect(raw.query("SELECT COUNT(*) c FROM invoice WHERE seq>0").get()).toEqual({ c: 0 });
     expect(raw.query("SELECT is_test FROM payment").get()).toEqual({ is_test: 1 });
     const html = await (await call("GET", v.invoiceUrl)).text(); for (const x of ["payment test", "Razorpay: UPI", "Terms and conditions", "No game, pack or credit was bought"]) expect(html).toContain(x);
-    const st = await call("GET", `/api/payments/paytest/${r.paymentId}`); expect(((await st.json()) as any).ok).toBe(true);
+    const st = await call("GET", `/api/payments/paytest/${r.paymentId}`, undefined, OWNER); expect(((await st.json()) as any).ok).toBe(true);
   });
   test("the invoice shows on the done screen: inline markup, a real PDF, and e-mail it to any address (5 at most)", async () => {
     const r = (await (await start()).json()) as any; const v = (await (await payIt(r)).json()) as any;
@@ -490,7 +491,7 @@ describe("Payment Testing page (Rs 1 / US$ 1, buys nothing)", () => {
   test("bad input is refused before any order is created", async () => {
     for (const o of [{ email: "nope" }, { name: "A" }]) expect((await start(o)).status).toBe(400);
     expect(rz.orders.length).toBe(0);
-    expect((await call("GET", "/api/payments/paytest/pay_0000000000000000")).status).toBe(404);
+    expect((await call("GET", "/api/payments/paytest/pay_0000000000000000", undefined, OWNER)).status).toBe(404);
   });
 });
 
@@ -520,7 +521,7 @@ describe("central payments (every order opens through IT Services by Rajat Agarw
     expect(central.orders[0].payment_ref).toMatch(/^pay_[0-9a-f]{16}$/);
   });
   test("the payment test is the payment_test plan", async () => {
-    const r = await call("POST", "/api/payments/paytest", { email: "a@b.co", name: "Asha Rao", country: "IN" });
+    const r = await call("POST", "/api/payments/paytest", { email: "a@b.co", name: "Asha Rao", country: "IN" }, OWNER);
     expect(r.status).toBe(200);
     expect(central.orders[0]).toMatchObject({ plan: "payment_test", amount_minor: 100 });
   });
