@@ -139,6 +139,7 @@
     ${msg ? `<div class="zbanner bad" role="alert">${esc(msg)}</div>` : ""}
     <button class="zbtn" id="go">Ask to join the game</button>
     <p class="zsmall">No mobile number or e-mail address is needed. What is typed here is deleted within 24 hours after the game.</p>
+    <p class="zsmall"><a href="/fair.html" target="_blank" rel="noopener">How the game is kept fair</a></p>
     ${DEMO ? "" : CBConsent.html("K4")}</div>`;
     const needPhone = J.mode === "needPhone" || INFO.joinPhone; // the organizer asked guests to give a mobile number, or the link was already opened elsewhere
     return `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div>
@@ -154,6 +155,7 @@
     <button class="zbtn" id="go" ${DEMO ? "" : 'data-needs="K4" disabled aria-disabled="true"'}>Get my card</button>
     <p class="zsmall">Your name is used for your card and, if you win, to hand over your prize. Your organizer sees it. Other players do not.</p>
     <p class="spriv">Playing is free. You never pay to play.</p>
+    <p class="zsmall"><a href="/fair.html" target="_blank" rel="noopener">How the game is kept fair</a></p>
     <p class="spriv"><a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a></p></div>`;
   };
   const cancelledView = () => `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard" role="status"><h2>This game was cancelled</h2><p class="zsmall" style="margin:0">${esc((INFO.cancelled && INFO.cancelled.message) || "The organizer cancelled this game.")} There is nothing to do on this page. Thank you for your interest.</p></div>`;
