@@ -3,7 +3,7 @@
 // The name is always exactly "Corporate Bingo". The palette is the Corporate Games one (studio blue, marigold, warm white), the same as the website.
 
 /** The version of the Terms in force (the date at the top of /terms.html). Stored with the organizer when they continue. */
-export const TERMS_VERSION = "2026-10-15";
+export const TERMS_VERSION = "2026-11-01";
 
 export const BRAND = {
   name: "Corporate Bingo",

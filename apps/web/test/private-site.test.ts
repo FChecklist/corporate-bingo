@@ -33,4 +33,10 @@ describe("the game site is private (not listed by search engines) but still reac
   test("hiding changes nothing a person uses: the join, organizer, payment, report and sign-in pages and the version stamp are still shipped", () => {
     for (const f of ["index.html", "zc.html", "signin.html", "pay.html", "version.json"]) expect(existsSync(join(OUT, f)), f).toBe(true);
   });
+  test("one legal document: the separate legal pages answer a permanent redirect to their section on the home site, both spellings (nothing is deleted without a redirect)", () => {
+    const r = readFileSync(join(OUT, "_redirects"), "utf8").split(/\r?\n/).filter(Boolean);
+    for (const [p, sec] of [["/terms", "terms"], ["/privacy", "privacy"], ["/refund-policy", "payments"], ["/legal", "terms"], ["/dpa", "processors"], ["/legal-position", "acceptable-use"]]) {
+      expect(r).toContain(`${p} https://home.corporatetambola.com/terms#${sec} 301`); expect(r).toContain(`${p}.html https://home.corporatetambola.com/terms#${sec} 301`);
+    }
+  });
 });

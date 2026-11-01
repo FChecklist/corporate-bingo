@@ -41,6 +41,12 @@ rules += "/version.json\n  Cache-Control: no-store\n";
 rules += "/*.js\n  Cache-Control: no-cache\n  X-Robots-Tag: noindex, noai, noimageai\n/img/*\n  Cache-Control: public, max-age=604800\n/*.css\n  Cache-Control: no-cache\n/fonts/*\n  Cache-Control: public, max-age=31536000, immutable\n";
 versionRefs(OUT, STAMP.commit); // every local script and stylesheet address in the pages carries ?v=<commit> (pages/cache-bust.mjs): a returning visitor never runs an old script on a new page, whatever cache time the zone adds (the zone setting Browser Cache TTL replaces a no-cache header on the custom domain, so the address itself must change)
 hideFromSearch(OUT); // 1 Nov 2026: noindex meta on every page, robots.txt Disallow all, no sitemap
+// One legal document (owner, 1 Nov 2026): the separate legal pages answer a permanent redirect to their section of the document on home.corporatetambola.com (nothing is deleted without a redirect). Both spellings, as for the headers.
+const DOC = "https://home.corporatetambola.com/terms", MOVED = { "/terms": "terms", "/legal": "terms", "/legal-position": "acceptable-use", "/privacy": "privacy", "/refund-policy": "payments", "/dpa": "processors", "/subprocessors": "processors", "/trust": "terms", "/partner-terms": "terms" };
+let redirects = ""; for (const [p, sec] of Object.entries(MOVED)) redirects += `${p}.html ${DOC}#${sec} 301
+${p} ${DOC}#${sec} 301
+`;
+writeFileSync(join(OUT, "_redirects"), redirects);
 writeFileSync(join(OUT, "_headers"), rules);
 writeFileSync(join(OUT, "version.json"), JSON.stringify(STAMP) + "\n"); // what is live (P12): served at /version.json
 writeFileSync(join(OUT, "_routes.json"), JSON.stringify({ version: 1, include: ["/*"], exclude: ["/img/*", "/fonts/*", "/*.js", "/*.css", "/*.png", "/*.svg", "/*.webmanifest", "/*.txt", "/*.xml", "/*.pdf", "/*.mp4", "/*.ico", "/*.woff2"] }));
