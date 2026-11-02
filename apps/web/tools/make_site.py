@@ -79,7 +79,7 @@ def slim_hero(kicker, h1, lead, buttons=""):
 
 def cta_band(text="Try a free game with 10 people. It costs nothing."):
     return (f'<section class="ck-sec ck-cta"><div class="ck-wrap"><h2>{text}</h2>'
-            f'<div class="ck-btn-row"><a class="ck-btn main" href="{DEMO}">Free demo game</a><a class="ck-btn" href="/#login">Log in</a></div></div></section>')
+            f'<div class="ck-btn-row"><a class="ck-btn main" href="{DEMO}">Free demo game</a><a class="ck-btn" href="https://console.corporatetambola.com/">Log in</a></div></div></section>')
 
 
 # ---------------------------------------------------------------- how it works
