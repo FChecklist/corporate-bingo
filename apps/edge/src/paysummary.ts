@@ -1,9 +1,7 @@
 // The game block of the payment pages: game name, game ID, number of participants (the pack), start date and time, and the organizer (name when known, e-mail MASKED like j***@company.com).
-// Shown (1) on the payment-link page to whoever holds the link, and (2) on the owner's payment test when a game ID is typed. Nothing here is a participant's detail: only the
+// Shown on the payment-link page to whoever holds the link (the public payment test shows NO game: a typed game ID is never looked up there, so nothing leaks about which games exist). Nothing here is a participant’s detail: only the
 // organizer's own name and e-mail, which the invoice and the payment e-mails already carry. The e-mail is always masked here; the full address never leaves the Worker on these routes.
 import { openText, type PiiEnv } from "./pii";
-import { GAME_ID_RE } from "./payfields";
-import { PAYTEST_OWNER_ONLY } from "./paytest-gate";
 import { packFor } from "./paylink";
 import type { D1 } from "./worker";
 
@@ -45,20 +43,4 @@ export async function gameSummary(env: SummaryEnv, eid: string): Promise<GameSum
 export async function payLinkGame<T extends { game: Record<string, unknown> }>(env: SummaryEnv, eid: string, pub: T): Promise<T> {
   const s = await gameSummary(env, eid);
   return { ...pub, game: { ...pub.game, id: eid, ...(s && (s.organizer.name || s.organizer.email) ? { organizer: s.organizer } : {}) } };
-}
-
-const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
-
-/** The two small answers the owner's payment test page asks for. The gate in worker.ts (paytest-gate.ts) has already refused everybody but the owner with a plain 404.
- *   GET /api/payments/paytest/key            -> {ok:true}: the key was accepted (no payment, nothing written)
- *   GET /api/payments/paytest/game/<gameId>  -> the game block for that ID, or 404 {code:"no-game"} */
-export async function paytestInfoRoute(req: Request, env: SummaryEnv): Promise<Response | null> {
-  if (req.method !== "GET") return null;
-  const p = new URL(req.url).pathname;
-  if (p === "/api/payments/paytest/key") return json({ ok: true, ownerOnly: PAYTEST_OWNER_ONLY });
-  const m = p.match(/^\/api\/payments\/paytest\/game\/([^/]+)$/);
-  if (!m) return null;
-  let id = ""; try { id = decodeURIComponent(m[1]!).trim(); } catch { /* not a game ID */ }
-  const s = GAME_ID_RE.test(id) ? await gameSummary(env, id) : null;
-  return s ? json({ ok: true, game: s }) : json({ error: "That game ID was not found. Please check it and try again.", code: "no-game" }, 404);
 }

@@ -1,4 +1,4 @@
-// Boss order 1 Nov 2026: (1) the free DEMO game (apps/edge/src/demo.ts, flag DEMO_GAME) and (2) the Rs 1 payment test that only the owner can open.
+// Boss order 1 Nov 2026: (1) the free DEMO game (apps/edge/src/demo.ts, flag DEMO_GAME) and (2) the Rs 1 payment test (open to everybody since 2 Nov 2026; the per-visitor limits are in payfirst.test.ts).
 // Everything runs through the real Worker with a real SQLite D1; the gateway is a small stand-in.
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { createHmac } from "node:crypto";
@@ -95,37 +95,33 @@ describe("the free demo game", () => {
   });
 });
 
-describe("the Rs 1 payment test is for the owner only", () => {
-  const start = (key?: string, extra: Record<string, unknown> = {}) => call("POST", "/api/payments/paytest", { name: "Rajat Agarwal", email: "owner@acme.in", country: "IN", ...extra }, key);
-  test("without the owner key, or with an ordinary organizer's key, the API answers Not found and no order is opened", async () => {
+describe("the Rs 1 payment test is open to everybody (2 Nov 2026: no owner key)", () => {
+  const start = (extra: Record<string, unknown> = {}, ip = "2.2.2.2") => call("POST", "/api/payments/paytest", { country: "IN", ...extra }, undefined, T, ip);
+  test("with no key at all an order of Rs 1 opens; the owner's key, a wrong key and an ordinary organizer's key change nothing", async () => {
     const k = await organizer();
-    for (const key of [undefined, "wrong", k]) expect((await start(key)).status).toBe(404);
-    expect((await call("GET", "/api/payments/paytest/pay_0000000000000000", undefined, k)).status).toBe(404);
-    expect(orders.length).toBe(0); expect(count("SELECT COUNT(*) c FROM payment")).toBe(0);
+    for (const [i, key] of [undefined, "wrong", k, "plat"].entries()) { const r = await call("POST", "/api/payments/paytest", { country: "IN" }, key, T, `3.3.3.${i + 1}`); expect([key, r.status]).toEqual([key, 200]); }
+    expect(orders.length).toBe(4);
+    expect((await call("GET", "/api/payments/paytest/pay_0000000000000000")).status).toBe(404); // an unknown test payment is a plain 404
   });
-  test("a work link made from the owner key does not open it either", async () => {
-    const r = await handle(new Request("http://x/api/payments/paytest", { method: "POST", headers: { "content-type": "application/json", "x-organizer": "plat", "x-cb-link": "1" }, body: "{}" }), env as Env, T);
-    expect(r.status).toBe(404);
-  });
-  test("with the owner key: Rs 1 recorded as payment_test with a SITECODE txn id, the gateway order is 100 paise, and the receipt appears", async () => {
-    const r = await start("plat"); const b = await j(r);
+  test("Rs 1 recorded as payment_test with a SITECODE txn id, the gateway order is 100 paise, and the receipt appears", async () => {
+    const r = await start(); const b = await j(r);
     expect(r.status, JSON.stringify(b)).toBe(200);
     expect(b.razorpay.amount).toBe(100); expect(orders[0].amount).toBe(100);
     const row = raw.prepare("SELECT product_type, product, txn_id, amount, is_test, status FROM payment WHERE id=?").get(b.paymentId) as any;
     expect(row).toMatchObject({ product_type: "payment_test", product: "corporate_bingo", amount: 1, is_test: 1, status: "created" });
     expect(row.txn_id).toMatch(/^[A-Z0-9]+-/);
-    payments["pay_o1"] = { id: "pay_o1", order_id: b.razorpay.orderId, status: "captured", amount: 100, currency: "INR", method: "upi", vpa: "o@okicici" };
+    payments["pay_o1"] = { id: "pay_o1", order_id: b.razorpay.orderId, status: "captured", amount: 100, currency: "INR", method: "upi", vpa: "o@okicici", email: "visitor@acme.in", contact: "+919876501234" };
     const v = await j(await call("POST", "/api/payments/verify", { paymentId: b.paymentId, razorpay_order_id: b.razorpay.orderId, razorpay_payment_id: "pay_o1", razorpay_signature: sign(b.razorpay.orderId, "pay_o1") }));
-    expect(v.paytest).toBe(true);
-    expect((await j(await call("GET", `/api/payments/paytest/${b.paymentId}`, undefined, "plat"))).paytest).toBe(true);
+    expect(v.paytest).toBe(true); expect(v.payer).toMatchObject({ email: "visitor@acme.in", phone: "+919876501234", method: "UPI" }); // the e-mail and the mobile are the ones Razorpay holds
+    expect((await j(await call("GET", `/api/payments/paytest/${b.paymentId}`))).paytest).toBe(true);
     expect(count("SELECT COUNT(*) c FROM entitlement")).toBe(0);
     expect(count("SELECT COUNT(*) c FROM payment_ledger WHERE product_type='payment_test'")).toBe(1);
   });
-  test("the page asks for the owner key, keeps it for this tab only (never in localStorage), and is not listed for search", () => {
+  test("the page asks for no key, keeps only the Game ID and the country for this tab (never in localStorage), and is not listed for search", () => {
     const js = readFileSync(new URL("../../web/public/paytest.js", import.meta.url), "utf8");
     const kit = readFileSync(new URL("../../web/public/paykit.js", import.meta.url), "utf8");
-    expect(kit).toContain('id="okey"'); expect(js).toContain("Owner only"); for (const x of [js, kit]) expect(x).not.toMatch(/localStorage\s*[.\[]/); // the key lives in this tab's sessionStorage draft at most, and is never put in an address
-    expect(kit).toContain("sessionStorage"); expect(js + kit).not.toMatch(/(location|history)\.[A-Za-z]+[^;\n]*S\.key/);
+    expect(js + kit).not.toMatch(/okey|Owner key|Owner only|x-organizer|paytest\/key|paytest\/game/); for (const x of [js, kit]) expect(x).not.toMatch(/localStorage\s*[.\[]\s*(set|get)Item\(\s*["'](cbz-paydraft|cbz-pl)/); expect(js).not.toMatch(/localStorage/);
+    expect(js).toContain("Test our payment"); expect(kit).toContain("sessionStorage");
     expect(readFileSync(new URL("../../web/public/paytest.html", import.meta.url), "utf8")).toContain('content="noindex"');
     expect(readFileSync(new URL("../../web/public/robots.txt", import.meta.url), "utf8")).toContain("Disallow: /paytest.html");
   });
