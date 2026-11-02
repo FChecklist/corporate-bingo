@@ -62,7 +62,7 @@ describe("the header menu: exactly six items, in the owner's order", () => {
   test("the menu points at pages that exist, and the free demo game is the 10-person demo", () => {
     const h = rd("index.html"), nav = /<nav class="ck-nav"[^>]*>([\s\S]*?)<\/nav>/.exec(h)![1]!;
     const hrefs = [...nav.matchAll(/<a href="([^"]+)"/g)].map((m) => m[1]);
-    expect(hrefs).toEqual(["/how-it-works", "/zc.html?demo=1", "/guide", "/brochure", "/partner", "/#login"]);
+    expect(hrefs).toEqual(["/how-it-works", "/zc.html?demo=1", "/guide", "/brochure", "/partner", "https://console.corporatetambola.com/"]);
     for (const f of ["how-it-works.html", "guide.html", "brochure.html", "partner.html", "zc.html", "brochure.pdf"]) expect([f, existsSync(new URL(f, PUB))]).toEqual([f, true]);
     expect(readFileSync(new URL("../../../packages/beacon/src/config.ts", import.meta.url), "utf8")).toMatch(/DEMO_CAP\s*=\s*10/);
     for (const banned of ["Free AI assistant", "WhatsApp us", "Pricing</a>", ">Video<"]) expect(nav).not.toContain(banned);

@@ -1056,6 +1056,7 @@
       <label class="zc-lbl" for="lem">Your e-mail</label><input id="lem" class="zc-in" type="email" inputmode="email" autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="your e-mail">
       <div class="zc-foot"><button class="zc-btn" id="goLogin" type="button">Continue</button></div>
       <p class="zc-small zc-muted zc-lead2">Nothing to remember. Participants never sign in; they join with your game link.</p>
+      ${NEWDEMO || NEWGAME ? "" : `<p class="zc-small zc-muted zc-lead2" id="toConsole">Organizers can also sign in on the <a href="https://console.corporatetambola.com/">console</a>, where all their games sit together.</p>`}
 
     </div></div>`;
   }
