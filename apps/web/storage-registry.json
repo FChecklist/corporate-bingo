@@ -97,6 +97,14 @@
       ]
     },
     {
+      "id": "pay-draft",
+      "store": "sessionStorage",
+      "say": "On an organizer's or owner's screen while paying: what was typed on the payment page, kept only in this tab so nothing is lost if the page reloads, and gone when the tab closes.",
+      "keys": [
+        "cbz-paydraft-*"
+      ]
+    },
+    {
       "id": "console-progress",
       "store": "localStorage",
       "say": "In an organizer's browser: which setup steps are done and which messages were sent, for each game.",

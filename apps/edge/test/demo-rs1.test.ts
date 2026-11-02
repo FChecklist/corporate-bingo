@@ -121,9 +121,11 @@ describe("the Rs 1 payment test is for the owner only", () => {
     expect(count("SELECT COUNT(*) c FROM entitlement")).toBe(0);
     expect(count("SELECT COUNT(*) c FROM payment_ledger WHERE product_type='payment_test'")).toBe(1);
   });
-  test("the page asks for the owner key, keeps it in memory only, and is not listed for search", () => {
+  test("the page asks for the owner key, keeps it for this tab only (never in localStorage), and is not listed for search", () => {
     const js = readFileSync(new URL("../../web/public/paytest.js", import.meta.url), "utf8");
-    expect(js).toContain('id="okey"'); expect(js).toContain("owner only"); expect(js).not.toMatch(/localStorage|sessionStorage/);
+    const kit = readFileSync(new URL("../../web/public/paykit.js", import.meta.url), "utf8");
+    expect(kit).toContain('id="okey"'); expect(js).toContain("Owner only"); for (const x of [js, kit]) expect(x).not.toMatch(/localStorage\s*[.\[]/); // the key lives in this tab's sessionStorage draft at most, and is never put in an address
+    expect(kit).toContain("sessionStorage"); expect(js + kit).not.toMatch(/(location|history)\.[A-Za-z]+[^;\n]*S\.key/);
     expect(readFileSync(new URL("../../web/public/paytest.html", import.meta.url), "utf8")).toContain('content="noindex"');
     expect(readFileSync(new URL("../../web/public/robots.txt", import.meta.url), "utf8")).toContain("Disallow: /paytest.html");
   });

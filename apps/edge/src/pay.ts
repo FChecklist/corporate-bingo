@@ -26,6 +26,7 @@ import { attemptStatusOf, centralOf, derivedEventKey, eventSeen, markEventSeen, 
 import { getMode, mailGate, testFlag, type ModeEnv } from "./mode";
 import { isTestLogin } from "./testlogins";
 import { lookupPayLink, packFor, payLinkPublic } from "./paylink";
+import { payLinkGame, paytestInfoRoute } from "./paysummary";
 import { rehearsalMailWrap } from "./rehearsal-mail";
 import { consentMissing, recordConsent } from "./consent";
 import { creditAppliedFor, creditFromPayment, creditUsesFor, mailCreditCreated, restoreCreditUses, rs, teamEmails } from "./credit";
@@ -319,7 +320,7 @@ export async function payRoute(req: Request, env: PayEnv, now: number, spend: (n
     // the full price, unless the person who made the link had already applied credit to this game: then (and only then) the reduced amount is what gets charged. The credit itself is never shown.
     const credited = pub.price && v.status === "open" ? await creditAppliedFor(db, v.e.id) : 0;
     if (pub.price && credited > 0 && pub.price.currency === "INR") { const total = Math.max(0, Math.round((pub.price.total - credited) * 100) / 100); pub.price = { ...pub.price, total, base: Math.round((total / 1.18) * 100) / 100, gst: Math.round((total - total / 1.18) * 100) / 100 }; }
-    return json(pub);
+    return json(await payLinkGame(env, v.e.id, pub));
   }
   if (req.method === "POST" && (p === "/api/checkout" || p === "/api/payments/test" || !!plm?.[2])) {
     // TEST mode (mode.ts): no Razorpay order is ever made; the payment is a labelled test payment that is marked paid at once, flagged is_test, and publishes the draft it was made for. LIVE refuses the labelled path.
@@ -396,6 +397,7 @@ export async function payRoute(req: Request, env: PayEnv, now: number, spend: (n
     return json({ mode: "razorpay", paymentId: id, ...hopOf(env), razorpay: { keyId: rzp.keyId, orderId: order.id, amount: toMinor(pr.total), currency: cur, name: brand.name, description: "(closed-group bingo software) | owned and made by IT Services by Rajat Agarwal", prefill: { email: refusedMail(b.email)!, name: payerName.slice(0, 80), ...(contact ? { contact } : {}) }, notes: { brand: brand.name, participants: String(pack) }, theme: { color: brand.theme }, ...(cur === "INR" ? { config: UPI_FIRST } : {}) } });
   }
 
+  { const pi = await paytestInfoRoute(req, env); if (pi) return pi; } // the owner-only key check and game lookup of the payment test page (paysummary.ts)
   const ptm = p.match(/^\/api\/payments\/paytest\/(pay_[0-9a-f]{16})$/); // the test page asks while Razorpay is still confirming
   if (req.method === "GET" && ptm) {
     const row = await db.prepare("SELECT status, result, meta FROM payment WHERE id=?").bind(ptm[1]).first<any>();

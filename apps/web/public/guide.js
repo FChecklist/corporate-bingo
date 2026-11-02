@@ -21,6 +21,9 @@
         {none:true}                          nothing to go to: reading is enough
      Messages meant for the owner's own tools or for AI links (never on a person's screen) are listed in API_ONLY below and need no guide. */
   var C = [
+    // ---------- the owner's payment test ----------
+    { m: ["That game ID was not found"], s: [404], k: "field", t: "That game ID was not found",
+      w: "No game has this ID, so there is nothing to show beside the payment test.", d: ["Check the game ID for a typing slip: it has letters, digits, hyphens and underscores only.", "Copy it again from the game's own page, or leave the box empty to test without a game."], g: { field: "#gid", label: "the Game ID box" } },
     // ---------- sign in, e-mail, codes ----------
     { m: ["Please enter a valid work email", "Please enter a valid e-mail address", "Enter a valid e-mail address", "Please confirm a valid email address", "That e-mail address does not look right", "Enter the Organizer's e-mail address", "Enter the e-mail address you joined", "Enter a valid e-mail", "Please enter a valid work e-mail", "Please confirm a valid e-mail address"], k: "field", t: "Please check the e-mail address",
       w: "Please check the e-mail address (it looks incomplete or has a typing slip) so the code or link can reach you.", d: ["Type the full address: the part before the @ sign, the @ sign, and the part after it.", "Check there are no spaces and the @ sign is there.", "Then try again."], g: { field: 'input[type="email"], #pubEmail, #hemail, #email', label: "the e-mail box" } },

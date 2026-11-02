@@ -223,7 +223,7 @@ describe("See what guests see (card preview)", () => {
 
 describe("the pay link page (no sign-in)", () => {
   const linkOf = async (o: O, id: string) => { const r = await o.api("POST", `/api/z/${id}/paylink`, {}, o.token); expect(r.status).toBe(200); const j = await o.json(r); return new URL(j.url).searchParams.get("t")!; };
-  const pl = async (o: O, t: string, calls: Call[] = []) => { const hook = spy(calls); const p = await openPage(o.world, { url: "http://localhost/paylink.html" + (t ? "?t=" + t : ""), html: "paylink.html", scripts: ["common.js", "paylink.js"], afterLoad: (w, f) => hook(w, f) }); open.push(p); return p; };
+  const pl = async (o: O, t: string, calls: Call[] = []) => { const hook = spy(calls); const p = await openPage(o.world, { url: "http://localhost/paylink.html" + (t ? "?t=" + t : ""), html: "paylink.html", scripts: ["common.js", "payfields.js", "paykit.js", "paylink.js"], afterLoad: (w, f) => hook(w, f) }); open.push(p); return p; };
   test("shows only the game, date and price with GST, asks name and e-mail, and pays that one game (read back from the server)", async () => {
     const o = await organizer({ TEST_MODE: "1" }); await published(o, "PG-PL1", {}, { name: "Diwali Night" }); const t = await linkOf(o, "PG-PL1");
     const calls: Call[] = []; const p = await pl(o, t, calls);
