@@ -123,6 +123,7 @@ def footer():
             '</div>\n'
             '<div class="ck-legal"><p><a href="https://itservices-rajat-agarwal.pages.dev" target="_blank" rel="noopener">IT Services by Rajat Agarwal</a> is the trade name of Rajat Agarwal, an individual running a sole proprietorship in India. GST is not charged. Payments are collected by IT Services by Rajat Agarwal.</p>'
             '<p>&copy; 2026 Rajat Agarwal. All rights reserved.</p>'
+            '<p class="ck-more">Explore more: <a href="https://dpdp.veridian-aios.com/">VERIDIAN DPDP</a>, <a href="https://veridian-aios.com/">VERIDIAN</a> and <a href="https://townhall-records.com/">Townhall Records</a>.</p>'
             '<p class="ck-version" id="siteVersion">' + version_line() + '</p></div>\n'
             '</div></footer>')
 
