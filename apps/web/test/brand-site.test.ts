@@ -109,7 +109,7 @@ describe("plain wording", () => {
 });
 
 describe("canonical address, share tags, sitemap", () => {
-  const CLEAN: Record<string, string> = { index: "/", "how-it-works": "/how-it-works", guide: "/guide", brochure: "/brochure", partner: "/partner", helpdesk: "/helpdesk", pricing: "/pricing", about: "/about", contact: "/contact", legal: "/legal", terms: "/terms", privacy: "/privacy", "legal-position": "/legal-position", dpa: "/dpa", subprocessors: "/subprocessors", "refund-policy": "/refund-policy", "partner-terms": "/partner-terms", trust: "/trust" };
+  const CLEAN: Record<string, string> = { index: "/", "how-it-works": "/how-it-works", guide: "/guide", brochure: "/brochure", partner: "/partner", helpdesk: "/helpdesk", pricing: "/pricing", about: "/about", contact: "/contact", terms: "/terms", "partner-terms": "/partner-terms", trust: "/trust" };
   const sm = rd("sitemap.xml"), locs = [...sm.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]!);
   test("each indexable page has one canonical address, the same in Open Graph and in the sitemap, and the share picture exists", () => {
     expect(locs.sort()).toEqual(Object.values(CLEAN).map((p) => ORIGIN + p).sort());

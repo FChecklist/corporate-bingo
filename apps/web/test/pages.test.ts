@@ -513,7 +513,7 @@ describe("phone page", () => {
     const p = await phone(o, "UI-PRIV"); await p.waitFor((x) => /Join the game/.test(x));
     expect(p.$("#go")).toBeTruthy(); expect(p.win.document.querySelectorAll('input[type="checkbox"]').length).toBe(0); expect(p.win.document.body.textContent).toContain("Playing is free."); expect(p.win.document.body.textContent).not.toMatch(/18 or older/); expect(p.win.document.querySelectorAll(".spriv").length).toBe(2);
     for (const f of ["z.css", "app.css"]) expect(readFileSync(new URL("../public/" + f, import.meta.url), "utf8")).toMatch(/.spriv{[^}]*font-size:12px[^}]*font-weight:400/);
-    expect(readFileSync(new URL("../public/legal.html", import.meta.url), "utf8")).toContain('id="privacy"');
+    expect(readFileSync(new URL("../public/terms.html", import.meta.url), "utf8")).toContain('id="privacy"');
   });
   test("UC-29 / UC-57 a guest joins a published engagement before payment and gets the waiting room: countdown, what can be won, how it works, sound check, calendar", async () => {
     const o = await organizer(); await make(o, "UI-PH1"); await o.api("PATCH", "/api/z/UI-PH1/settings", { rewards: [{ pattern: "blackout", ordinal: 1, text: "Voucher 5000" }, { pattern: "corners", ordinal: 1, text: "Gift hamper" }] }, o.aiKey); await publish(o, "UI-PH1");

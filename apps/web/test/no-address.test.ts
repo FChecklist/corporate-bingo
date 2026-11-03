@@ -34,6 +34,6 @@ describe("no address, city or state in anything that ships", () => {
       const t = readFileSync(join(ROOT, "apps/web/public", f), "utf8");
       expect(t).toContain("sole proprietorship");
     }
-    expect(readFileSync(join(ROOT, "apps/web/public/terms.html"), "utf8")).toContain("the courts in India have exclusive jurisdiction");
+    expect(readFileSync(join(ROOT, "apps/web/public/terms.html"), "utf8")).toContain("The courts in India have exclusive jurisdiction");
   });
 });
