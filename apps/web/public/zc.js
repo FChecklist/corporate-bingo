@@ -288,8 +288,8 @@
       + small(f.emp ? "Only the employees on your list can play. Guests cannot invite anyone. Anyone else who opens your link waits for you to say yes." : "Employees, vendors, customers, families: everyone can play. Put the people you know on your list; others can still come in with the link.")
       + (f.emp ? "" : `<span class="zc-lbl zc-sec zc-sub">Who can join</span>` + grp("who", "Who can join?", [["list", "Only people on a list"], ["anyone", "Anyone with the link"]])
         + small(f.who === "list" ? "Only people you have added can join straight away. Anyone else who clicks your link has to wait until you or a Host says yes." : "Anyone who clicks your link joins straight away. You can change this until the game starts."))
-      + grp("ver", "What must a person give to get in?", [["mobile", "Name or mobile number"], ["id", "Employee ID or Email ID"], ["both", "Mobile number and ID"]])
-      + (f.ver === "mobile" ? "" : grp("idk", "Which ID?", [["emp", "Employee ID"], ["email", "Email ID"]]))
+      + grp("ver", "What must a person give to get in?", [["mobile", "Name or mobile number"], ["id", "Employee ID or Email ID"], ["both", "Mobile number and Employee ID"]])
+      + (f.ver === "mobile" ? "" : grp("idk", "Which Employee or Email ID?", [["emp", "Employee ID"], ["email", "Email ID"]]))
       + small(f.ver === "mobile" ? "Each person types what you choose below. This is the simplest." : f.emp ? "Each employee types " + idHow + ". Add the employees to your list with their " + (f.ver === "id" ? "employee ID (a mobile number is optional)." : "mobile number and employee ID.") : "Your employees type " + idHow + ". Vendors, customers and families have no employee ID, so they join the usual way.")
       + (f.ver === "mobile" ? quiet(f, "gj", grp("gj", "What do guests type to join?", [["name", "Just their name (best for teams)"], ["phone", "Name and mobile number"]])
         + small(f.gj === "phone" ? "Guests also give a mobile number. Use this when you load a list of mobile numbers and send personal links." : "Guests type only their name. The common link works in Slack, Teams or Zoom chat. Personal links from a list still work.")) : "")
@@ -502,7 +502,7 @@
   // the ID the server will keep, worked out the same way (so the console can find two spellings of one person): an Email ID is NFKC, no spaces, lower case; an employee ID is NFKC, capitals, A-Z 0-9 only (games made before the new rule: capitals, no spaces)
   const idCleanOn = () => !!((S.sum && S.sum.idClean) || (S.cfg && S.cfg.idClean));
   const idKeyOf = (raw) => { const v = String(raw == null ? "" : raw).normalize("NFKC"); return idKindNow() === "email" ? v.replace(/[\s\u0085\u200B-\u200D\u2028\u2029\u2060\uFEFF]/g, "").toLowerCase() : idCleanOn() ? v.toUpperCase().replace(/[^A-Z0-9]/g, "") : v.replace(/\s+/g, "").toUpperCase(); };
-  const idProblem = (raw) => { const v = String(raw == null ? "" : raw).normalize("NFKC").trim(); if (!v) return ""; if (idKindNow() === "email") return /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/.test(idKeyOf(v)) ? "" : "Please check your Email ID. It looks incomplete."; if (idCleanOn() && v.indexOf("@") >= 0) return "This looks like an Email ID. This game asks for an employee ID: letters and numbers only."; return idCleanOn() && idKeyOf(v).length > 30 ? "This ID is too long. An employee ID may be up to 30 characters once cleaned." : ""; };
+  const idProblem = (raw) => { const v = String(raw == null ? "" : raw).normalize("NFKC").trim(); if (!v) return ""; if (idKindNow() === "email") return /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/.test(idKeyOf(v)) ? "" : "Please check your Email ID. It looks incomplete."; if (idCleanOn() && v.indexOf("@") >= 0) return "This looks like an Email ID. This game asks for an employee ID: letters and numbers only."; return idCleanOn() && idKeyOf(v).length > 30 ? "This Employee ID is too long. An employee ID may be up to 30 characters once cleaned." : ""; };
   function cleanBatch(rows) {
     const seen = new Set(), good = [], wrong = [], same = []; let dups = 0;
     for (const r of rows) {
@@ -515,7 +515,7 @@
         seen.add("E" + emp); good.push({ name, phone: d0, empId: emp }); continue;
       }
       const d = cleanPhone(r.phone);
-      if (!d) { wrong.push({ name, raw: String(r.phone || ""), ...(vmode() !== "mobile" && !emp ? { why: "A mobile number or an ID is needed." } : {}) }); continue; }
+      if (!d) { wrong.push({ name, raw: String(r.phone || ""), ...(vmode() !== "mobile" && !emp ? { why: "A mobile number or an Employee ID is needed." } : {}) }); continue; }
       if (seen.has(d)) { dups++; continue; }
       seen.add(d); good.push({ name, phone: d, ...(emp && vmode() !== "mobile" ? { empId: emp } : {}) });
     }
