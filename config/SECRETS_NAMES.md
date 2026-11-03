@@ -56,3 +56,6 @@ Where things are set:
 | `AI_LINK_MAIL_AT_SIGNUP` | Switch for the AI work-link welcome e-mail sent when an account is made; the live site turns it off because the AI link is hidden in the console | wrangler var | setting |
 | `CLAIM_HOLD` | Switch (on when set to 1): while a claim is checked the game waits for everyone, then goes on for everyone. Off unless set | wrangler var | setting |
 | `ID_ONLY` | Switch (on when set to 1): joining by name, location and an ID only; no mobile number is asked for or kept. Off unless set | wrangler var | setting |
+| `ANALYTICS` | The one central visitor database `site-analytics`: this game's own visit tracker also copies each visit into it (the copy does nothing without this binding and `ANALYTICS_KEY`) | Binding in `pages/wrangler.toml` | binding |
+| `ANALYTICS_KEY` | Key that hashes network addresses for the central visitor database; the same value on every site, so one visitor can be followed across sites | Pages secret | secret |
+| `ANALYTICS_DAILY_WRITES` | Most central visitor-database writes per day (a cap; the default in the code is 400,000) | Optional Pages variable | setting |
