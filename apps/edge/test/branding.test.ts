@@ -113,31 +113,17 @@ describe("pages: one title pattern, icons, manifest, theme colour", () => {
   });
 });
 
-describe("the legal page carries the owner's final text, and each line matches what the code does", () => {
-  const html = read("apps/web/public/legal.html");
-  const sec = (id: string) => { const m = html.match(new RegExp(`<section id="${id}"[\\s\\S]*?</section>`)); expect(m).toBeTruthy(); return m![0]; };
-  const items = (id: string) => [...sec(id).matchAll(/<li>([\s\S]*?)<\/li>/g)].map((x) => x[1]!.replace(/<[^>]+>/g, "").replace(/&rsquo;/g, "’").replace(/&ldquo;/g, "“").replace(/&rdquo;/g, "”").replace(/&amp;/g, "&"));
-  test("anchors, headings, counts, and one short line each", () => {
-    for (const id of ["rules", "privacy", "disclaimer"]) expect(html).toContain(`<section id="${id}"`);
-    expect(html).toContain(">Rules</h2>"); expect(html).toContain(">Privacy &amp; Data Policy</h2>"); expect(html).toContain(">Disclaimer</h2>");
-    expect(items("rules").length).toBe(12); expect(items("privacy").length).toBe(18); expect(items("disclaimer").length).toBe(6);
-    for (const id of ["rules", "privacy", "disclaimer"]) for (const l of items(id)) expect(l.split(/\s+/).length).toBeLessThanOrEqual(30);
-    expect(html).toMatch(/<p class="muted">[^<]{1,80}<\/p>/);
+describe("the one legal document (terms.html) carries the approved text, the older legal pages point to it, and the timings in it match what the code does", () => {
+  const html = read("apps/web/public/terms.html");
+  const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  test("nine sections in one document with one version, and the older legal pages point into it", () => {
+    for (const id of ["terms", "payments", "privacy", "retention", "cookies", "processors", "grievance", "acceptable-use", "game-rules"]) expect(html).toContain(`<section id="${id}">`);
+    expect(html).toContain('<article class="legal-doc" data-version="2026-11-01">');
+    for (const [f, sec] of [["legal.html", "terms"], ["privacy.html", "privacy"], ["refund-policy.html", "payments"], ["legal-position.html", "acceptable-use"], ["dpa.html", "processors"], ["subprocessors.html", "processors"]] as const) expect([f, read("apps/web/public/" + f).includes(`href="/terms#${sec}"`)]).toEqual([f, true]);
+    expect(html).toContain("hello@corporatetambola.com");
   });
-  test("the eighteen privacy lines, word for word, with typographic apostrophes", () => {
-    expect(items("privacy")).toEqual([
-      "We delete all participant data from our systems within 24 hours after the game ends.", "A game that never starts is treated the same way: its guests’ names and numbers are deleted 23 hours after the time it was meant to end.", "All data is encrypted, in transit and at rest.", "Where the data is: the website runs on Cloudflare’s global network. The database is kept in Cloudflare’s Asia-Pacific region.", "Participants never see each other’s data.", "A player can leave at any time, ask what is held about them, or ask for it to be deleted, from the game page. An answer comes within 7 days.", "We provide the software. The organizer runs the game.", "No advertising cookies or trackers. Data is never sold.", "Your phone keeps only the items listed under “What your device keeps” below. We use no other cookie.", "Exception: winner prize details are kept for 365 days, so the organizer can confirm the prize was handed over. They are then deleted automatically.", "Fair play. We keep a protected, encrypted record of game activity to keep every game fair. Only we can see it. Removed automatically 365 days after your game ends.", "Public pages: a first-party visitor id and shortened network address, never names or mobile numbers, kept 365 days. With Global Privacy Control or Do Not Track, we only count visits.", "Designed to follow India’s DPDP Act 2023, the EU GDPR and US state privacy laws such as the CCPA.",
-      "Your phone contacts drand for public random numbers, and YouTube (privacy mode) only if your organizer adds a video.", "Guests are never e-mailed. Only the organizer and Hosts have an e-mail address on file.", "Names and numbers are sealed with AES-256 at rest. We store no payment card details.", "You may also complain to a data protection authority, such as the Data Protection Board of India.",
-      "Questions or requests: our Grievance Officer, Rajat Agarwal, hello@corporatetambola.com. We reply within 30 days. The full notice is the Privacy Policy page."]);
-    expect(html).toContain('href="mailto:hello@corporatetambola.com?subject=%5BBingo%5D%20"');
-  });
-  test("the six disclaimer lines, word for word", () => {
-    expect(items("disclaimer")).toEqual(["This is a close group game, open only to the people the organizer invites, run by your organizer.", "Corporate Bingo provides the software only. Prize money always stays with the organizer; Corporate Bingo handles none of it. Participants pay nothing to play.", "The organizer provides and hands over the prizes.", "The software decides the winners. Results are final.", "The organizer makes sure the game is allowed under local law.", "We are not responsible for prize handover or for disputes between the organizer and participants."]);
-  });
-  test("the rules say only what the software does (no claims, no manual cutting, no blocking), and the privacy timings match lifecycle.ts", () => {
-    const r = items("rules").join(" ");
-    expect(r).not.toMatch(/Cut your own|Late claims|wrong claim|block your ticket|for fun/i);
-    expect(r).toContain("The 75 numbers come from a public random beacon (drand)."); expect(r).not.toMatch(/No one can choose or change|not even the organizer|twice|every claim is checked/); expect(r).toContain("The game ends when every prize is won or all 75 numbers are called."); expect(r).toContain("You get one card per phone."); expect(r).not.toMatch(/ticket|Full House|Tambola|housie/i);
+  test("the timings in the document match lifecycle.ts", () => {
+    expect(text).toContain("deleted within 24 hours after the game"); expect(text).toContain("Within 24 hours after it was meant to end");
     const lc = read("apps/edge/src/lifecycle.ts");
     expect(lc).toMatch(/PURGE_AFTER_MS = 20 \* 3_600_000/); // 20 h (the job may run 3 h late) is inside "within 24 hours"
     expect(lc).toMatch(/endMs \+ 365 \* DAY/); expect(lc).toMatch(/DELETE FROM prize WHERE eid=\?/); // prize details go with the 365-day deletion

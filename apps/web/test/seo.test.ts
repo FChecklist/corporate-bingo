@@ -5,10 +5,18 @@ import { PACKS } from "../../../packages/shared/src/pricing";
 
 const PUB = new URL("../public/", import.meta.url), ORIGIN = "https://bingo.corporatetambola.com";
 const rd = (f: string) => readFileSync(new URL(f, PUB), "utf8");
-const INDEXABLE = ["index.html", "partner.html", "helpdesk.html", "legal.html", "terms.html", "privacy.html", "legal-position.html", "dpa.html", "subprocessors.html", "partner-terms.html", "trust.html", "brochure.html", "about.html", "contact.html", "pricing.html", "refund-policy.html", "how-it-works.html", "guide.html"];
+const INDEXABLE = ["index.html", "partner.html", "helpdesk.html", "terms.html", "partner-terms.html", "trust.html", "brochure.html", "about.html", "contact.html", "pricing.html", "how-it-works.html", "guide.html"];
 const NOINDEX = ["signin.html", "pay.html", "paytest.html", "ai-link.html", "helpdesk-accept.html", "helpdesk-approve.html", "report.html", "z.html", "zc.html", "big.html", "404.html", "owner-visits.html", "organizer-guide.html", "offline.html"];
 const urlOf = (f: string) => ORIGIN + (f === "index.html" ? "/" : "/" + f.replace(/\.html$/, "")); // the clean address: Cloudflare Pages serves page.html as /page (a 308), so that is the one to name
 const meta = (h: string, re: RegExp) => (h.match(re) ?? [])[1] ?? "";
+
+const POINTERS = ["legal.html", "privacy.html", "legal-position.html", "dpa.html", "subprocessors.html", "refund-policy.html"]; // they only point to the one legal document (terms): not indexed, not in the sitemap
+
+describe("the older legal pages only point to the one document", () => {
+  for (const f of POINTERS) test(`${f}: noindex, follow, canonical to the terms page, a link into the document, and not in the sitemap`, () => {
+    const h = rd(f); expect(h).toMatch(/name="robots" content="noindex, follow"/); expect(h).toMatch(new RegExp(`<link rel="canonical" href="${ORIGIN}/terms(\\.html)?">`)); expect(h).toMatch(/href="\/terms(\.html)?#[a-z-]+"/); expect(rd("sitemap.xml")).not.toContain("/" + f.replace(/\.html$/, ""));
+  });
+});
 
 describe("sitemap and robots", () => {
   const sm = rd("sitemap.xml"), locs = [...sm.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1]!);

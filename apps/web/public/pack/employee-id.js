@@ -10,6 +10,6 @@ export function checkEmployeeId(raw, opts) {
   if (String(raw == null ? "" : raw).normalize("NFKC").indexOf("@") >= 0) return { ok: false, error: "This looks like an Email ID. This game asks for an employee ID: letters and numbers only." };
   const id = cleanEmployeeId(raw);
   if (!id) return { ok: false, error: "Please type an employee ID. It needs at least one letter or number." };
-  if (id.length > EMPLOYEE_ID_MAX) return { ok: false, error: "This ID is too long. An employee ID may be up to " + EMPLOYEE_ID_MAX + " characters once cleaned." };
+  if (id.length > EMPLOYEE_ID_MAX) return { ok: false, error: "This Employee ID is too long. An employee ID may be up to " + EMPLOYEE_ID_MAX + " characters once cleaned." };
   return { ok: true, id, hint: opts && opts.clean === false ? "" : "The system will read this as " + id };
 }
