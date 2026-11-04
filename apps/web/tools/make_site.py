@@ -27,7 +27,7 @@ def landing():
         '<h1>This week, which teams will you engage with <span class="ck-hl">Corporate Bingo?</span></h1>\n'
         '<p class="ck-lead">Numbers are called out loud. Every player gets a card on their phone, and the software finds every winner.</p>\n'
         f'<div class="ck-btn-row"><a class="ck-btn main" href="{DEMO}">Try a free game with 10 people</a><a class="ck-btn" href="/how-it-works">See how it works</a></div>\n'
-        '<p class="ck-hero-contact">Talk to a person: <a href="tel:+919650397480">(+91) 96503 97480</a> or <a href="mailto:hello@corporatetambola.com?subject=%5BBingo%5D%20">hello@corporatetambola.com</a></p>\n'
+        '<p class="ck-hero-contact">Talk to a person: <a href="https://wa.me/919650397480?text=Hi%2C%20I%20am%20interested%20in%20corporate%20games" target="_blank" rel="noopener" aria-label="WhatsApp +91 9650397480 (opens WhatsApp)">(+91) 96503 97480</a> or <a href="mailto:hello@corporatetambola.com?subject=%5BBingo%5D%20">hello@corporatetambola.com</a></p>\n'
         '</div>\n'
         '<div class="ck-panel"><svg class="ck-badge" aria-hidden="true" focusable="false"><use href="#i-bingo"/></svg><p class="ck-name"><i>Corporate</i><b>Bingo</b></p>'
         '<ul><li>A card on every phone</li><li>No app to install</li><li>The software finds every winner</li></ul></div>\n'

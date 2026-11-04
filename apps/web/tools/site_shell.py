@@ -110,7 +110,7 @@ def version_line():
 def footer():
     return ('<footer class="ck-foot"><div class="ck-wrap"><div class="ck-foot-grid">\n'
             '<div><p class="ck-brandline">Corporate Bingo</p><p>Online games for company events, for the people you invite.</p><p>A product of IT Services by Rajat Agarwal.</p>'
-            '<p><a href="mailto:hello@corporatetambola.com?subject=%5BBingo%5D%20">hello@corporatetambola.com</a><br><a href="tel:+919650397480">(+91) 96503 97480</a></p>'
+            '<p><a href="mailto:hello@corporatetambola.com?subject=%5BBingo%5D%20">hello@corporatetambola.com</a><br><a href="https://wa.me/919650397480?text=Hi%2C%20I%20am%20interested%20in%20corporate%20games" target="_blank" rel="noopener" aria-label="WhatsApp +91 9650397480 (opens WhatsApp)">(+91) 96503 97480</a></p>'
             '<p><button class="ck-mode" type="button" data-ck-mode>Dark</button></p></div>\n'
             '<div><h2>The games</h2><ul><li><a href="https://housie.corporatetambola.com/">Tambola</a></li><li><a href="https://bingo.corporatetambola.com/">Bingo</a></li>'
             '<li><a href="https://tictactoe.corporatetambola.com/">Tic Tac Toe</a></li><li><a href="https://snakes.corporatetambola.com/">Snakes and Ladders</a></li>'
