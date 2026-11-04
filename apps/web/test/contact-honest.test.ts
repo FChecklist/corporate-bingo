@@ -28,7 +28,7 @@ describe("the owner's mobile number opens WhatsApp", () => {
     for (const f of readdirSync(dir).filter((n) => n.endsWith(".html"))) {
       const html = pub(f);
       if (!html.includes("96503 97480")) continue;
-      expect([f, html.includes('<a href="https://wa.me/919650397480?text=Hi%2C%20I%20am%20interested%20in%20corporate%20games" target="_blank" rel="noopener" aria-label="WhatsApp +91 9650397480 (opens WhatsApp)">(+91) 96503 97480</a>')]).toEqual([f, true]);
+      expect([f, html.includes('<a href="https://wa.me/919650397480?text=Hi%2C%20I%20am%20interested%20in%20corporate%20games" target="_blank" rel="noopener" aria-label="WhatsApp (+91) 96503 97480 (opens WhatsApp)">(+91) 96503 97480</a>')]).toEqual([f, true]);
       expect(html).not.toContain("tel:+919650397480");
     }
   });
