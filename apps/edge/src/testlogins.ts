@@ -6,7 +6,7 @@ import type { D1 } from "./worker";
 // against the daily write budget and a per-network limit (worker.ts), and the keys it makes are trimmed to the latest three.
 export const TEST_LOGINS = new Set(["demo1@xyz.in", "demo2@xyz.in", "demo3@xyz.in"]);
 export const TEST_LOGIN_CODE = "123456";
-export const TEST_LOGINS_PER_IP_DAY = 30;
+export const TEST_LOGINS_PER_IP_DAY = Number.MAX_SAFE_INTEGER; // owner order 4 Nov 2026: no daily limit on the owner test sign-in
 export const isTestLogin = (email: string): boolean => TEST_LOGINS.has(accountEmail(email ?? ""));
 /** WP-17 (2026-10-29): the fixed-code sign-in exists ONLY while the whole service is in TEST mode (mode.ts). In LIVE these addresses are ordinary unknown addresses and 123456 is a wrong code. */
 export const testLoginsOpen = async (env: { DB: D1 }): Promise<boolean> => (await getMode(env)) === "TEST";
