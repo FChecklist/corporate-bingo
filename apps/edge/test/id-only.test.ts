@@ -22,7 +22,7 @@ async function game(id: string) {
   expect((await call("POST", `/api/z/${id}/publish`, { email: "boss@acme.com", phone: "98765 43210" }, h)).status).toBe(200);
   return h;
 }
-const base = () => ({ DB: undefined as any, ORGANIZER_SECRET: "plat", DAILY_WRITE_BUDGET: "1000000", PUBLIC_ORIGIN: "https://bingo.test", PHONE_SALT: "salt", DATA_KEY: "k" });
+const base = () => ({ DB: undefined as any, ORGANIZER_SECRET: "plat", RUNNER_KEY: "test-runner-key-test-runner-key-test0000", DAILY_WRITE_BUDGET: "1000000", PUBLIC_ORIGIN: "https://bingo.test", PHONE_SALT: "salt", DATA_KEY: "k" });
 beforeEach(() => { const d = makeD1(); raw = d.raw; env = { ...base(), DB: d.db, ID_ONLY: "1" } as unknown as Env; n = 0; });
 
 describe("ID-only joining", () => {
