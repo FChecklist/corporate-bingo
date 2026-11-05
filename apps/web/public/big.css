@@ -45,3 +45,6 @@ html,body{margin:0;background:var(--bg);color:var(--ink);font-family:Inter,syste
 .recent span{background:var(--lc);color:#fff;border-color:transparent;min-width:3em}
 
 #cb-notify{display:none}
+.bigvoice{font:inherit;font-size:clamp(12px,1.4vw,22px);background:transparent;color:var(--mute,#9fb);border:1px solid currentColor;border-radius:999px;padding:.3em .9em;cursor:pointer}
+.bigvoice.on{color:#fff;background:rgba(255,255,255,.14)}
+.bigvoice.ask{color:#111;background:#FFC93C;border-color:#FFC93C;font-weight:700}

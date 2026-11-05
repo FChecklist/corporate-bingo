@@ -5,6 +5,7 @@ import { handle } from "./with-terms";
 import type { PayEnv } from "../src/pay";
 import { normEmp, empHashOf } from "../src/people";
 import { makeD1 } from "./d1-sqlite";
+import { setMode } from "../src/mode";
 
 const T = Date.UTC(2026, 9, 1, 10, 0, 0);
 const GEN = 1692803367;
@@ -32,12 +33,12 @@ async function setup(opts: { closed?: boolean; verify?: string; employeesOnly?: 
 }
 const add = (key: string, people: unknown[]) => call("POST", "/api/z/PPL-1/people", { people }, key);
 
-beforeEach(() => { const d = makeD1(); raw = d.raw; env = { DB: d.db, ORGANIZER_SECRET: "plat", DAILY_WRITE_BUDGET: "1000000", PUBLIC_ORIGIN: "https://bingo.test", PHONE_SALT: "salt" }; (globalThis as any).fetch = async () => new Response("{}", { status: 404 }); });
+beforeEach(() => { const d = makeD1(); raw = d.raw; env = { DB: d.db, ORGANIZER_SECRET: "plat", RUNNER_KEY: "test-runner-key-test-runner-key-test0000", DAILY_WRITE_BUDGET: "1000000", PUBLIC_ORIGIN: "https://bingo.test", PHONE_SALT: "salt" }; (globalThis as any).fetch = async () => new Response("{}", { status: 404 }); });
 afterEach(() => { globalThis.fetch = realFetch; });
 
 describe("employee ID", () => {
   test("an ID is trimmed and upper-cased; rubbish is refused; blank is blank", () => {
-    expect(normEmp(" ab 123 ")).toBe("AB123"); expect(normEmp("")).toBe(""); expect(normEmp(undefined)).toBe(""); expect(normEmp("a<b>")).toBeNull(); expect(normEmp("x".repeat(31))).toBeNull();
+    expect(normEmp(" ab 123 ")).toBe("AB123"); expect(normEmp("")).toBe(""); expect(normEmp(undefined)).toBe(""); expect(normEmp("a<b>", 0)).toBeNull(); expect(normEmp("x".repeat(31), 0)).toBeNull();
   });
 });
 
@@ -183,6 +184,7 @@ describe("the list download carries the ID", () => {
 
 describe("the owner's three test sign-ins", () => {
   test("demo1/2/3@xyz.in sign in with 123456, no e-mail is sent, the same account comes back each time, and a wrong code or another address is refused", async () => {
+    await setMode(env as any, "TEST", "t", T); // WP-17: these sign-ins exist only in TEST mode (see testlogins-mode.test.ts for LIVE)
     for (const em of ["demo1@xyz.in", "demo2@xyz.in", "demo3@xyz.in"]) {
       expect((await call("POST", "/api/auth/email", { email: em })).status).toBe(200);
       const a = await j(await call("POST", "/api/auth/verify", { email: em, code: "123456" })); expect(a.token).toMatch(/^cbk_/);
@@ -193,10 +195,10 @@ describe("the owner's three test sign-ins", () => {
     expect(rowsOf("SELECT COUNT(*) c FROM organizer_email")[0].c).toBe(3);
     expect((await call("POST", "/api/auth/verify", { email: "demo4@xyz.in", code: "123456" })).status).toBe(400);
   });
-  test("the test sign-ins are limited per network per day, record no Terms consent, never send mail, and keep only their latest six keys", async () => {
-    const em = "demo2@xyz.in"; const fire = () => call("POST", "/api/auth/verify", { email: em, code: "123456" });
-    for (let i = 0; i < 30; i++) expect((await fire()).status).toBe(200);
-    const blocked = await fire(); expect(blocked.status).toBe(429);
+  test("the test sign-ins have no daily limit (owner order 4 Nov 2026), record no Terms consent, never send mail, and keep only their latest six keys", async () => {
+    await setMode(env as any, "TEST", "t", T); const em = "demo2@xyz.in"; const fire = () => call("POST", "/api/auth/verify", { email: em, code: "123456" });
+    for (let i = 0; i < 35; i++) expect((await fire()).status).toBe(200); // owner order 4 Nov 2026: no per-network daily limit on the owner's test sign-ins
+    expect((await fire()).status).toBe(200);
     expect(rowsOf("SELECT COUNT(*) c FROM consent_log WHERE kind='K2'")[0].c).toBe(0);
     const org = rowsOf("SELECT org FROM organizer_email")[0].org;
     expect(rowsOf("SELECT COUNT(*) c FROM organizer_key WHERE org=? AND kind='master'", org)[0].c).toBeLessThanOrEqual(6);

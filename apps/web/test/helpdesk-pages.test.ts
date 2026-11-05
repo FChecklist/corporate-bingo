@@ -121,7 +121,7 @@ describe("Help Desk pages", () => {
     expect(build).toContain('["/helpdesk-accept", PLAINCSP, true]'); expect(build).toContain('["/helpdesk-approve", PLAINCSP, true]'); expect(build).toContain('["/helpdesk", PLAINCSP, false]');
     for (const f of ["helpdesk-accept.html", "helpdesk-approve.html"]) expect(readFileSync(join(PUB, f), "utf8")).toMatch(/name="robots" content="noindex, nofollow"/);
     expect(readFileSync(join(PUB, "helpdesk.html"), "utf8")).not.toMatch(/noindex/);
-    expect(readFileSync(join(PUB, "partner.html"), "utf8")).toContain('href="/helpdesk.html"'); expect(readFileSync(join(PUB, "organizer-guide.html"), "utf8")).toContain('href="/helpdesk.html"');
+    expect(readFileSync(join(PUB, "partner.html"), "utf8")).toContain('href="/helpdesk.html"'); expect(readFileSync(join(PUB, "guide.html"), "utf8")).toContain('href="/helpdesk"');
     const robots = readFileSync(join(PUB, "robots.txt"), "utf8"); expect(robots).toContain("Disallow: /helpdesk-accept.html"); expect(robots).toContain("Disallow: /helpdesk-approve.html");
     expect(readFileSync(join(PUB, "zc.js"), "utf8")).toContain("cb[hca]_"); // a helper opens the console with their AI key
   });

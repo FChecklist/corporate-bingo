@@ -29,6 +29,8 @@ export interface ControlMsg extends UnsignedControl { sig: string }
 export interface ControlConfig {
   /** Ed25519 public key (raw, 32 bytes, hex), fixed at engagement creation. */
   pubKey: string;
+  /** The Host's own key, registered by the organizer (never the organizer's key). It may sign pause and resume only. Absent = no Host key. */
+  hostKey?: string;
   /** An open-ended pause ends by itself after this many rounds, so a lost organizer cannot freeze a room forever. */
   maxPauseRounds: number;
   /** Minimum distance, in rounds, between signing and a pause/stop/extend taking effect. See deriveSafety. */
@@ -88,6 +90,15 @@ export async function verifyControlSig(pubKeyHex: string, m: ControlMsg): Promis
   }
 }
 
+/** OFF. While false, no Host key can be registered and none is believed. */
+export const HOST_KEY_ENABLED = false;
+/** Who signed: the organizer's key (anything), or the Host key (pause and resume only). null = nobody. */
+export async function signerOf(cfg: ControlConfig, m: ControlMsg): Promise<"organizer" | "host" | null> {
+  if (await verifyControlSig(cfg.pubKey, m)) return "organizer";
+  if (HOST_KEY_ENABLED && cfg.hostKey && (m.action === "pause" || m.action === "resume") && (await verifyControlSig(cfg.hostKey, m))) return "host";
+  return null;
+}
+
 /* ---------------- shape check ---------------- */
 
 const isInt = (n: unknown): n is number => Number.isSafeInteger(n) && (n as number) >= 0;
@@ -116,7 +127,7 @@ export async function acceptLogDetailed(cfg: ControlConfig, engagementId: string
     if (!wellFormed(raw) || raw.engagementId !== engagementId) { forged++; continue; }
     const have = bySeq.get(raw.seq);
     if (have) { if (have.sig !== raw.sig) forged++; continue; } // a different message under a used seq is not believed
-    if (await verifyControlSig(cfg.pubKey, raw)) bySeq.set(raw.seq, raw); else forged++;
+    if (await signerOf(cfg, raw)) bySeq.set(raw.seq, raw); else forged++;
   }
   const log: ControlMsg[] = [];
   for (let s = 1; bySeq.has(s); s++) log.push(bySeq.get(s)!);
@@ -169,7 +180,21 @@ function check(m: ControlMsg, cfg: ControlConfig, cur: Cur | null, stopped: bool
   }
 }
 
-export function resolveControl(cfg: ControlConfig, log: readonly ControlMsg[]): ControlState {
+/** Claim holds (the server's, not signed): the game waits while a claim is checked. They join the Organizer's pauses as ordinary pause intervals, so every phone and the server work out the same call times. */
+export const MAX_HOLD_ROUNDS = 20; // 60 s: a hold can never keep a game stuck
+export function cleanHolds(x: unknown): PauseInterval[] {
+  if (!Array.isArray(x)) return [];
+  const out: PauseInterval[] = [];
+  for (const h of x.slice(0, 40)) { const a = (h as any)?.start, b = (h as any)?.end; if (Number.isInteger(a) && Number.isInteger(b) && a >= 0 && b > a && b - a <= MAX_HOLD_ROUNDS + 1) out.push({ start: a, end: b }); }
+  return out;
+}
+function withHolds(ivs: PauseInterval[], holds: readonly PauseInterval[]): PauseInterval[] {
+  if (!holds.length) return ivs;
+  const all = [...ivs, ...holds].sort((a, b) => a.start - b.start || a.end - b.end), out: PauseInterval[] = [];
+  for (const i of all) { const l = out[out.length - 1]; if (l && i.start <= l.end) l.end = Math.max(l.end, i.end); else out.push({ ...i }); }
+  return out;
+}
+export function resolveControl(cfg: ControlConfig, log: readonly ControlMsg[], holds: readonly PauseInterval[] = []): ControlState {
   const ivs: Cur[] = [];
   let cur: Cur | null = null, stop: number | null = null, applied = 0;
   const ignored: ControlState["ignored"] = [];
@@ -182,7 +207,7 @@ export function resolveControl(cfg: ControlConfig, log: readonly ControlMsg[]): 
     else if (m.action === "extend") cur!.until = m.untilRound!;
     else stop = m.atBeaconRound;
   }
-  return { intervals: ivs.map((c) => ({ start: c.start, end: effEnd(c, cfg.maxPauseRounds) })), stopRound: stop, ignored, applied };
+  return { intervals: withHolds(ivs.map((c) => ({ start: c.start, end: effEnd(c, cfg.maxPauseRounds) })), holds), stopRound: stop, ignored, applied };
 }
 
 /** True while a pause is in force at the given beacon round. */
@@ -258,6 +283,7 @@ export class ControlTracker {
   /** Round of the first failed attempt in the current unbroken run of failures; null while attempts succeed or none were made. */
   failingSince: number | null = null;
   private resolved: ControlState;
+  holds: PauseInterval[] = []; holdsVer = 0;
   constructor(public cfg: ControlConfig, public engagementId: string, public safety: Safety, joinedAtRound: number) {
     this.lastGoodRound = joinedAtRound - safety.holdAfterRounds - 1; // a fresh phone has heard nothing: it holds until its first good fetch (and goes blind only after giveUpRounds)
     this.resolved = resolveControl(cfg, []);
@@ -269,7 +295,8 @@ export class ControlTracker {
     if (!b || typeof b !== "object" || b.engagementId !== this.engagementId || !Array.isArray(b.messages)) return this.failed(nowRound);
     const { log, forged } = await acceptLogDetailed(this.cfg, this.engagementId, b.messages, this.log);
     if (forged > 0) return this.failed(nowRound); // anything forged in the answer: treat the whole answer as a lie (nothing from it is applied)
-    if (log.length !== this.log.length) { this.log = log; this.resolved = resolveControl(this.cfg, log); }
+    const holds = cleanHolds((b as any).holds), sameHolds = JSON.stringify(holds) === JSON.stringify(this.holds);
+    if (log.length !== this.log.length || !sameHolds) { this.log = log; if (!sameHolds) { this.holds = holds; this.holdsVer++; } this.resolved = resolveControl(this.cfg, log, this.holds); }
     this.lastGoodRound = nowRound;
     this.failingSince = null;
     return true;
@@ -287,14 +314,14 @@ export class ControlTracker {
 /* ---------------- publishing (shared by the local server and a Cloudflare Worker) ---------------- */
 
 export interface KV { get(key: string): Promise<string | null>; put(key: string, value: string): Promise<void> }
-export interface PublishedFile { v: 1; engagementId: string; pubKey: string; maxPauseRounds: number; leadRounds: number; messages: ControlMsg[] }
+export interface PublishedFile { v: 1; /** The claim holds in force (server-written, see claimhold.ts). */ holds?: PauseInterval[]; engagementId: string; pubKey: string; hostKey?: string; maxPauseRounds: number; leadRounds: number; messages: (ControlMsg & { by?: "organizer" | "host" })[] }
 
 const fileKey = (id: string) => `control/${id}.json`;
 export async function readPublished(kv: KV, engagementId: string): Promise<PublishedFile | null> {
   const t = await kv.get(fileKey(engagementId));
   return t ? (JSON.parse(t) as PublishedFile) : null;
 }
-export const cfgOf = (f: PublishedFile): ControlConfig => ({ pubKey: f.pubKey, maxPauseRounds: f.maxPauseRounds, leadRounds: f.leadRounds });
+export const cfgOf = (f: PublishedFile): ControlConfig => ({ pubKey: f.pubKey, ...(f.hostKey ? { hostKey: f.hostKey } : {}), maxPauseRounds: f.maxPauseRounds, leadRounds: f.leadRounds });
 
 /** Registers the engagement's public key, once. Nobody (including the server) can swap it afterwards. */
 export async function registerKey(kv: KV, engagementId: string, pubKeyHex: string, safety: Safety = SAFETY_STANDARD, maxPauseRounds = 600): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -302,6 +329,18 @@ export async function registerKey(kv: KV, engagementId: string, pubKeyHex: strin
   if (!/^[A-Za-z0-9_-]{3,40}$/.test(engagementId)) return { ok: false, error: "Bad engagement id." };
   if (await readPublished(kv, engagementId)) return { ok: false, error: "A key is already registered for this engagement and cannot be changed." };
   const f: PublishedFile = { v: 1, engagementId, pubKey: pubKeyHex.toLowerCase(), maxPauseRounds, leadRounds: safety.leadRounds, messages: [] };
+  await kv.put(fileKey(engagementId), JSON.stringify(f));
+  return { ok: true };
+}
+
+/** The organizer registers the Host's public key (replaceable by the organizer only; the caller checks it is the organizer). The Host key can only pause and resume. */
+export async function registerHostKey(kv: KV, engagementId: string, hostKeyHex: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!HOST_KEY_ENABLED) return { ok: false, error: "A Host key is not available yet." };
+  if (!/^[0-9a-f]{64}$/i.test(hostKeyHex)) return { ok: false, error: "The public key must be 32 bytes in hex." };
+  const f = await readPublished(kv, engagementId);
+  if (!f) return { ok: false, error: "Register the organizer key first." };
+  if (hostKeyHex.toLowerCase() === f.pubKey) return { ok: false, error: "The Host key must not be the organizer key." };
+  f.hostKey = hostKeyHex.toLowerCase();
   await kv.put(fileKey(engagementId), JSON.stringify(f));
   return { ok: true };
 }
@@ -316,14 +355,15 @@ export async function publishControl(kv: KV, engagementId: string, msg: unknown)
   if (!f) return { ok: false, status: 404, error: "No key is registered for this engagement." };
   if (!wellFormed(msg) || msg.engagementId !== engagementId) return { ok: false, status: 400, error: "Malformed control message." };
   const cfg = cfgOf(f);
-  if (!(await verifyControlSig(cfg.pubKey, msg))) return { ok: false, status: 403, error: "Signature does not match the organizer key." };
+  const by = await signerOf(cfg, msg);
+  if (!by) return { ok: false, status: 403, error: "Signature does not match the organizer key." };
   const existing = f.messages.find((m) => m.seq === msg.seq);
   if (existing) return existing.sig === msg.sig ? { ok: true, seq: msg.seq, duplicate: true } : { ok: false, status: 409, error: "That sequence number is already used." };
   if (msg.seq !== f.messages.length + 1) return { ok: false, status: 409, error: `Next sequence number is ${f.messages.length + 1}.` };
   const after = resolveControl(cfg, [...f.messages, msg]);
   const bad = after.ignored.find((x) => x.seq === msg.seq);
   if (bad) return { ok: false, status: 422, error: `Not accepted: ${bad.why}.` };
-  f.messages.push(msg);
+  f.messages.push({ ...msg, by });
   await kv.put(fileKey(engagementId), JSON.stringify(f));
   return { ok: true, seq: msg.seq };
 }
@@ -333,8 +373,8 @@ export function describeControl(f: PublishedFile | null, nowRound?: number) {
   if (!f) return { registered: false as const };
   const st = resolveControl(cfgOf(f), f.messages);
   return {
-    registered: true as const, pubKey: f.pubKey, leadRounds: f.leadRounds, leadSeconds: f.leadRounds * PERIOD_SEC, maxPauseRounds: f.maxPauseRounds,
-    messages: f.messages.map((m) => ({ seq: m.seq, action: m.action, atBeaconRound: m.atBeaconRound, untilRound: m.untilRound })),
+    registered: true as const, pubKey: f.pubKey, ...(f.hostKey ? { hostKey: f.hostKey } : {}), leadRounds: f.leadRounds, leadSeconds: f.leadRounds * PERIOD_SEC, maxPauseRounds: f.maxPauseRounds,
+    messages: f.messages.map((m) => ({ by: m.by ?? "organizer", seq: m.seq, action: m.action, atBeaconRound: m.atBeaconRound, untilRound: m.untilRound })),
     intervals: st.intervals, stopRound: st.stopRound, ignored: st.ignored,
     pausedNow: nowRound === undefined ? undefined : pausedAt(st, nowRound), stopped: nowRound === undefined || st.stopRound === null ? undefined : nowRound >= st.stopRound,
   };

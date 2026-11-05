@@ -35,7 +35,7 @@ beforeEach(() => {
     if (u === "https://central.test/api/pay/site-summary") { const r = rz.summary(body); return new Response(JSON.stringify(r.body), { status: r.status }); }
     return new Response("{}", { status: 404 });
   };
-  env = { DB: d.db, ORGANIZER_SECRET: "plat", DAILY_WRITE_BUDGET: "100000", RAZORPAY_KEY_ID: "rzp_test_x", RAZORPAY_KEY_SECRET: "sek", RAZORPAY_WEBHOOK_SECRET: "whsec", RAZORPAY_BASE_URL: "https://rzp.test/v1", PUBLIC_ORIGIN: "https://bingo.test" };
+  env = { DB: d.db, ORGANIZER_SECRET: "plat", RUNNER_KEY: "test-runner-key-test-runner-key-test0000", DAILY_WRITE_BUDGET: "100000", RAZORPAY_KEY_ID: "rzp_test_x", RAZORPAY_KEY_SECRET: "sek", RAZORPAY_WEBHOOK_SECRET: "whsec", RAZORPAY_BASE_URL: "https://rzp.test/v1", PUBLIC_ORIGIN: "https://bingo.test" };
 });
 afterEach(() => { globalThis.fetch = realFetch; });
 
@@ -60,7 +60,7 @@ describe("the id that ties A, B and C together", () => {
     expect(rz.orders[0].notes.payment_ref).toBe(paymentId);
   });
   test("the Rs 1 payment test gets its txn_id too, and so does a payment made in TEST mode (no Razorpay)", async () => {
-    const r = await (await call("POST", "/api/payments/paytest", { email: "t@x.com", name: "Tess Tester" })).json() as any;
+    const r = await (await call("POST", "/api/payments/paytest", { email: "t@x.com", name: "Tess Tester" }, { "x-organizer": "plat" })).json() as any;
     expect(payRow(r.paymentId).txn_id).toBe(`BNG-${r.paymentId}`);
     expect(rz.orders.at(-1).notes.txn_id).toBe(`BNG-${r.paymentId}`);
     env.RAZORPAY_KEY_ID = undefined; env.RAZORPAY_KEY_SECRET = undefined; env.TEST_MODE = "1";

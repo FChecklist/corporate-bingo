@@ -15,6 +15,7 @@ Where things are set:
 | `DATA_KEY` | Seals names and mobile numbers at rest (AES-256-GCM); never stored in the database | Pages secret | secret |
 | `PHONE_SALT` | Salt for the one-way hash of mobile numbers | Pages secret | secret |
 | `ORGANIZER_SECRET` | The platform (owner) key: opens every `/api/owner/*` address and the owner's tools | Pages secret | secret |
+| `RUNNER_KEY` | A long secret the owner's test programs send as the X-Runner-Key header: only with it are the test sign-in, the free owner-test packs and the SMK10M- join-guard bypass honoured | Pages secret | secret |
 | `CRON_KEY` | The scheduled job's own key: it can call only `/api/lifecycle/tick` | Pages secret and Cron secret (same value) | secret |
 | `INBOUND_SECRET` | Shared secret of the mail service's inbound webhook (e-mail to us asking for a deletion) | Pages secret | secret |
 | `VISIT_KEY` | Key that hashes network addresses for first-party public-page visit counts | Pages secret | secret |
@@ -29,6 +30,7 @@ Where things are set:
 | `RAZORPAY_INTERNATIONAL` | "1" once international cards are enabled in Razorpay | Optional Pages variable | setting |
 | `PAY_SERVICE_KEY` | Key for the central payment ledger service (orders and figures are reported there) | Pages secret | secret |
 | `PAY_SERVICE_URL` | Address of the central payment ledger service | Optional Pages variable | setting |
+| `ONLY_12S` | New games use one speed, 12 seconds; older games keep theirs | wrangler var | setting |
 | `PAY_SITE` | The name this site goes by in the central ledger | Optional Pages variable | setting |
 | `PAY_HOP_URL` | The payment page on the website registered with Razorpay | wrangler var | setting |
 | `PUBLIC_ORIGIN` | The public web address of this site (links in mails, payment return) | wrangler var | setting |
@@ -53,3 +55,8 @@ Where things are set:
 | `ANALYZE_AI_MODEL` | Model name for that endpoint | Optional Pages variable | setting |
 | `TARGET` | The scheduled job: the web address it calls | `apps/cron/wrangler.toml` | setting |
 | `AI_LINK_MAIL_AT_SIGNUP` | Switch for the AI work-link welcome e-mail sent when an account is made; the live site turns it off because the AI link is hidden in the console | wrangler var | setting |
+| `CLAIM_HOLD` | Switch (on when set to 1): while a claim is checked the game waits for everyone, then goes on for everyone. Off unless set | wrangler var | setting |
+| `ID_ONLY` | Switch (on when set to 1): joining by name, location and an ID only; no mobile number is asked for or kept. Off unless set | wrangler var | setting |
+| `ANALYTICS` | The one central visitor database `site-analytics`: this game's own visit tracker also copies each visit into it (the copy does nothing without this binding and `ANALYTICS_KEY`) | Binding in `pages/wrangler.toml` | binding |
+| `ANALYTICS_KEY` | Key that hashes network addresses for the central visitor database; the same value on every site, so one visitor can be followed across sites | Pages secret | secret |
+| `ANALYTICS_DAILY_WRITES` | Most central visitor-database writes per day (a cap; the default in the code is 400,000) | Optional Pages variable | setting |

@@ -7,8 +7,10 @@
 //   - Every call the organizer's external AI makes is written to an audit trail with where it came from.
 import { keysInPlay, linesFor, quorumFor } from "../../../packages/beacon/src/config";
 import { seatOfPid } from "../../../packages/beacon/src/unique-ticket";
+import { idOnlyNow } from "./idonly";
 import { openPii, openText, sealPii, sealText, type PiiEnv } from "./pii";
 import { cfgOfRow, recordWinners } from "./lifecycle";
+import { transientDb } from "./transient";
 import { checkinRequired, deviceMatches } from "./checkin";
 import type { D1, Env } from "./worker";
 import { cleanPhone, keptFromClean, keptPhone } from "./phonekit";
@@ -49,22 +51,24 @@ export async function acceptVotes(env: Env & PiiEnv, e: any, eid: string, b: any
     const digest = (await sha(JSON.stringify([x.pattern, x.ordinal, x.round, x.idx, pids]))).slice(0, 32);
     if (!(await spend(env, now, 3))) return json({ error: "Busy day. Your report is kept on your phone and will be sent again.", counted }, 503);
     const v = await env.DB.prepare("INSERT OR IGNORE INTO rvote(eid,round,pattern,ordinal,seat,digest) VALUES(?,?,?,?,?,?)").bind(eid, x.round, x.pattern, x.ordinal, seat, digest).run();
-    if (!(v.meta?.changes ?? 0)) continue; // this phone already reported this prize
-    counted++;
-    await env.DB.prepare("INSERT OR IGNORE INTO rcand(eid,round,pattern,ordinal,digest,idx,pids) VALUES(?,?,?,?,?,?,?)").bind(eid, x.round, x.pattern, x.ordinal, digest, x.idx, JSON.stringify(pids)).run();
+    if (v.meta?.changes ?? 0) { // a phone repeating its report adds nothing, but the SAME report repeated may still finish a settlement a passing database hiccup left open
+      counted++;
+      await env.DB.prepare("INSERT OR IGNORE INTO rcand(eid,round,pattern,ordinal,digest,idx,pids) VALUES(?,?,?,?,?,?,?)").bind(eid, x.round, x.pattern, x.ordinal, digest, x.idx, JSON.stringify(pids)).run();
+    }
     const n = (await env.DB.prepare("SELECT COUNT(*) AS c FROM rvote WHERE eid=? AND round=? AND pattern=? AND ordinal=? AND digest=?").bind(eid, x.round, x.pattern, x.ordinal, digest).first<{ c: number }>())?.c ?? 0;
     if (n < need) continue;
+    // The winner record and the prize rows are written BEFORE the prize is marked settled (both are safe to write twice): a passing database hiccup in between leaves the prize unsettled, so the next report repairs it, not settled with no winner record (5 Nov 2026 audit).
+    await recordWinners(env, e, eid, [{ pattern: x.pattern, ordinal: x.ordinal, round: x.round, idx: x.idx, pids }], now, "phones", true);
+    await makePrizeRows(env, eid, x.round, x.pattern, x.ordinal, pids.slice(0, 100), true);
     const ins = await env.DB.prepare("INSERT OR IGNORE INTO settled(eid,pattern,ordinal,round,idx,pids) VALUES(?,?,?,?,?,?)").bind(eid, x.pattern, x.ordinal, x.round, x.idx, JSON.stringify(pids.slice(0, 500))).run();
     if (!(ins.meta?.changes ?? 0)) continue;
     accepted++;
-    await recordWinners(env, e, eid, [{ pattern: x.pattern, ordinal: x.ordinal, round: x.round, idx: x.idx, pids }], now, "phones");
-    await makePrizeRows(env, eid, x.round, x.pattern, x.ordinal, pids.slice(0, 100));
   }
   return json({ ok: true, counted, accepted, done, need });
 }
 
 /** One record per winning seat, holding the sealed name and number the person joined with (they are asked to confirm it after the game). */
-async function makePrizeRows(env: Env, eid: string, round: number, pattern: string, ordinal: number, pids: string[]) {
+async function makePrizeRows(env: Env, eid: string, round: number, pattern: string, ordinal: number, pids: string[], strict = false) {
   try {
     for (const pid of pids) {
       const seat = seatOfPid(pid);
@@ -72,7 +76,7 @@ async function makePrizeRows(env: Env, eid: string, round: number, pattern: stri
       const row = await env.DB.prepare("SELECT pii FROM participant WHERE eid=? AND pid=?").bind(eid, pid).first<{ pii: string | null }>();
       await env.DB.prepare("INSERT OR IGNORE INTO prize(eid,round,pattern,ordinal,seat,pii,orig) VALUES(?,?,?,?,?,?,?)").bind(eid, round, pattern, ordinal, seat, row?.pii ?? null, row?.pii ?? null).run();
     }
-  } catch { /* the winner record itself already stands; the prize list is filled the next time */ }
+  } catch (err) { if (strict && transientDb(err)) throw err; /* the winner record itself already stands; the prize list is filled the next time */ }
 }
 
 /** The winner, on their own phone, confirms (or corrects) the name and mobile number the prize goes to. The phone proves it is the one that holds the card. Every change is kept. */
@@ -84,7 +88,7 @@ export async function confirmPrize(env: Env & PiiEnv, eid: string, b: any, now: 
   if (!mine) return json({ error: "This is not the phone that holds this card." }, 403);
   const rows = (await env.DB.prepare("SELECT round, pattern, ordinal, pii, orig, trail FROM prize WHERE eid=? AND seat=?").bind(eid, seat).all<any>()).results ?? [];
   if (!rows.length) return json({ error: "No reward recorded for this card." }, 404);
-  const name = cleanName(b.name), cur = await openPii(env, rows[0].pii), typed = String(b.phone ?? "").trim() ? cleanPhone(b.phone) : null;
+  const name = cleanName(b.name), cur = await openPii(env, rows[0].pii), typed = !idOnlyNow() && String(b.phone ?? "").trim() ? cleanPhone(b.phone) : null; // ID-only joining: the hand-over never asks for or takes a mobile number
   if (!name) return json({ error: "Please write your name." }, 400);
   if (typed && !typed.ok) return json({ error: typed.why }, 400); // from any country: the page sends +<country code><number>
   // a mobile number is optional (a guest who joined with a name only has none): the prize is handed over by name and seat
@@ -92,7 +96,7 @@ export async function confirmPrize(env: Env & PiiEnv, eid: string, b: any, now: 
   if (!(await spend(env, now, rows.length + 1))) return json({ error: "Busy day. Please try again after midnight UTC." }, 503);
   const phone = typed && typed.ok ? keptFromClean(typed.digits) : cur?.phone ?? "";
   const changed = !cur || keptPhone(cur.phone ?? "") !== phone || (cur.name ?? "") !== name;
-  const sealed = await sealPii(env, { phone, name, ...(cur?.empId ? { empId: cur.empId } : {}) }); // the employee ID stays with the record
+  const sealed = await sealPii(env, { phone, name, ...(cur?.empId ? { empId: cur.empId } : {}), ...(cur?.loc ? { loc: cur.loc } : {}) }); // the ID and the place stay with the record
   for (const r of rows) {
     let trail: any[] = []; try { trail = JSON.parse((await openText(env, r.trail)) ?? "[]"); } catch { /* none yet */ }
     if (changed) trail.push({ at: now, name, phone });
@@ -110,7 +114,7 @@ export async function myPrizes(env: Env & PiiEnv, eid: string, url: URL, json: J
   if (!(await env.DB.prepare("SELECT 1 AS x FROM seat WHERE eid=? AND pid=? AND dev=?").bind(eid, pid, dev).first())) return json({ error: "This is not the phone that holds this card." }, 403);
   const rows = (await env.DB.prepare("SELECT round, pattern, ordinal, pii, confirmed_ms FROM prize WHERE eid=? AND seat=? ORDER BY round, pattern, ordinal").bind(eid, seat).all<any>()).results ?? [];
   const cur = rows.length ? await openPii(env, rows[0].pii) : null;
-  return json({ prizes: rows.map((r: any) => ({ round: r.round, pattern: r.pattern, ordinal: r.ordinal })), name: cur?.name ?? "", phone: cur?.phone ?? "", confirmed: rows.some((r: any) => r.confirmed_ms) });
+  return json({ prizes: rows.map((r: any) => ({ round: r.round, pattern: r.pattern, ordinal: r.ordinal })), name: cur?.name ?? "", phone: cur?.phone ?? "", ...(cur?.empId ? { empId: cur.empId } : {}), confirmed: rows.some((r: any) => r.confirmed_ms) });
 }
 
 /** The organizer's / co-host's list of winners with the details they confirmed, whether anything was changed after the game, and whether the prize has been given. */
@@ -123,7 +127,7 @@ export async function listPrizes(env: Env & PiiEnv, eid: string, json: Json, out
     let trail: any[] = []; try { trail = JSON.parse((await openText(env, r.trail)) ?? "[]"); } catch { /* none */ }
     const hide = (ph: string | undefined) => (outside ? (ph ? "XXXXXXXX" + ph.slice(-2) : "") : ph ?? "");
     if (outside) out.push({ round: r.round, pattern: r.pattern, ordinal: r.ordinal, seat: r.seat, confirmed: !!r.confirmed_ms, changed: trail.length > 0, given: !!r.given_ms, givenMs: r.given_ms ?? null, givenBy: r.given_by ?? null, ...(r.removed ? { notGiven: "removed" } : {}) });
-    else out.push({ round: r.round, pattern: r.pattern, ordinal: r.ordinal, seat: r.seat, name: cur?.name ?? "", phone: cur?.phone ?? "", ...(cur?.empId ? { empId: cur.empId } : {}), confirmed: !!r.confirmed_ms, confirmedMs: r.confirmed_ms ?? null,
+    else out.push({ round: r.round, pattern: r.pattern, ordinal: r.ordinal, seat: r.seat, name: cur?.name ?? "", phone: cur?.phone ?? "", ...(cur?.empId ? { empId: cur.empId } : {}), ...(cur?.loc ? { loc: cur.loc } : {}), confirmed: !!r.confirmed_ms, confirmedMs: r.confirmed_ms ?? null,
       changed: trail.length > 0, joinedWithName: orig?.name ?? "", joinedWithPhone: orig?.phone ?? "", trail, given: !!r.given_ms, givenMs: r.given_ms ?? null, givenBy: r.given_by ?? null, ...(r.removed ? { notGiven: "removed" } : {}) }); // a person removed during the game keeps the win, but the prize is not given
   }
   if (canOverride && !outside) { // the organizer has the final say: each row tells which tickets claimed this prize, so the console can offer them as choices

@@ -18,12 +18,12 @@ const call = (method: string, path: string, body?: unknown, key?: string, now = 
 const j = async (r: Response) => (await r.json()) as any;
 const ticks = (k: ConsentKind, v = CONSENT_VERSION) => ({ v, boxes: boxesOf(k) });
 const rows = (kind: string) => raw.query("SELECT * FROM consent_log WHERE kind=? ORDER BY at_ms, id").all(kind) as any[];
-const hashOf = (k: ConsentKind) => createHash("sha256").update(wordingOf(k).join("\n")).digest("hex");
+const hashOf = (_k: ConsentKind) => createHash("sha256").update("By continuing, you agree to the Terms and Conditions, Privacy and Data, and Game rules.").digest("hex"); // no tick-boxes: the proof hashes the one notice line
 const dev = (i: number) => i.toString(16).padStart(4, "0").repeat(8);
 
 beforeEach(() => {
   const d = makeD1({ strictHosts: true }); raw = d.raw; ip = 0;
-  env = { DB: d.db, ORGANIZER_SECRET: "plat", DAILY_WRITE_BUDGET: "100000000", PUBLIC_ORIGIN: "https://bingo.test", PHONE_SALT: "salt", DATA_KEY: "k", TEST_MODE: "1" } as Env;
+  env = { DB: d.db, ORGANIZER_SECRET: "plat", RUNNER_KEY: "test-runner-key-test-runner-key-test0000", DAILY_WRITE_BUDGET: "100000000", PUBLIC_ORIGIN: "https://bingo.test", PHONE_SALT: "salt", DATA_KEY: "k", TEST_MODE: "1" } as Env;
 });
 
 async function organizer(email = "boss@acme.com") { const r = await j(await call("POST", "/api/start", { email, consent: ticks("K2") })); return r.token as string; }
@@ -120,7 +120,7 @@ describe("2 and 3. accepted with the tick; the row is read back from the databas
   test("K4 adults only: box B says only that the person is 18 or older (no parent's-device alternative); box A says what is kept; neither is ticked for the person; a join with only A is refused; the exact wording is hashed with the row", async () => {
     const [a, b] = boxesOf("K4").map((x) => (CONSENT_TEXT.K4 as any)[x] as string); expect(b).toBe("I am 18 or older.");
     expect(wordingOf("K4").join(" ")).not.toMatch(/parent|guardian|device with/i);
-    for (const part of ["deleted within 24 hours", "who invited me is recorded until then", "prize record are kept for 365 days", "We keep billing data for audit and tax reasons.", "Hindi on request"]) expect(a).toContain(part);
+    for (const part of ["deleted within 24 hours", "who invited me is recorded until then", "prize record are kept for 365 days", "Billing data is kept for audit and tax reasons.", "Hindi on request"]) expect(a).toContain(part);
     expect(a).not.toMatch(/forever|for ever|permanent/i);
     await published("CON-A18"); const body = { name: "Maya Lopez", device: dev(1) };
     expect((await call("POST", "/api/z/CON-A18/join", { ...body, consent: { v: CONSENT_VERSION, boxes: ["A"] } })).status).toBe(400); // the age box is required by the server
@@ -175,32 +175,29 @@ describe("5. the wording on the pages is the agreed wording", () => {
     return win;
   };
   test("version", () => { expect(AGREED.version).toBe(TERMS_VERSION); expect(pageWindow().CBConsent.version).toBe(TERMS_VERSION); });
-  test("every box a page draws says exactly what the agreed text says (string compare of the label text)", () => {
+  test("no tick-boxes: every point draws one small notice line (the same words), the agreed texts stay what the server checks", () => {
     const win = pageWindow();
     for (const kind of ["K1", "K2", "K3", "K4", "K5", "K6"] as const) {
       const host = win.document.createElement("div"); host.innerHTML = win.CBConsent.html(kind); win.document.body.appendChild(host);
-      const labels = Array.from(host.querySelectorAll("label")).map((l: any) => l.textContent);
-      expect([kind, labels]).toEqual([kind, Object.keys(AGREED[kind]).map((b) => AGREED[kind][b])]);
+      expect(host.querySelectorAll("input").length).toBe(0);
+      expect([kind, host.textContent.trim()]).toEqual([kind, "By continuing, you agree to the Terms and Conditions, Privacy and Data, and Game rules."]);
       expect([kind, win.CBConsent.text[kind]]).toEqual([kind, AGREED[kind]]);
-      expect([kind, CONSENT_TEXT[kind]]).toEqual([kind, AGREED[kind]]); // what the server checks
+      expect([kind, CONSENT_TEXT[kind]]).toEqual([kind, AGREED[kind]]);
     }
   });
-  test("never ticked in advance; each box has a real label; the page words are links that open in a new tab", () => {
+  test("the three names are links to the one document's sections and open in a new tab", () => {
     const win = pageWindow();
     const host = win.document.createElement("div"); host.innerHTML = win.CBConsent.html("K1"); win.document.body.appendChild(host);
-    for (const i of Array.from(host.querySelectorAll("input[type=checkbox]")) as any[]) { expect(i.checked).toBe(false); expect(host.querySelector(`label[for="${i.id}"]`)).toBeTruthy(); }
-    const hrefs = Array.from(host.querySelectorAll("label a")).map((a: any) => [a.textContent, a.getAttribute("href"), a.getAttribute("target"), a.getAttribute("rel")]);
-    expect(hrefs).toEqual([["Terms & Conditions", "/terms.html", "_blank", "noopener"], ["Privacy Policy", "/privacy.html", "_blank", "noopener"], ["Refund Policy", "/refund-policy.html", "_blank", "noopener"]]);
+    const hrefs = Array.from(host.querySelectorAll("a")).map((a: any) => [a.textContent, a.getAttribute("href"), a.getAttribute("target"), a.getAttribute("rel")]);
+    expect(hrefs).toEqual([["Terms and Conditions", "https://home.corporatetambola.com/terms#terms", "_blank", "noopener"], ["Privacy and Data", "https://home.corporatetambola.com/terms#privacy", "_blank", "noopener"], ["Game rules", "https://home.corporatetambola.com/terms#game-rules", "_blank", "noopener"]]);
   });
-  test("the button stays disabled (and aria-disabled) until every box of the point is ticked", () => {
+  test("the button is never held back by a box; the request still carries the version and the points, so the server keeps its proof", () => {
     const win = pageWindow();
-    const host = win.document.createElement("div"); host.innerHTML = win.CBConsent.html("K4") + `<button id="b" data-needs="K4">go</button>`; win.document.body.appendChild(host);
+    const host = win.document.createElement("div"); host.innerHTML = win.CBConsent.html("K4") + `<button id="b" data-needs="K4">go</button><button id="h" data-needs="K4" data-hold="1">held</button>`; win.document.body.appendChild(host);
     win.CBConsent.wire(host, "K4", {});
-    const b = host.querySelector("#b") as any, [a, c] = Array.from(host.querySelectorAll("input")) as any[];
-    expect([b.disabled, b.getAttribute("aria-disabled")]).toEqual([true, "true"]);
-    a.checked = true; a.dispatchEvent(new win.Event("change")); expect(b.disabled).toBe(true);
-    c.checked = true; c.dispatchEvent(new win.Event("change")); expect([b.disabled, b.getAttribute("aria-disabled")]).toEqual([false, "false"]);
-    a.checked = false; a.dispatchEvent(new win.Event("change")); expect(b.disabled).toBe(true);
+    const b = host.querySelector("#b") as any, h = host.querySelector("#h") as any;
+    expect([b.disabled, b.getAttribute("aria-disabled")]).toEqual([false, "false"]); expect(h.disabled).toBe(true); // a button held for another reason stays held
+    expect(win.CBConsent.payload(host, "K4")).toEqual({ v: TERMS_VERSION, boxes: ["A", "B"], notice: true });
   });
 });
 
@@ -218,8 +215,8 @@ describe("7. the record holds no account, IP address, browser or phone data", ()
   });
 });
 
-describe("erasure and records", () => {
-  test("the participant's rows are erased with the participant's data; the organizer's rows stay", async () => {
+describe("auto-deletion and records", () => {
+  test("the participant's rows are auto-deleted with the participant's data; the organizer's rows stay", async () => {
     await published("CON-13");
     await call("POST", "/api/z/CON-13/join", { name: "Maya Lopez", device: dev(4), consent: ticks("K4") });
     expect(rows("K4")).toHaveLength(1);

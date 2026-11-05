@@ -7,6 +7,7 @@ import { ticketCompletion, ticketStillNeeds } from "./house-rules";
 import { sha256 } from "@noble/hashes/sha256";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils";
 import { positionOf, seatOfPid, ticketAt } from "./unique-ticket";
+import { assignOrdinals as coreAssign, countedLog, roundEid as coreRoundEid, seatCompletion } from "../../../vendor/game-core/packages/bingo/src/settle";
 import { NUMBERS, fetchRound, pickNumber, seededRand, verifyRound, type BeaconOpts, type Round, defaultMirrors } from "./index";
 
 export const ALL_PATTERNS: readonly PatternId[] = PATTERN_ORDER;
@@ -65,6 +66,26 @@ export function assignOrdinals(engagementId: string, key: PatternKey, groups: re
   return out;
 }
 
+/** OFF. When on, settleAll asks the common engine (vendor/game-core bingo settleFromLog) with the same seats, countFrom and callRounds. Same winners as the live code above; kept off until tested. */
+export let CORE_SETTLE = false;
+export const setCoreSettle = (on: boolean): void => { CORE_SETTLE = on; };
+function settleViaCore(engagementId: string, pids: readonly string[], log: readonly number[], cfg: EngagementCfg, round: number, late?: { countFrom: ReadonlyMap<string, number>; callRounds: readonly number[] }): Settled[] {
+  // the core's own pieces (roundEid, countedLog, seatCompletion, assignOrdinals), but with the organizer's own reward-line numbers: lines numbered 2 and 3 only stay 2 and 3
+  const eid = coreRoundEid(engagementId, round), keys = keysInPlay(cfg.rewards), by = new Map<PatternKey, Map<number, { id: string; key: string | number }[]>>(keys.map((k) => [k, new Map()]));
+  for (const pid of pids) {
+    const cards = ticketsFor(roundEid(engagementId, round), pid, cfg.tickets), mine = countedLog(log, late?.countFrom.get(pid) ?? 0, late?.callRounds);
+    for (const k of keys) {
+      const i = seatCompletion(cards, k, mine);
+      if (i < 0) continue;
+      const g = by.get(k)!, e = { id: pid, key: seatOfPid(pid) ?? pid }, arr = g.get(i);
+      if (arr) arr.push(e); else g.set(i, [e]);
+    }
+  }
+  const out: Settled[] = [];
+  for (const k of keys) for (const x of coreAssign(eid, k, [...by.get(k)!.entries()], linesFor(cfg.rewards, k).map((l) => l.ordinal), round)) out.push({ pattern: x.house, ordinal: x.ordinal, idx: x.idx, pids: [x.player], round: x.round, ...(x.tied ? { tied: x.tied } : {}) });
+  return out;
+}
+
 /**
  * The organizer console's settlement: from the public log, the participant list and the engagement's own settings alone, who completed each house first.
  * Claims are not needed to decide this (a phone with no network still gets its reward), they only cross-check it.
@@ -72,6 +93,7 @@ export function assignOrdinals(engagementId: string, key: PatternKey, groups: re
  * distinct call; and so on.
  */
 export function settleAll(engagementId: string, pids: readonly string[], log: readonly number[], cfg: EngagementCfg = defaultCfg(), round = 1, late?: { countFrom: ReadonlyMap<string, number>; callRounds: readonly number[] }): Settled[] {
+  if (CORE_SETTLE) return settleViaCore(engagementId, pids, log, cfg, round, late);
   const eid = roundEid(engagementId, round);
   const keys = keysInPlay(cfg.rewards);
   const best = new Map<PatternKey, Map<number, string[]>>(keys.map((k) => [k, new Map()]));
@@ -259,6 +281,6 @@ export interface RankRow { rank: number; pid: string; pattern: PatternKey; ordin
 export function rankWinners(engagementId: string, cfg: EngagementCfg, settled: readonly Settled[], n = 10): RankRow[] {
   const valueOf = (s: Settled) => { const i = cfg.rewards.findIndex((l) => l.pattern === s.pattern && l.ordinal === s.ordinal); return i < 0 ? 1e9 : i; };
   const rows = [...settled].filter((s) => s.pids.length > 0).sort((a, b) => valueOf(a) - valueOf(b) || a.idx - b.idx || (fateOf(engagementId, a.pids[0]!, a.pattern, a.ordinal) < fateOf(engagementId, b.pids[0]!, b.pattern, b.ordinal) ? -1 : 1));
-  return rows.slice(0, Math.max(0, n)).map((s, i) => ({ rank: i + 1, pid: s.pids[0]!, pattern: s.pattern, ordinal: s.ordinal, idx: s.idx, text: cfg.rewards.find((l) => l.pattern === s.pattern && l.ordinal === s.ordinal)?.text ?? "", note: s.tied && s.tied > 1 ? `${s.tied} guests completed it on the same call; decided by fate` : "" }));
+  return rows.slice(0, Math.max(0, n)).map((s, i) => ({ rank: i + 1, pid: s.pids[0]!, pattern: s.pattern, ordinal: s.ordinal, idx: s.idx, text: cfg.rewards.find((l) => l.pattern === s.pattern && l.ordinal === s.ordinal)?.text ?? "", note: s.tied && s.tied > 1 ? `${s.tied} cards completed it on the same number; a fixed public rule put them in order` : "" }));
 }
 export const rankName = (r: number): string => ["", "1st", "2nd", "3rd"][r] ?? `${r}th`;

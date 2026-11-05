@@ -15,6 +15,13 @@
   if (!gpc) {
     var m = (doc.cookie || "").match(/(?:^|;\s*)cbv=([a-f0-9]{32})(?:;|$)/);
     vid = ls("cbv_id") || (m && m[1]) || "";
+    // a visitor code handed over by one of our other sites (#cv=<32 hex>): taken once, removed from the address bar, and the earlier code is told to the server once (ov) so both stay one person
+    var hm = /(?:^#|&)cv=([a-f0-9]{32})(?:&|$)/.exec(location.hash || ""), oldVid = "";
+    if (hm) {
+      if (/^[a-f0-9]{32}$/.test(vid) && vid !== hm[1]) oldVid = vid;
+      vid = hm[1];
+      try { var h2 = (location.hash || "").replace(/(^#|&)cv=[a-f0-9]{32}(&|$)/, function (x, a, b) { return b ? a : ""; }); history.replaceState(history.state, "", location.pathname + location.search + (h2 && h2 !== "#" ? h2 : "")); } catch (e) {}
+    }
     if (!/^[a-f0-9]{32}$/.test(vid)) vid = rnd(16);
     ls("cbv_id", vid);
     try { doc.cookie = "cbv=" + vid + "; Max-Age=31536000; Path=/; SameSite=Lax" + (location.protocol === "https:" ? "; Secure" : ""); } catch (e) {}
@@ -25,6 +32,12 @@
     ss("cbv_t", String(now0));
   } else sid = rnd(12);
   window.TBV = { vid: vid, sid: sid, gpc: gpc };
+
+  // Sales funnel (apps/edge/src/funnel.ts, packages/beacon/src/funnel-browser.ts): OFF until the owner has audited the numbers; flipped together with FUNNEL_ENABLED on the server.
+  // funnel.js is core's makeReporter: same-site address, no cookie, nothing stored, nothing sent with Global Privacy Control or Do Not Track. Steps wait here until it has loaded.
+  var FUNNEL = false, fq = [];
+  function fr(ev, props) { try { if (window.CBF) window.CBF.report(ev, props); else if (FUNNEL) fq.push([ev, props]); } catch (e) {} }
+  if (FUNNEL && !gpc) { var fs = doc.createElement("script"); fs.src = "/funnel.js?v=1"; fs.async = true; fs.onload = function () { while (fq.length) { var x = fq.shift(); fr(x[0], x[1]); } }; (doc.head || doc.documentElement).appendChild(fs); }
 
   var q = [], total = 0, sections = {}, inView = [], curSec = "", maxScroll = 0, visSince = Date.now(), visMs = 0, exits = 0;
   function push(e) { if (total >= MAX_PAGE_EVENTS) return; e.p = path; q.push(e); total++; if (q.length >= BATCH) flush(); }
@@ -38,6 +51,7 @@
     while (q.length) {
       var b = { s: sid, g: gpc ? 1 : 0, dv: innerWidth < 700 ? "mobile" : innerWidth < 1100 ? "tablet" : "desktop", l: (nav.language || "").slice(0, 12), e: q.splice(0, BATCH) };
       if (!gpc) b.d = vid;
+      if (!gpc && typeof oldVid === "string" && oldVid) { b.ov = oldVid; oldVid = ""; }
       if (fresh) { // what only the first message of a visit needs: where it came from
         b.lp = path; fresh = false; ss("cbv_sent", "1");
         try { b.r = doc.referrer ? new URL(doc.referrer).hostname : ""; } catch (e) { b.r = ""; }
@@ -79,6 +93,7 @@
       for (var i = 0; i < els.length; i++) { var n = nameOf(els[i]); if (n && !seen[n]) { seen[n] = 1; io.observe(els[i]); } }
     }
     push({ k: "pv" });
+    fr("viewed"); if (path === "/pay") fr("payment_page_opened");
     var sc = function () { var h = Math.max(doc.documentElement.scrollHeight, 1), y = (window.scrollY || window.pageYOffset || 0) + innerHeight; maxScroll = Math.max(maxScroll, Math.min(100, Math.round((y / h) * 100))); };
     sc(); addEventListener("scroll", sc, { passive: true });
     setInterval(function () { if (doc.visibilityState !== "hidden") flush(); }, 15000);
@@ -98,7 +113,12 @@
 
   // ---- actions: the choices a visitor makes (a handful of named ones; the server drops anything else) ----
   function shown() { var t = doc.querySelector(".pcard .tot"), m = t && t.textContent.replace(/,/g, "").match(/(₹|US\$)\s*([\d.]+)/); return m ? (m[1] === "₹" ? "INR " : "USD ") + m[2] : ""; }
-  function act(n, size, v, now) { push({ k: "act", n: n, z: size, v: v }); if (now) flush(); }
+  function act(n, size, v, now) {
+    push({ k: "act", n: n, z: size, v: v });
+    if (n === "pack" || n === "create") fr("size_chosen", { size: size || 0 });
+    if (n === "create" || n === "start_submit") fr("signup_started");
+    if (now) flush();
+  }
   doc.addEventListener("click", function (e) {
     var t = e.target && e.target.closest ? e.target : null; if (!t) return;
     var c = t.closest("[data-buy]");

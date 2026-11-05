@@ -1,4 +1,4 @@
-/* Corporate Bingo, phone page for zero-server engagements. All game logic lives in zgame.js (window.ZG); this file only draws it. */
+/* Corporate Bingo, phone page for zero-server games. All game logic lives in zgame.js (window.ZG); this file only draws it. */
 (function () {
   const ZG = window.ZG;
   const $app = document.getElementById("app");
@@ -20,7 +20,7 @@
   };
   // ---------- what the game's public settings say besides the plan: the brand strip, a cancelled game; and a personal invite link's token ----------
   const TOKEN = (q.get("t") || "").trim().slice(0, 80); // a personal link: sent as `token` when joining, so no mobile number is needed
-  const INFO = { brand: null, cancelled: null, dns: false, joinPhone: false }; // dns = "this game did not start": nobody paid, the time and 23 hours passed, the guest data was erased
+  const INFO = { brand: null, cancelled: null, dns: false, joinPhone: false }; // dns = "this game did not start": nobody paid, the time passed, the guest data was erased
   const cleanBrand = (b) => {
     if (!b || typeof b !== "object") return null;
     const name = String(b.name == null ? "" : b.name).replace(/\s+/g, " ").trim().slice(0, 60);
@@ -36,7 +36,10 @@
     if (!r || typeof r !== "object") return;
     if ("brand" in r && !(fromJoin && INFO.brand)) { INFO.brand = cleanBrand(r.brand); if (!DEMO && EID && INFO.brand && INFO.brand.logo !== undefined) { try { store.set("cbz:" + EID + ":brand", JSON.stringify(INFO.brand)); } catch { /* storage full or blocked: the strip just is not kept */ } } } // a join answer carries the brand without its logo: never let it replace the full one read from info
     if ("joinPhone" in r) INFO.joinPhone = r.joinPhone === true;
-    if ("verify" in r) { INFO.verify = r.verify === "id" || r.verify === "both" ? r.verify : "mobile"; INFO.empOnly = r.employeesOnly === true; }
+    if ("roomMode" in r) { INFO.quiet = r.roomMode === true; if (INFO.quiet && store.get("cbz-sound") === null) { sound = false; if (window.TBAudio) TBAudio.enabled = false; } } // B14: everyone is in one room and the big screen says the numbers: phones start silent unless the person turned sound on
+    if ("idOnly" in r || "verify" in r) INFO.idOnly = r.idOnly === true; // ID-only joining: name, location and an ID; no mobile number anywhere
+    if ("verify" in r) { INFO.verify = r.verify === "id" || r.verify === "both" ? r.verify : "mobile"; INFO.empOnly = r.employeesOnly === true; INFO.idKind = r.idKind === "email" ? "email" : "emp"; INFO.idClean = r.idClean === true; }
+    if ("rehearsal" in r) INFO.rehearsal = r.rehearsal && typeof r.rehearsal === "object" ? r.rehearsal : null; // a rehearsal: its pages carry the REHEARSAL block and, once it is over, the calm "over" page
     if (r.didNotStart === true) INFO.dns = true; else if ("startRound" in r && !fromJoin) INFO.dns = false;
     if ("cancelled" in r || "startRound" in r) INFO.cancelled = r.cancelled ? { message: String(r.message || "").slice(0, 200) } : null;
   };
@@ -59,6 +62,37 @@
   const HOW = Object.fromEntries(ZG.PRIZE_HOUSES.map((h) => [h.id, h.how]));
   const howLine = (key) => (HOW[key] ? `<small class="zsmall zhow" style="margin:0">${esc(HOW[key])}</small>` : "");
   const getPublic = DEMO ? DEMO.getPublic : async (url) => { let r; try { r = await fetch(url, { cache: "no-store" }); } catch { throw new Error("offline"); } if (!r.ok) throw Object.assign(new Error("http " + r.status), { status: r.status }); return r.json(); };
+  // Reaction pack (common engine): short comic words in a corner strip at fitting moments. Off unless the page has ?rx=1. It only shows words; it never changes a result.
+  const RX_ON = /[?&]rx=1(?:&|$)/.test(location.search);
+  const RX = { rx: null, t: 0, at: 0, seen: {}, prev: null };
+  function rxEvents(v) {
+    if (!RX_ON || !window.ZG || !ZG.createReactions || DEMO) return;
+    const R = RX.rx || (RX.rx = ZG.createReactions(v.pid || null)); R.setMode(v.rxMode || "full"); const P = RX.prev, nowMs = Date.now();
+    if (RX.at) { if (!v.paused) RX.t += nowMs - RX.at; } RX.at = nowMs; // game time: a pause freezes it
+    const go = (id, o) => { try { R.react(id, Object.assign({ who: v.pid || undefined, now: RX.t, game: "bingo" }, o || {})); } catch { /* a reaction is only decoration */ } };
+    const once = (k) => (RX.seen[k] ? false : (RX.seen[k] = true));
+    if (v.phase === "play") {
+      if (once("join")) go("hello");
+      if (v.log.length === 0 && v.nextCallInSec !== null && v.nextCallInSec <= 10 && once("count")) go("tick_tock");
+      if (P) {
+        if (v.log.length > P.n) { const last = v.log[v.log.length - 1]; if (v.tickets.some((t) => t.some((row) => row.indexOf(last) >= 0))) go("yes"); }
+        const near = ZG.keysInPlay(v.cfg.rewards).filter((k) => ZG.stillToWin(v.tickets, k, v.log) === 1).length;
+        if (near > P.near && once("near" + near + "@" + v.log.length)) go("last_chance");
+        if ((v.claimed || []).length > P.claimed) go("spot_on");
+        if (v.paused && !P.paused) go("hang_on");
+        if (!v.paused && P.paused) go("lets_go");
+        if (v.won.length > P.won) go("champion", { priority: "high" });
+        if (document.getElementById("zclaim") && !P.claimBtn) go("super");
+      }
+    }
+    RX.prev = { n: v.log.length, near: v.phase === "play" ? ZG.keysInPlay(v.cfg.rewards).filter((k) => ZG.stillToWin(v.tickets, k, v.log) === 1).length : 0, claimed: (v.claimed || []).length, paused: !!v.paused, won: v.won.length, claimBtn: !!document.getElementById("zclaim") };
+    R.tick(RX.t);
+  }
+  const CLAIM_BTN = /[?&]claim=1(?:&|$)/.test(location.search); // the golden Claim button: off by default
+  // With the Claim button on, a prize this phone has already worked out is held back from the "You won" card until Claim is pressed, or for at most 10 seconds (the auto-claim has sent it meanwhile). Same card, same result; never lost.
+  const CLAIM_HOLD_MS = 10000, heldSince = {}, revealedWin = new Set();
+  const wid = (w) => w.round + ":" + w.pattern + ":" + w.ordinal;
+  const isHeld = (w) => { if (!CLAIM_BTN || revealedWin.has(wid(w))) return false; const t = heldSince[wid(w)] || (heldSince[wid(w)] = Date.now()); if (Date.now() - t >= CLAIM_HOLD_MS) { revealedWin.add(wid(w)); return false; } return true; };
   const rt = new ZG.PhoneRuntime(EID, DEMO ? { api, getPublic, beacon: DEMO.beacon, verify: DEMO.verify, mono: DEMO.mono, store } : { api, getPublic, beacon: {}, mono: () => performance.now(), store });
   let lastLen = 0, firstPaint = true, sound = store.get("cbz-sound") !== "off", timer = null;
   if (window.TBAudio) TBAudio.enabled = sound;
@@ -74,18 +108,20 @@
   const paintBrand = () => document.querySelectorAll(".zbrand").forEach((el) => { if (!el.classList.contains("zdef")) el.style.background = el.dataset.bg; el.style.color = el.dataset.fg; }); // set from the script, so a strict style policy never blocks the colour
 
   // ---------- joining: a personal link needs no number; a number may be asked for; a request may have to wait to be let in; a person may have been removed ----------
-  const J = { k4: {}, consent: null, mode: "", phone: "", emp: "", name: "", wid: "", who: "", timer: null, polling: false, note: "" };
+  const J = { k4: {}, consent: null, mode: "", phone: "", emp: "", name: "", loc: "", wid: "", who: "", timer: null, polling: false, note: "" };
   const inviteOf = () => (INVITE_FROM ? { from: INVITE_FROM, cat: INVITE_CAT } : undefined);
   // What the organizer asked people to give to get in: the usual way (name, and a mobile number if the organizer asked), an employee ID, or a mobile number and an employee ID. Employees only: no way in without the ID.
   const joinWho = (personal, needPhone) => {
-    const vm = INFO.verify || "mobile", eo = !!INFO.empOnly, pv = esc(J.phone || ""), ev = esc(J.emp || "");
+    const ek = INFO.idKind === "email", IDN = ek ? "Email ID" : "employee ID", vm = INFO.verify || "mobile", eo = !!INFO.empOnly, pv = esc(J.phone || ""), ev = esc(J.emp || "");
     const phone = (label, hint) => `<label for="ph">${label}</label><input id="ph" inputmode="tel" autocomplete="tel" placeholder="+1 555 010 0100" value="${pv}">${hint ? `<p class="zsmall" style="margin:2px 0 6px">${hint}</p>` : ""}`;
-    const emp = (label, hint) => `<label for="emp">${label}</label><input id="emp" autocomplete="off" autocapitalize="characters" maxlength="30" value="${ev}">${hint ? `<p class="zsmall" style="margin:2px 0 6px">${hint}</p>` : ""}`;
+    const emp = (label, hint) => `<label for="emp">${label}</label><input id="emp" autocomplete="off" ${ek ? `inputmode="email" autocapitalize="none" maxlength="254"` : `autocapitalize="characters" maxlength="60"`} value="${ev}"><p class="zsmall" id="empHint" aria-live="polite" style="margin:2px 0 0"></p>${hint ? `<p class="zsmall" style="margin:2px 0 6px">${hint}</p>` : ""}`;
     if (personal) return "";
-    if (vm === "id") return emp("Your employee ID", eo ? "This game is for employees only." : "") + (eo ? "" : phone("No employee ID? Type your mobile number instead", "Vendors, customers and families use their mobile number."));
-    if (vm === "both") return phone("Your mobile number", "") + emp(eo ? "Your employee ID" : "Your employee ID (employees only)", eo ? "This game is for employees only." : "Not an employee? Leave this empty.");
+    if (vm === "id") return emp(`Your ${IDN}`, eo ? "This game is for employees only." : "") + (eo ? "" : phone(`No ${IDN}? Type your mobile number instead`, "Vendors, customers and families use their mobile number."));
+    if (vm === "both") return phone("Your mobile number", "") + emp(eo ? `Your ${IDN}` : `Your ${IDN} (employees only)`, eo ? "This game is for employees only." : "Not an employee? Leave this empty.");
     return needPhone ? phone("Your mobile number", "") : "";
   };
+  // the same cleaning the server does (NFKC, upper case, only A-Z and 0-9), shown while typing
+  document.addEventListener("input", (ev) => { const t = ev.target; if (!t || t.id !== "emp") return; const em = INFO.idKind === "email", v = String(t.value || "").normalize("NFKC"), h = document.getElementById("empHint"); let c = ""; if (em) c = v.replace(/[\s\u0085\u200B-\u200D\u2028\u2029\u2060\uFEFF]/g, "").toLowerCase(); else if (INFO.idClean && v.indexOf("@") < 0) c = v.toUpperCase().replace(/[^A-Z0-9]/g, ""); /* an e-mail typed in an employee-ID game, or a game made before the new rule, gets no "read this as" line: the server refuses it or reads it the old way */ if (h) h.textContent = !em && INFO.idClean && c.length > 30 ? "This Employee ID is too long. An employee ID may be up to 30 characters once cleaned." : c && c !== String(t.value).trim() ? "The system will read this as " + c : ""; });
   const BUSY_TRIES = 15;
   const joinView = (msg) => {
     if (J.mode === "removed") return `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard" role="status"><h2>You are not on this game's list</h2><p class="zsmall" style="margin:0">You were removed from this game, so there is no card for you here. If you think this is a mistake, please ask the person who invited you.</p></div>`;
@@ -94,10 +130,21 @@
     if (J.mode === "waiting") return `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard zwait" role="status"><h2>Please wait a moment</h2><p style="margin:0 0 6px">${J.note ? esc(J.note) : `Your request to join has gone to ${J.who ? esc(J.who) : "the organizer"}.`}</p><p class="zsmall" style="margin:0">Keep this page open. As soon as you are let in, your card appears here.</p></div>`;
     if (J.mode === "declined" || J.mode === "lapsed") return `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard" role="status"><h2>${J.mode === "declined" ? "Your request was not accepted" : "This request has run out"}</h2><p class="zsmall" style="margin:0 0 8px">${J.mode === "declined" ? "You are not on the list for this game. Please ask the person who invited you." : "Nobody answered in time. You can ask again."}</p>${J.mode === "lapsed" ? `<button class="zbtn s" id="again" type="button">Ask again</button>` : ""}</div>`;
     const personal = !!TOKEN && J.mode !== "needPhone"; // a personal link is made for one person: nothing to type unless the server asks
+    if (INFO.idOnly && !personal) return `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div>
+    <div class="zcard zform zjoin"><h2>Join the game</h2>
+    <p class="zgoalline" style="margin:0 0 6px">Enter your details and ask to join. The Organizer will confirm it is you.</p>${INVITE_FROM ? `<div class="zbanner ok" style="margin:0 0 8px">A colleague invited you. Join with your own details to get your own card.</div>` : ""}
+    <label for="nm">Your name</label><input id="nm" autocomplete="name" maxlength="60" value="${esc(J.name)}">
+    <label for="loc">Your location</label><input id="loc" autocomplete="off" maxlength="60" value="${esc(J.loc)}">
+    <label for="emp">Employee, Associate, Vendor or Member ID</label><input id="emp" autocomplete="off" autocapitalize="characters" maxlength="60" value="${esc(J.emp)}"><p class="zsmall" id="empHint" aria-live="polite" style="margin:2px 0 0"></p>
+    ${msg ? `<div class="zbanner bad" role="alert">${esc(msg)}</div>` : ""}
+    <button class="zbtn" id="go">Ask to join the game</button>
+    <p class="zsmall">No mobile number or e-mail address is needed. What is typed here is deleted within 24 hours after the game.</p>
+    <p class="zsmall"><a href="/fair.html" target="_blank" rel="noopener">How the game is kept fair</a></p>
+    ${DEMO ? "" : CBConsent.html("K4")}</div>`;
     const needPhone = J.mode === "needPhone" || INFO.joinPhone; // the organizer asked guests to give a mobile number, or the link was already opened elsewhere
     return `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div>
     <div class="zcard zform zjoin"><h2>Join the game</h2>
-    <ol class="zsteps" aria-label="How to join"><li><b>1</b><span>Tick the boxes</span></li><li><b>2</b><span>${personal ? "Press the button" : "Type your name"}</span></li><li><b>3</b><span>${personal ? "Watch your card" : "Get your card"}</span></li></ol>
+    <ol class="zsteps" aria-label="How to join"><li><b>1</b><span>${personal ? "Press the button" : "Type your name"}</span></li><li><b>2</b><span>${personal ? "Watch your card" : "Get your card"}</span></li></ol>
     <p class="zgoalline" style="margin:0 0 6px">A card fills up as numbers are called. Complete a pattern to win a prize. No need to shout Bingo: the software checks every card.</p>${INVITE_FROM ? `<div class="zbanner ok" style="margin:0 0 8px">A colleague invited you. Join with your name to get your own card.</div>` : ""}
     ${J.mode === "needPhone" ? `<div class="zbanner info" role="status" style="margin:0 0 8px">${J.note ? esc(J.note) : "This link was already opened on another phone. Please type your mobile number to get your card."}</div>` : ""}
     ${DEMO ? "" : CBConsent.html("K4")}
@@ -106,12 +153,13 @@
     ${joinWho(personal, needPhone)}
     ${msg ? `<div class="zbanner bad" role="alert">${esc(msg)}</div>` : ""}
     <button class="zbtn" id="go" ${DEMO ? "" : 'data-needs="K4" disabled aria-disabled="true"'}>Get my card</button>
-    <p class="zsmall">We use your name for your card and, if you win, to hand over your prize. Your organizer sees it. Other players do not.</p>
-    <p class="spriv">Players are 18 or older. Playing is free: you never pay, and no prize money is held or paid by us.</p>
+    <p class="zsmall">Your name is used for your card and, if you win, to hand over your prize. Your organizer sees it. Other players do not.</p>
+    <p class="spriv">Playing is free. You never pay to play.</p>
+    <p class="zsmall"><a href="/fair.html" target="_blank" rel="noopener">How the game is kept fair</a></p>
     <p class="spriv"><a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a></p></div>`;
   };
   const cancelledView = () => `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard" role="status"><h2>This game was cancelled</h2><p class="zsmall" style="margin:0">${esc((INFO.cancelled && INFO.cancelled.message) || "The organizer cancelled this game.")} There is nothing to do on this page. Thank you for your interest.</p></div>`;
-  const dnsView = () => `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard" role="status"><h2>This game did not start</h2><p class="zsmall" style="margin:0">This game did not start. Your details have been erased. There is nothing to do on this page. Thank you for your interest.</p></div>`;
+  const dnsView = () => `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard" role="status"><h2>This game did not start</h2><p class="zsmall" style="margin:0">This game did not start. Your details have been auto-deleted. There is nothing to do on this page. Thank you for your interest.</p></div>`;
   const removedView = () => `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard" role="status"><h2>You have been removed from this game</h2><p class="zsmall" style="margin:0">This phone no longer plays in this game. If you think this is a mistake, please ask the person who invited you.</p></div>`;
   // what the server's "me" answer says about this card: removed, and (for a guest invited straight by the organizer's side) whether they may invite
   const ME = { at: -Infinity, role: null, removed: false, canInvite: false, per: 0, used: 0, loaded: false };
@@ -129,13 +177,13 @@
   }
   // The waiting screen survives a reload: what the person typed and the waiting number are kept on this phone only until they are let in, declined, removed or start again.
   const WAITKEY = "cbz-wait-" + EID;
-  const saveWait = () => { try { store.set(WAITKEY, JSON.stringify({ wid: J.wid, who: J.who, note: J.note, phone: J.phone, emp: J.emp, name: J.name, at: Date.now() })); } catch {} };
+  const saveWait = () => { try { store.set(WAITKEY, JSON.stringify({ wid: J.wid, who: J.who, note: J.note, phone: J.phone, emp: J.emp, name: J.name, loc: J.loc, at: Date.now() })); } catch {} };
   const clearWait = () => { try { localStorage.removeItem(WAITKEY); } catch {} try { store.set(WAITKEY, ""); } catch {} };
   function restoreWait() {
     if (DEMO || J.mode) return;
     let w = null; try { w = JSON.parse(store.get(WAITKEY) || "null"); } catch { w = null; }
     if (!w || !w.wid || Date.now() - Number(w.at || 0) > 7 * 86400000) { clearWait(); return; }
-    J.mode = "waiting"; J.wid = String(w.wid); J.who = String(w.who || ""); J.note = String(w.note || ""); J.phone = String(w.phone || ""); J.emp = String(w.emp || ""); J.name = String(w.name || "");
+    J.mode = "waiting"; J.wid = String(w.wid); J.who = String(w.who || ""); J.note = String(w.note || ""); J.phone = String(w.phone || ""); J.emp = String(w.emp || ""); J.name = String(w.name || ""); J.loc = String(w.loc || "");
     waitPoll();
   }
   function waitPoll() {
@@ -153,7 +201,7 @@
   }
   /** Joins with what is typed (or just the token). Shows a card, or the calm screen that fits the answer. */
   async function doJoin() {
-    const ok = await rt.join(J.phone, J.name, inviteOf(), J.emp);
+    const ok = await rt.join(INFO.idOnly ? "" : J.phone, J.name, inviteOf(), J.emp, INFO.idOnly ? J.loc : undefined);
     if (ok) {
       J.mode = ""; clearInterval(J.timer); clearWait();
       if (TOKEN) { try { const u = new URLSearchParams(location.search); u.delete("t"); history.replaceState(null, "", location.pathname + (u.toString() ? "?" + u : "")); } catch {} } // the personal token leaves the address bar once it has done its job
@@ -219,7 +267,7 @@
   }
   function icsFor(v) {
     const ms = (1692803367 + (v.scheduledRound - 1) * 3) * 1000, f = (d) => new Date(d).toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
-    const text = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Corporate Bingo//EN", "BEGIN:VEVENT", "UID:" + EID + "@corporate-bingo", "DTSTAMP:" + f(Date.now()), "DTSTART:" + f(ms), "DTEND:" + f(ms + 45 * 60000), "SUMMARY:Corporate Bingo engagement", "DESCRIPTION:Open " + location.origin + "/z?e=" + EID + " a few minutes early.", "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+    const text = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Corporate Bingo//EN", "BEGIN:VEVENT", "UID:" + EID + "@corporate-bingo", "DTSTAMP:" + f(Date.now()), "DTSTART:" + f(ms), "DTEND:" + f(ms + 45 * 60000), "SUMMARY:Corporate Bingo game", "DESCRIPTION:Open " + location.origin + "/z?e=" + EID + " a few minutes early.", "END:VEVENT", "END:VCALENDAR"].join("\r\n");
     return "data:text/calendar;charset=utf-8," + encodeURIComponent(text);
   }
   /** Before the first number: what to expect, what can be won, a sound check and a calendar entry. Everything here is known at boot, so it costs no extra requests. */
@@ -234,10 +282,10 @@
       ? `<h2>Your game is setting up</h2><div class="zsetup">We are waiting 2 minutes more for everyone to join.</div><div class="zcount" aria-live="off" id="cd">${clock(toFirst)}</div><p class="zsmall" style="margin-top:0">until the first number. Keep this page open: the numbers appear on their own.</p>`
       : `<h2>You are in. See you at ${esc(when)}</h2><div class="zsmall" style="margin:0">Starting in</div><div class="zcount" aria-live="off" id="cd">${clock(toFirst - GRACE_SECS)}</div><p class="zsmall" style="margin-top:0">hours : minutes : seconds. Keep this page open: the numbers appear on their own.</p>`;
     return `<div class="zcard zwait">${top}
-      <div class="zdo"><b>What to do:</b> nothing yet. Keep this page open. ${TAP() ? "When a number is called, tap it on your card." : "Your card marks every number for you."}</div>
+      <div class="zdo"><b>What to do:</b> nothing yet. Keep this page open. ${TAP() ? "When a number is called, tap it on your card." : "Your card marks every number for you."}<br>Tip: switch on Do Not Disturb so calls and chats do not interrupt your game.</div>
       ${prizes ? `<h3>What you can win</h3><ul class="zlist">${prizes}</ul>` : ""}
       <h3>How it works</h3><ol class="zlist"><li>Your card is below: 5 x 5 with the letters B I N G O, and FREE in the middle. Numbers are called one by one as a letter and a number, like G 52.</li><li>When your card completes a prize pattern you will see it. The software checks every card, so you do not need to shout Bingo.</li><li>The organizer hands over the rewards.</li></ol>
-      <button class="zbtn s alt" id="soundtest">Check my sound</button><a class="zbtn s alt" id="addcal" download="engagement.ics" href="${icsFor(v)}">Add to my calendar</a></div>`;
+      <button class="zbtn s alt" id="soundtest">Check my sound</button><a class="zbtn s alt" id="addcal" download="game.ics" href="${icsFor(v)}">Add to my calendar</a></div>`;
   }
 
   // ---------- winners: a prize record that stays on this phone, the hurray, the final thank-you ----------
@@ -250,7 +298,7 @@
   function syncPrizes(v) {
     const have = readJson(prizeKey, []), ids = new Set(have.map(winId)), fresh = [];
     const add = (w) => { if (!ids.has(winId(w))) { ids.add(winId(w)); have.push(w); if (!celebrated.has(winId(w))) fresh.push(w); celebrated.add(winId(w)); } };
-    for (const w of v.won) add({ round: w.round, pattern: w.pattern, ordinal: w.ordinal, text: w.text, name: lineName(v.cfg, w.pattern, w.ordinal) });
+    for (const w of v.won) if (!isHeld(w)) add({ round: w.round, pattern: w.pattern, ordinal: w.ordinal, text: w.text, name: lineName(v.cfg, w.pattern, w.ordinal) });
     for (const l of v.lucky) if (l.won) add({ round: 1, pattern: "lucky", ordinal: l.ordinal, text: l.title, name: l.title });
     if (fresh.length) store.set(prizeKey, JSON.stringify(have));
     PRIZES = have;
@@ -293,25 +341,25 @@
     } catch { /* never in the way of the game */ }
   }
   // ---------- after the game, a winner confirms the name the prize goes to (the organizer and co-host see any change, with the original) ----------
-  const CF = { loaded: false, loading: false, name: "", phone: "", confirmed: false, editing: false, edited: false, prizes: [], note: "", last: 0, busy: false };
+  const CF = { loaded: false, loading: false, name: "", phone: "", empId: "", confirmed: false, editing: false, edited: false, prizes: [], note: "", last: 0, busy: false };
   const myDevice = () => store.get("cbz:device") || "";
   async function loadCf(v) {
     if (DEMO || v.phase !== "ended" || !PRIZES.length || !v.pid || CF.loading || (CF.loaded && CF.confirmed) || Date.now() - CF.last < 15000) return;
     CF.last = Date.now(); CF.loading = true;
     try {
       const r = await api("GET", `/api/z/${EID}/myprizes?pid=${encodeURIComponent(v.pid)}&device=${encodeURIComponent(myDevice())}`);
-      CF.prizes = r.prizes || []; if (!CF.edited) { CF.name = r.name || ""; CF.phone = r.phone || ""; } CF.confirmed = !!r.confirmed; CF.loaded = CF.prizes.length > 0;
+      CF.prizes = r.prizes || []; if (!CF.edited) { CF.name = r.name || ""; CF.phone = r.phone || ""; CF.empId = r.empId || ""; } CF.confirmed = !!r.confirmed; CF.loaded = CF.prizes.length > 0;
     } catch { /* tried again shortly */ }
     CF.loading = false;
   }
   function confirmCard(v) {
     if (DEMO || v.phase !== "ended" || !PRIZES.length) return "";
     if (!CF.loaded) return `<div class="zcard"><h2>Confirm where your prize goes</h2><p class="zsmall">Waiting for your result to be confirmed by the other phones. This takes a moment.</p></div>`;
-    if (CF.confirmed && !CF.editing) return `<div class="zcard"><h2>Details confirmed</h2><p style="margin:4px 0"><b>${esc(CF.name)}</b> &middot; ${esc(CF.phone)}</p><p class="zsmall">Your organizer has these details. <button class="zsnd" id="cfedit">Change</button></p></div>`;
+    if (CF.confirmed && !CF.editing) return `<div class="zcard"><h2>Details confirmed</h2><p style="margin:4px 0"><b>${esc(CF.name)}</b>${INFO.idOnly ? (CF.empId ? " &middot; " + esc(CF.empId) : "") : " &middot; " + esc(CF.phone)}</p><p class="zsmall">Your organizer has these details. <button class="zsnd" id="cfedit">Change</button></p></div>`;
     return `<div class="zcard zform"><h2>Confirm your prize details</h2>
       <p class="zsmall" style="margin:0 0 6px">Your organizer will use this name to hand over your prize. Please check them and correct anything that is wrong. If you change them, your organizer and co-host will see both what you joined with and what you changed it to.</p>
       <label for="cfnm">Your name</label><input id="cfnm" autocomplete="name" maxlength="60" value="${esc(CF.name)}">
-      <label for="cfph">Your mobile number (optional)</label><input id="cfph" inputmode="tel" autocomplete="tel" value="${esc(CF.phone)}">
+      ${INFO.idOnly ? "" : `<label for="cfph">Your mobile number (optional)</label><input id="cfph" inputmode="tel" autocomplete="tel" value="${esc(CF.phone)}">`}
       ${CF.note ? `<div class="zbanner ${CF.note.startsWith("Thank") ? "ok" : "bad"}" role="alert">${esc(CF.note)}</div>` : ""}
       <button class="zbtn" id="cfgo"${CF.busy ? " disabled" : ""}>Confirm</button></div>`;
   }
@@ -322,7 +370,7 @@
     if (ph) ph.oninput = () => { CF.phone = ph.value; CF.edited = true; };
     if (go) go.onclick = async () => {
       CF.busy = true; CF.note = ""; paint();
-      try { const r = await api("POST", `/api/z/${EID}/confirm`, { pid: v.pid, device: myDevice(), name: CF.name, phone: CF.phone }); CF.confirmed = true; CF.editing = false; CF.edited = false; CF.note = ""; CF.last = 0; }
+      try { const r = await api("POST", `/api/z/${EID}/confirm`, { pid: v.pid, device: myDevice(), name: CF.name, ...(INFO.idOnly ? {} : { phone: CF.phone }) }); CF.confirmed = true; CF.editing = false; CF.edited = false; CF.note = ""; CF.last = 0; }
       catch (e) { CF.note = (e && e.message) || "Could not save. Please try again."; }
       CF.busy = false; paint();
     };
@@ -352,9 +400,7 @@
       <div class="zfbig">${n ? "You won " + n + (n === 1 ? " prize!" : " prizes!") : "Well played!"}</div>
       <p class="zsmall zthanks">Thank you for joining our extended family of Corporate Bingo.</p>
       <p class="zsmall" style="font-size:15px;margin:6px 0 10px">${n ? "Your prizes are listed below and stay on this phone. Show them to your organizer to collect." : "No prize this time. Every game is a good game, and the next one is another chance."}</p>
-      <button class="zbtn" id="shr">Share with friends and colleagues</button>
-      <a class="zbtn s alt" style="display:inline-flex;align-items:center;text-decoration:none;margin-top:8px" target="_blank" rel="noopener" href="https://wa.me/?text=${encodeURIComponent("I just played Corporate Bingo with my team. Bring it to your company: " + shareLink)}">WhatsApp</a>
-      <p class="zsmall" style="margin:10px 0 0"><a href="/partner.html?from=card">Earn 50% by sharing: Refer &amp; earn</a></p></div>`;
+</div>`;
   }
   function bindShare() {
     const b = document.getElementById("shr"); if (!b) return;
@@ -479,17 +525,18 @@
   function mineCard(v) {
     if (DEMO || !ME.canInvite) return "";
     const left = Math.max(0, MI.limit - MI.used);
-    const counter = !MI.loaded ? "Getting your list…" : MI.limit ? `You can invite up to <b>${MI.limit}</b> people. You have invited <b>${MI.used}</b>${left ? `, so <b>${left}</b> ${left === 1 ? "place is" : "places are"} left` : ". You have used all your places"}.` : "";
+    const IO = !!INFO.idOnly, counter = !MI.loaded ? "Getting your list…" : IO ? "You and up to 4 family members." : MI.limit ? `You can invite up to <b>${MI.limit}</b> people. You have invited <b>${MI.used}</b>${left ? `, so <b>${left}</b> ${left === 1 ? "place is" : "places are"} left` : ". You have used all your places"}.` : "";
     const started = v.log.length > 0 || !!v.late || v.phase === "ended"; // a guest can take a name off their list only before the game starts
     const rows = MI.people.map((p) => {
       const wa = waOk(p.waLink), gone = p.status === "removed";
-      return `<div class="zrow zmi"><span>${esc(p.name || "Guest")}<br><small class="zsmall" style="margin:0">${esc(p.maskedPhone || "")} · ${gone ? "Removed" : p.status === "joined" ? "Joined" : "Invited"}</small></span>
+      return `<div class="zrow zmi"><span>${esc(p.name || "Guest")}<br><small class="zsmall" style="margin:0">${IO ? "" : esc(p.maskedPhone || "") + " · "}${gone ? "Removed" : p.status === "joined" ? "Joined" : "Invited"}</small></span>
         <span class="zmia">${!gone && p.status !== "joined" && wa ? `<a class="zbtn s" target="_blank" rel="noopener" href="${esc(wa)}" style="text-decoration:none;display:inline-flex;align-items:center">Send on WhatsApp</a>` : ""}
-        ${!gone && p.status !== "joined" ? `<button class="zbtn s alt" type="button" data-mire="${esc(p.id)}">Send a new link</button>` : ""}
+        ${!gone && p.status !== "joined" && IO && p.link ? `<button class="zbtn s alt" type="button" data-micopy="${esc(p.link)}">Copy link</button>` : ""}
+        ${!gone && p.status !== "joined" && !IO ? `<button class="zbtn s alt" type="button" data-mire="${esc(p.id)}">Send a new link</button>` : ""}
         ${!gone && !started ? (MI.ask === p.id ? `<button class="zbtn s" type="button" data-miyes="${esc(p.id)}">Yes, remove</button><button class="zbtn s alt" type="button" data-mino="1">No</button>` : `<button class="zbtn s alt" type="button" data-mirm="${esc(p.id)}">Remove</button>`) : ""}</span></div>`;
     }).join("");
-    return `<div class="zcard zinvite" id="mine"><h2>My invites</h2><p class="zsmall" style="margin:0 0 8px">${counter}</p>${rows}
-      ${MI.loaded && !left && MI.limit ? "" : `<div class="zform"><label for="mi-name">Name</label><input id="mi-name" autocomplete="off" maxlength="60" value="${esc(MI.name)}"><label for="mi-phone">Mobile number</label><input id="mi-phone" inputmode="tel" autocomplete="off" value="${esc(MI.phone)}" placeholder="98765 43210">${CBConsent.html("K6")}<button class="zbtn s" id="mi-add" type="button" data-needs="K6" disabled aria-disabled="true"${MI.busy ? ' data-hold="1"' : ""}>Add to my invites</button></div>`}
+    return `<div class="zcard zinvite" id="mine"><h2>${IO ? "Bring your family" : "My invites"}</h2>${IO ? `<p class="zsmall" style="margin:0 0 4px">Add family members by name. They join under your Employee ID, and you confirm them.</p>` : ""}<p class="zsmall" style="margin:0 0 8px">${counter}</p>${rows}
+      ${MI.loaded && !left && MI.limit ? "" : `<div class="zform"><label for="mi-name">${IO ? "Family member's name" : "Name"}</label><input id="mi-name" autocomplete="off" maxlength="60" value="${esc(MI.name)}">${IO ? "" : `<label for="mi-phone">Mobile number</label><input id="mi-phone" inputmode="tel" autocomplete="off" value="${esc(MI.phone)}" placeholder="98765 43210">`}${CBConsent.html("K6")}<button class="zbtn s" id="mi-add" type="button" data-needs="K6" disabled aria-disabled="true"${MI.busy ? ' data-hold="1"' : ""}>${IO ? "Add" : "Add to my invites"}</button></div>`}
       ${MI.note ? `<div class="zbanner ${MI.bad ? "bad" : "ok"}" role="status" style="margin-top:8px">${esc(MI.note)}</div>` : ""}</div>`;
   }
   function bindMine(v) {
@@ -504,18 +551,19 @@
     };
     if (add) CBConsent.wire(document, "K6", MI.k6); // the person who adds a name and number ticks that they may use them
     if (add) add.onclick = () => {
-      const name = (nm.value || "").trim(), phone = (ph.value || "").trim();
+      const name = (nm.value || "").trim(), phone = ph ? (ph.value || "").trim() : "";
       if (!CBConsent.all(document, "K6")) { MI.bad = true; MI.note = "Please tick the box to continue."; return paint(); }
       const consent = CBConsent.payload(document, "K6");
       if (name.length < 2) { MI.bad = true; MI.note = "Please type their name."; return paint(); }
-      if (phone.replace(/\D/g, "").length < 10) { MI.bad = true; MI.note = "Please type their mobile number."; return paint(); }
+      if (!INFO.idOnly && phone.replace(/\D/g, "").length < 10) { MI.bad = true; MI.note = "Please type their mobile number."; return paint(); }
       act(async () => {
-        const r = await api("POST", `/api/z/${EID}/people${miQ(v)}`, { people: [{ name, phone }], me: v.pid, consent });
+        const r = await api("POST", `/api/z/${EID}/people${miQ(v)}`, { people: [INFO.idOnly ? { name } : { name, phone }], me: v.pid, consent });
         if (r.invalid && r.invalid.length) throw new Error("That number does not look right. Please check it.");
         if (r.duplicates) throw new Error("That number is already invited.");
         MI.name = ""; MI.phone = "";
       }, "Added. Press Send on WhatsApp next to their name.");
     };
+    document.querySelectorAll("[data-micopy]").forEach((b) => (b.onclick = async () => { try { await navigator.clipboard.writeText(b.dataset.micopy); b.textContent = "Copied"; } catch { b.textContent = "Press and hold the link to copy"; } }));
     document.querySelectorAll("[data-mire]").forEach((b) => (b.onclick = () => act(async () => { await api("POST", `/api/z/${EID}/people/${encodeURIComponent(b.dataset.mire)}/resend${miQ(v)}`, { me: v.pid }); }, "A new link is ready. Press Send on WhatsApp.")));
     document.querySelectorAll("[data-mirm]").forEach((b) => (b.onclick = () => { MI.ask = b.dataset.mirm; paint(); }));
     document.querySelectorAll("[data-mino]").forEach((b) => (b.onclick = () => { MI.ask = ""; paint(); }));
@@ -567,7 +615,7 @@
         const name = (total > 1 ? ordinalName(line.ordinal) + " " : "") + KEYNAME(key);
         const res = v.results.find((r) => r.pattern === key && r.ordinal === line.ordinal);
         let right;
-        if (res) right = (res.winners || []).includes(v.pid) ? `<em>Yours${res.tied > 1 ? " · decided by fate" : ""}</em>` : `<i>Awarded</i>`;
+        if (res) right = (res.winners || []).includes(v.pid) ? `<em>Yours${res.tied > 1 ? " · same number as another card" : ""}</em>` : `<i>Awarded</i>`;
         else if (line.ordinal === 1) right = mine >= 0 ? `<em>Complete</em>` : n >= 99 ? `<i>not possible on your card</i>` : `<i>${n} to go</i>`;
         else right = `<i>after the ${ordinalName(line.ordinal - 1)}</i>`;
         return `<div class="zrow"><span>${esc(name)}${line.text ? `<br><small class="zsmall" style="margin:0">${esc(line.text)}</small>` : ""}<br>${howLine(key)}</span>${right}</div>`;
@@ -609,8 +657,8 @@
   function callCard(v, last, recent, sub) {
     const secs = v.nextCallInSec, running = v.phase === "play" && !v.locked && !v.paused && !v.brk && !v.intermission && v.log.length > 0;
     const tone = v.phase === "ended" ? "end" : v.paused || v.locked ? "pause" : running ? (secs !== null && secs <= 3 ? "go" : "soon") : "wait";
-    const chip = v.phase === "ended" ? "Game over" : v.paused ? "Paused" : v.locked ? "Waiting to start" : !v.log.length ? "Get ready" : running && secs !== null ? "Next number in " + secs + "s" : "Numbers coming";
-    const what = v.phase === "ended" ? "" : TAP() ? "Tap a number on your card when it is called." : "Your card marks every number for you. Just watch.";
+    const chip = v.phase === "ended" ? "Game over" : v.claimHold ? "Claim being checked" : v.paused ? "Paused" : v.locked ? "Waiting to start" : !v.log.length ? "Get ready" : running && secs !== null ? "Next number in " + secs + "s" : "Numbers coming";
+    const what = v.phase === "ended" ? "" : TAP() ? "Tap a number on your card when it is called." : "Your card marks every number for you.";
     const total = v.late ? "since you joined" : "of 75";
     return `<div class="zcard zcall"><div class="zchiprow"><span class="zchip2 ${tone}">${esc(chip)}</span><span class="zchip2 plain"><b data-count="${v.log.length}" data-ck="called">${v.log.length}</b>&nbsp;${total} called</span></div>
         <div class="zball"><div class="zbig ${last ? "l" + colOf(last) : "none"}${NEWCALL && NEWCALL === last ? " pop" : ""}" id="big" role="status" aria-live="assertive" aria-label="${last ? "Number " + lblOf(last) : "No number yet"}">${last ? `<small>${LET[colOf(last)]}</small><span>${last}</span>` : "–"}</div></div>
@@ -622,17 +670,23 @@
     const last = v.log[v.log.length - 1];
     const banners = [];
     if (v.error) banners.push(`<div class="zbanner warn" role="alert">${esc(v.error)}</div>`);
+    if (INFO.quiet && !sound && v.phase === "play") banners.push(`<div class="zbanner info" role="status">This game is played in one room. The big screen says each number, so your phone stays silent. You can switch your sound on at the top.</div>`);
+    { const away = v.phase === "play" ? awayBanner(v) : ""; if (away) banners.push(away); }
     if (v.locked) banners.push(ME.role === "organizer" || ME.role === "host" ? `<div class="zbanner warn" role="status"><b>Payment pending for this game.</b> The game starts 2 minutes after the payment is confirmed. Open your console to pay. Your card is safe. Keep this page open.</div>` : `<div class="zbanner warn" role="status"><b>Waiting for the Organizer or Host to start the game.</b> Your card is safe. Keep this page open: it begins as soon as they are done.</div>`);
-    else if (v.stopped) banners.push(`<div class="zbanner info">The organizer has ended this engagement.</div>`);
-    else if (v.paused) banners.push(`<div class="zbanner info">Paused by the organizer. It will carry on shortly.</div>`);
-    else if (v.mode === "hold" && v.nowRound !== null) banners.push(`<div class="zbanner warn">Checking with the organizer… numbers will continue in a moment.</div>`);
-    else if (v.mode === "blind") banners.push(`<div class="zbanner warn">Cannot reach the organizer's controls right now. Play continues; a pause may appear late.</div>`);
+    else if (v.stopped) banners.push(`<div class="zbanner info">The organizer has ended this game.</div>`);
+    else if (v.claimHold) banners.push(`<div class="zbanner info" role="status"><b>A claim is being checked.</b> The game waits for everyone and carries on in a moment. Your card is safe.</div>`);
+    else if (v.paused) banners.push(`<div class="zbanner info" role="status">Paused by the ${v.pausedBy === "host" ? "Host" : "Organizer"}${v.pausedFromRound ? " at " + esc(new Date((1692803367 + (v.pausedFromRound - 1) * 3) * 1000).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })) : ""}. ${v.restartsInSec ? "Restarts in " + v.restartsInSec + (v.restartsInSec === 1 ? " second" : " seconds") + "." : "It restarts soon."} Your card is safe.</div>`);
+    else if (v.mode === "hold" && v.nowRound !== null) banners.push(`<div class="zbanner warn" role="status">Your connection looks slow. Your card is safe. Numbers carry on as soon as it is back.</div>`); // B08: this is the phone's own network, not the organizer
+    else if (v.mode === "blind") banners.push(`<div class="zbanner warn" role="status">Your phone cannot check for a pause right now (a slow connection?). Play continues; a pause may appear late. Your card is safe.</div>`);
     if (v.phase === "ended" && !v.stopped && !v.endedByPrizes) banners.push(`<div class="zbanner ok">${v.rounds > 1 ? "All " + v.rounds + " rounds are finished." : "All 75 numbers have been called."} Thank you for taking part.</div>`);
     const sub = v.phase === "ended" || v.locked || v.brk || v.intermission || (DEMO && !DEMO.running) ? "" : v.late && v.late.secondsUntil > 0 ? "Your numbers start in " + clock(v.late.secondsUntil) : v.log.length === 0 ? (v.nextCallInSec !== null ? (v.nextCallInSec > GRACE_SECS ? "Starting in " + clock(v.nextCallInSec - GRACE_SECS) : "First number in " + clock(v.nextCallInSec)) : "Getting ready…") : v.paused || v.mode === "hold" ? "" : v.nextCallInSec !== null ? "Next number in " + v.nextCallInSec + "s" : "";
     const still = v.tickets.length ? stillToWinRows(v) : "";
     const chk = v.pendingChecks > 0 ? `<p class="zsmall">Double-checking ${v.pendingChecks} earlier number${v.pendingChecks === 1 ? "" : "s"} in the background.</p>` : "";
-    const curWins = v.won.filter((w) => w.round === v.round), winSet = new Set(curWins.flatMap((w) => w.cells));
+    const curWins = v.won.filter((w) => w.round === v.round && !isHeld(w)), winSet = new Set(curWins.flatMap((w) => w.cells));
     const ribbon = curWins.length ? `<div class="zwin" role="status">&#127881; Congratulations! You won ${curWins.map((w) => esc(lineName(v.cfg, w.pattern, w.ordinal))).join(", ")}${curWins.some((w) => w.text) ? " &middot; " + curWins.filter((w) => w.text).map((w) => esc(w.text)).join(", ") : ""}</div>` : "";
+    // golden Claim button (off unless the page has ?claim=1): a mirror, same word as the common engine (Claim); auto-claim still works without it
+    const wonKeys = new Set(v.won.filter((w) => w.round === v.round).map((w) => w.pattern));
+    const claimBtn = CLAIM_BTN && v.phase !== "ended" && (v.won.some((w) => w.round === v.round && isHeld(w)) || Object.keys(v.myIdx || {}).some((k) => v.myIdx[k] >= 0 && !wonKeys.has(k))) ? `<p><button class="zbtn zgold" id="zclaim">${v.claimHold ? "Claim being checked" : v.nextCallInSec !== null && v.nextCallInSec > 0 && !v.paused ? "Claim now in " + v.nextCallInSec + " seconds" : "Claim"}</button></p>` : "";
     const tix = v.tickets.map((t, i) => (v.tickets.length > 1 ? `<div class="zsmall" style="margin:${i ? 12 : 0}px 0 4px"><b>Card ${"AB"[i]}</b></div>` : "") + cardHtml(t, called, v.tickets.length > 1 ? "Card " + "AB"[i] : DEMO ? "Video card" : "Your card", winSet, v.round, i)).join("");
     const recent = v.log.slice(-6, -1).reverse(), nudge = TAP() ? missedNudge(v, called) : "";
     const sndBtn = `<button class="zsnd zsndin" id="snd" aria-pressed="${sound}">${sound ? "&#128266; Sound on" : "&#128263; Sound off"}</button>`;
@@ -646,16 +700,26 @@
       ${v.brk ? breakCard(v.brk) : ""}
       ${rankCard(v)}
       ${callCard(v, last, recent, sub)}
-      <div class="zcard${curWins.length ? " zwon" : ""}"><h2>${DEMO ? 'Video card <span class="zdemotag">VIDEO</span>' : v.tickets.length > 1 ? "Your cards" : "Your card"}${TAP() ? ' <span class="zmode">tap to mark</span>' : ""}</h2>${ribbon}${nudge}${tix}<a class="zref" href="/partner.html?from=card">Refer &amp; earn</a></div>
+      <div class="zcard${curWins.length ? " zwon" : ""}"><h2>${DEMO ? 'Video card <span class="zdemotag">VIDEO</span>' : v.tickets.length > 1 ? "Your cards" : "Your card"}${TAP() ? ' <span class="zmode">tap to mark</span>' : ""}</h2>${ribbon}${claimBtn}${nudge}${tix}<ol class="zsmall zrules" aria-label="How this game works" style="margin:10px 0 0;padding-left:20px"><li>${TAP() ? "When a number is called, tap it on your card." : "Your card marks every number for you."}</li><li>The software checks every card. You do not shout Bingo or press anything.</li><li>Complete a prize pattern and the prize is yours. Your organizer hands it over.</li></ol></div>
       ${v.phase === "ended" ? "" : prizesCard()}
       ${mineCard(v)}${inviteCard(v)}
       <div class="zcard"><h2>Still to win</h2>${still}${chk}</div>
       ${luckyCard(v)}
-      <div class="zcard"><h2>${v.rounds > 1 ? "Round " + v.round + " of " + v.rounds + " · " : ""}${v.late ? "Numbers since you joined · " + v.log.length : "Call board · " + v.log.length + " of 75"} called</h2><div class="zboard" role="group" aria-label="Call board, 75 numbers">${LET.map((l, c) => `<div class="bl l${c}" aria-hidden="true">${l}</div>` + Array.from({ length: 15 }, (_, i) => { const n = c * 15 + i + 1; return `<div class="${called.has(n) ? "c" : ""}" aria-label="${lblOf(n)}${called.has(n) ? ", called" : ""}">${n}</div>`; }).join("")).join("")}</div></div>`;
+      <div class="zcard"><h2>${v.rounds > 1 ? "Round " + v.round + " of " + v.rounds + " · " : ""}${v.late ? "Numbers since you joined · " + v.log.length : "Numbers called · " + v.log.length + " of 75"} called</h2><div class="zboard" role="group" aria-label="Numbers called, 75 numbers">${LET.map((l, c) => `<div class="bl l${c}" aria-hidden="true">${l}</div>` + Array.from({ length: 15 }, (_, i) => { const n = c * 15 + i + 1; return `<div class="${called.has(n) ? "c" : ""}" aria-label="${lblOf(n)}${called.has(n) ? ", called" : ""}">${n}</div>`; }).join("")).join("")}</div></div>`;
   }
 
+  /** REHEARSAL: the same block at the top of every page of a rehearsal (Game ID, REHEARSAL GAME n, the sentence), and the calm page when it is over. */
+  function showRehearsalBanner() {
+    let el = document.getElementById("rehbanner"); const R = INFO.rehearsal;
+    if (!R) { if (el) el.remove(); return; }
+    if (!el) { el = document.createElement("div"); el.id = "rehbanner"; el.setAttribute("role", "status"); el.style.cssText = "background:#b3261e;color:#fff;padding:10px 14px;text-align:center;line-height:1.35;position:sticky;top:0;z-index:40"; document.body.insertBefore(el, document.body.firstChild); }
+    if (el.dataset.t !== R.block) { el.dataset.t = R.block; const ln = String(R.block).split("\n"); el.innerHTML = `<div>${esc(ln[0] || "")}</div><div style="font-size:1.25rem;font-weight:900">${esc(ln[1] || "")}</div><div style="font-weight:700">${esc(ln.slice(2).join(" "))}</div>`; }
+  }
+  const rehearsalOverHtml = () => `<div class="zcard" id="rehover"><h2>This rehearsal is over.</h2><p>Thank you for practising.</p>${INFO.rehearsal && INFO.rehearsal.realId ? `<p><a class="zbtn zgold" href="/z.html?e=${encodeURIComponent(INFO.rehearsal.realId)}" id="realgame">Open the real game</a></p>` : ""}</div>`;
   function paint() {
     const v = rt.view();
+    showRehearsalBanner();
+    if (INFO.rehearsal && INFO.rehearsal.over) { $app.innerHTML = rehearsalOverHtml(); return; } // an ended rehearsal: nothing else is shown, the real game's link is offered
     if (window.ctzView) window.ctzView(v); // the flight recorder (blackbox.js) learns which stage the game is in
     if (!v.won) v.won = []; // an older saved copy of the game code during an update: never break the screen
     if (INFO.dns) { if (timer) { clearInterval(timer); timer = null; } clearInterval(J.timer); mediaHost.style.display = "none"; $app.innerHTML = dnsView(); window.__cbzOff = v.phase === "boot"; paintBrand(); return; } // a game that did not start: one calm screen, nobody can join or pay
@@ -671,10 +735,14 @@
     paintBrand(); syncMedia(v); bindShare(); bindDemo(); bindConfirm(v); loadInvites(v); bindInvite(v); loadMine(v); bindMine(v);
     if (fresh.length) showHurray(fresh);
     document.querySelectorAll("button[data-dn]").forEach((b) => (b.onclick = () => { const n = Number(b.dataset.dn), r = Number(b.dataset.dr), ci = Number(b.dataset.dc), d = daubs(r, ci); if (!v.log.includes(n)) return; if (d.has(n)) d.delete(n); else d.add(n); store.set(daubKey(r, ci), JSON.stringify([...d])); paint(); }));
+    const cl = document.getElementById("zclaim");
+    if (cl) cl.onclick = () => { cl.disabled = true; cl.textContent = "Checking…"; rt.claimNow(); v.won.forEach((w) => revealedWin.add(wid(w))); paint(); };
     const s = document.getElementById("snd");
     if (s) s.onclick = async () => { sound = !sound; store.set("cbz-sound", sound ? "on" : "off"); if (window.TBAudio) { TBAudio.enabled = sound; if (sound) await TBAudio.unlock(); } paint(); };
+    rxEvents(v);
     if (v.log.length > lastLen) { if (!firstPaint && v.log.length === lastLen + 1 && sound && window.TBAudio) TBAudio.play(v.log[v.log.length - 1]); lastLen = v.log.length; }
     firstPaint = false;
+    if (v.phase === "ended" && wake && !wake.released) { try { wake.release(); } catch { /* already let go */ } wake = null; } // the screen may sleep again once the game is over
     const cn = document.getElementById("cnext"); if (cn) cn.onclick = () => { closingIdx += 1; paint(); };
     const ok = document.getElementById("annok"); if (ok) ok.onclick = () => { annSeen = v.announcement.id; paint(); };
     if (v.announcement && v.announcement.id !== annSpoken) { annSpoken = v.announcement.id; if (sound && window.TBAudio) TBAudio.say(v.announcement.text); try { navigator.vibrate && navigator.vibrate(120); } catch {} }
@@ -691,14 +759,30 @@
       go.disabled = true;
       if (window.TBAudio) TBAudio.unlock();
       const ph = document.getElementById("ph"), nm = document.getElementById("nm"), em = document.getElementById("emp");
-      J.phone = ph ? ph.value : J.phone; J.emp = em ? em.value.trim() : J.emp; J.name = nm ? nm.value.trim() : J.name;
+      J.phone = ph ? ph.value : J.phone; J.emp = em ? em.value.trim() : J.emp; J.name = nm ? nm.value.trim() : J.name; const lc = document.getElementById("loc"); J.loc = lc ? lc.value.trim() : J.loc;
       await doJoin(); // shows the card screen at once on success: the first tick may take a few seconds on a slow network
     };
   }
-  async function loop() { try { await rt.tick(); } catch { /* the loop must never die */ } paint(); }
-  function start() { if (timer) return; loop(); timer = setInterval(loop, 1000); }
+  let rehTick = 0;
+  async function loop() { try { await rt.tick(); } catch { /* the loop must never die */ } if (INFO.rehearsal && !INFO.rehearsal.over && ++rehTick % 15 === 0) { try { await api("GET", `/api/z/${EID}/info`); } catch { /* next time */ } } paint(); }
+  // B15: the screen stays on while the game plays, and a person who comes back after the phone was locked or another app was in front is told what they missed
+  let wake = null, hiddenAt = 0, hiddenLen = 0, AWAY = null;
+  async function keepAwake() { try { if (DEMO || !navigator.wakeLock || document.hidden || (wake && !wake.released)) return; wake = await navigator.wakeLock.request("screen"); wake.addEventListener("release", () => { wake = null; }); } catch { /* not allowed on this phone: the game still plays */ } }
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) { hiddenAt = Date.now(); hiddenLen = lastLen; return; }
+    if (hiddenAt && Date.now() - hiddenAt > 15000) AWAY = { from: hiddenLen, settleAt: Date.now() + 2500, k: null }; // away for more than 15 seconds
+    hiddenAt = 0; keepAwake();
+  });
+  function awayBanner(v) {
+    if (!AWAY) return "";
+    if (Date.now() < AWAY.settleAt) return ""; // the phone is still catching up with the numbers
+    if (AWAY.k === null) { AWAY.k = Math.max(0, v.log.length - AWAY.from); AWAY.until = Date.now() + 15000; }
+    if (Date.now() > AWAY.until || !AWAY.k) { if (Date.now() > AWAY.until) AWAY = null; return ""; }
+    return `<div class="zbanner info zaway" role="status">Welcome back. You missed ${AWAY.k} number${AWAY.k === 1 ? "" : "s"}. ${TAP() ? "They are in the list below. Tap them on your card to mark them." : "They are marked on your card."}</div>`;
+  }
+  function start() { if (timer) return; keepAwake(); loop(); timer = setInterval(loop, 1000); }
 
-  if (!EID) { $app.innerHTML = `<p class="zmsg">This link is incomplete. Please ask your organizer for the engagement link.</p>`; return; }
+  if (!EID) { $app.innerHTML = `<p class="zmsg">This link is incomplete. Please ask your organizer for the game link.</p>`; return; }
   rt.boot().then(() => { if (rt.phase === "play") clearWait(); else restoreWait(); paint(); if (rt.phase === "play") start(); });
   window.__rt = rt;
 })();

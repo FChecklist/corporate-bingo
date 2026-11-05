@@ -44,7 +44,7 @@ describe("v.js on the home page", () => {
     expect(b.e[0]).toEqual({ k: "pv", p: "/" }); expect(b.lp).toBe("/"); expect(b.u).toEqual({ s: "Diwali", m: "email", c: "" }); expect(b.pc).toBe("ab3de4fg");
     expect(JSON.stringify(b)).not.toContain("secret"); expect(b.d).toMatch(/^[a-f0-9]{32}$/); expect(b.s).toMatch(/^[a-f0-9]{24}$/); expect(["mobile", "tablet", "desktop"]).toContain(b.dv);
     const watched = s.observed.flatMap((o) => o.els).map((e: any) => e.id);
-    for (const id of ["top", "benefits", "pricing", "faq", "how", "ai-host"]) expect(watched).toContain(id);
+    for (const id of ["trust", "game-day", "pricing", "ai-host", "faq"]) expect(watched).toContain(id); // the sections of the Corporate Games home page
     expect(s.rows("SELECT src, landing, utm_source FROM visit_session")).toEqual([{ src: "campaign", landing: "/", utm_source: "Diwali" }]);
   });
   test("section views carry the time each section was on screen, and only what is new in each message", async () => {

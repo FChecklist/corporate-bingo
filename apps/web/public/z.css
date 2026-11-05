@@ -280,3 +280,18 @@ body:has(#go) #cb-notify{display:none}
 /* the ticket page: anyone who plays can become an organizer */
 .mkown{display:flex;flex-direction:column;gap:6px;align-items:flex-start;max-width:560px;margin:18px auto 6px;padding:14px 16px;border:2px dashed #E0B872;border-radius:14px;background:#FFF8EA;color:#2B3A55;font-size:14px;line-height:1.45}
 .mkown b{font-size:15px;color:#0B3D91}.mkownbtn{display:inline-block;margin-top:4px;padding:11px 18px;border-radius:10px;background:#0B3D91;color:#fff;font-weight:700;text-decoration:none}
+
+/* ===== design pass, 2 Nov 2026 (look only) ===== */
+/* the small "Numbers called" board: bolder 13 px digits (cells stay about 16 px on a 360 px phone) */
+.zboard div{font-size:13px;font-weight:700}
+/* the FREE square: a darker teal so its label reads at 4.5:1 or better, and a little larger */
+.zticket .free{background:linear-gradient(145deg,#0B7A6E,#0A5F58);font-size:clamp(13px,3.6vw,15px);font-weight:800}
+/* ===== LAPTOP, from 861 px: the card on the left, the called number, the prizes and the rest on the right ===== */
+@media (min-width:861px) and (min-height:521px){
+ .zapp:has(.zticket){max-width:min(90vw,1228px);display:grid;grid-template-columns:minmax(0,1.3fr) minmax(320px,1fr);column-gap:22px;align-content:start;grid-auto-flow:row dense;padding-left:24px;padding-right:24px}
+ .zapp:has(.zticket)>*{grid-column:2}
+ .zapp:has(.zticket)>.zbrand,.zapp:has(.zticket)>.zbar,.zapp:has(.zticket)>.zhead,.zapp:has(.zticket)>.zpow,.zapp:has(.zticket)>.zbanner,.zapp:has(.zticket)>.zalert,.zapp:has(.zticket)>.zstory,.zapp:has(.zticket)>.zann{grid-column:1/-1}
+ .zapp:has(.zticket)>.zcard:has(.zticket){grid-column:1;grid-row:span 8}
+ .zapp:has(.zticket) .zticket{max-width:520px}
+ .zapp:has(.zticket) .zticket div,.zapp:has(.zticket) .zticket button{font-size:clamp(26px,2.4vw,34px)}
+}

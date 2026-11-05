@@ -29,7 +29,7 @@ const overAs = async (pid: string, now: number) => { let r!: Response; for (cons
 
 beforeEach(() => {
   const d = makeD1(); raw = d.raw;
-  env = { DB: d.db, ORGANIZER_SECRET: SECRET, DAILY_WRITE_BUDGET: "10000000" };
+  env = { DB: d.db, ORGANIZER_SECRET: SECRET, RUNNER_KEY: "test-runner-key-test-runner-key-test0000", DAILY_WRITE_BUDGET: "10000000" };
   sentReports.length = 0;
 });
 
@@ -295,7 +295,7 @@ describe("exact deletion dates", () => {
     for (const t of ["engagement", "life", "winner", "participant", "seat"]) expect((raw.query(`SELECT COUNT(*) c FROM ${t}`).get() as any).c).toBe(0);
     expect((raw.query("SELECT COUNT(*) c FROM kv WHERE k LIKE 'contact/%'").get() as any).c).toBe(0);
   });
-  test("the scheduler's own door needs the platform key, and the console's Erase deletes personal data at once but keeps the winners record", async () => {
+  test("the scheduler's own door needs the platform key, and the console's Delete deletes personal data at once but keeps the winners record", async () => {
     await create(); await joinAs(1, "Asha"); await joinAs(2, "Bala");
     const pids = (raw.query("SELECT pid FROM seat ORDER BY seq").all() as any[]).map((x) => x.pid);
     await settleByPhones(call, "PRV-1", [{ pattern: "blackout", idx: 70, pids: [pids[1]!] }], pids);

@@ -57,5 +57,36 @@ const TBControl = {
     const r = await fetch(`${P(a)}/${code}/control`, { method: "POST", headers: hdr(a), body: JSON.stringify({ message }) });
     return { status: r.status, data: await r.json().catch(() => ({})), message };
   },
+  /* ---- the Host's own key (flag-gated on the server): made in the Host's browser, approved by the Organizer, signs pause and resume only ---- */
+  /** Host console: make this browser's own key (kept non-extractable) and offer its public half to the Organizer. Returns whether the Organizer has approved it. */
+  async hostOffer(code: string, a: Auth): Promise<{ ok: boolean; approved?: boolean; reason?: string }> {
+    let k = await get("host:" + code);
+    if (!k) { k = await generateOrganizerKey(false); await put("host:" + code, k); }
+    const f = await (await fetch(`${P(a)}/${code}/control`, { cache: "no-store" })).json().catch(() => null);
+    if (f?.hostKey && f.hostKey === k.publicKeyHex) return { ok: true, approved: true };
+    const r = await fetch(`${P(a)}/${code}/control/hostoffer`, { method: "POST", headers: hdr(a), body: JSON.stringify({ publicKey: k.publicKeyHex }) });
+    return r.ok ? { ok: true, approved: false } : { ok: false, reason: (await r.json().catch(() => ({}))).error ?? "Could not send your key." };
+  },
+  /** Host console: sign and publish a pause or resume with the Host's own key. */
+  async hostPublish(code: string, a: Auth, action: "pause" | "resume", o: { pauseForRounds?: number } = {}) {
+    const f = (await (await fetch(`${P(a)}/${code}/control`, { cache: "no-store" })).json()) as PublishedFile;
+    const k = await get("host:" + code);
+    if (!k || !f.hostKey || k.publicKeyHex !== f.hostKey) throw new Error("The Organizer has not approved your key yet.");
+    const message = await signControl(k.privateKey, nextMessage(f, await beaconRound(), { action, ...o }));
+    const r = await fetch(`${P(a)}/${code}/control`, { method: "POST", headers: hdr(a), body: JSON.stringify({ message }) });
+    return { status: r.status, data: await r.json().catch(() => ({})), message };
+  },
+  /** Organizer console: is a Host key waiting to be approved? */
+  async hostWaiting(code: string, a: Auth): Promise<string | null> {
+    const f = await (await fetch(`${P(a)}/${code}/control`, { cache: "no-store" })).json().catch(() => null);
+    const r = await fetch(`${P(a)}/${code}/control/hostoffer`, { headers: hdr(a) });
+    const o = r.ok ? (await r.json().catch(() => ({}))).offer : null;
+    return o && o.publicKey && o.publicKey !== f?.hostKey ? o.publicKey : null;
+  },
+  /** Organizer console: approve (register) the Host's offered key. */
+  async hostApprove(code: string, a: Auth, publicKey: string): Promise<{ ok: boolean; reason?: string }> {
+    const r = await fetch(`${P(a)}/${code}/control/hostkey`, { method: "PUT", headers: hdr(a), body: JSON.stringify({ publicKey }) });
+    return r.ok ? { ok: true } : { ok: false, reason: (await r.json().catch(() => ({}))).error ?? "Could not approve." };
+  },
 };
 (globalThis as any).TBControl = TBControl;

@@ -1,11 +1,11 @@
-// Makes apps/web/public/brochure.pdf (one A4 page) from apps/web/public/brochure.html with headless Chrome or Edge.
+// Makes apps/web/public/brochure.pdf (one A4 page) from apps/web/tools/brochure-print.html (the print page; /brochure on the website is brochure.html) with headless Chrome or Edge.
 // Run after editing the brochure:  node tools/make-brochure.mjs
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
 const root = resolve(import.meta.dirname, "..");
-const html = join(root, "apps/web/public/brochure.html"), pdf = join(root, "apps/web/public/brochure.pdf");
+const html = join(root, "apps/web/tools/brochure-print.html"), pdf = join(root, "apps/web/public/brochure.pdf");
 const browsers = ["C:/Program Files/Google/Chrome/Application/chrome.exe", "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "/usr/bin/google-chrome", "/usr/bin/chromium"];
 const exe = browsers.find((b) => existsSync(b));
 if (!exe) { console.error("No Chrome or Edge found."); process.exit(1); }

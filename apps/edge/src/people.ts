@@ -7,10 +7,13 @@
 //   - Removing a person before the game frees the place; during the game the seat stays in the public seat list (winners must be identical on every phone) and is only blocked.
 // Names and numbers are sealed at rest (pii.ts) and never reach an AI key (every route here refuses an AI, and anything arriving through an AI work link).
 // The Worker (worker.ts) owns routing, `join` and `settings`; this file owns the schema, the cleaning of numbers and the people / waiting / me routes.
+import { idOnlyNow } from "./idonly";
 import { openPii, openText, sealPii, sealText } from "./pii";
+import { emailKey } from "./emailkey";
 import { consentMissing, recordConsent } from "./consent";
 import { deviceMatches } from "./checkin";
 import type { D1, Env } from "./worker";
+import { waitingLapsed, familyCutoffPassed, roundStartMs, approvalRulesOn, waitSince, LAPSED_MESSAGE, FAMILY_CLOSED_MESSAGE, DECLINED_MESSAGE, WAIT_LIMIT_MS } from "./approvals";
 
 /** 0016_people.sql: who invited whom, the personal links, the waiting room, and the flag that stops a removed person's phone without touching the public seat list. */
 export const PEOPLE_SCHEMA: string[] = [
@@ -49,17 +52,50 @@ export const tokenHash = async (token: string) => (await sha("pj|" + token.toLow
 export const phoneHashOf = (env: { PHONE_SALT?: string; ORGANIZER_SECRET?: string }, digits: string) => sha(`${env.PHONE_SALT ?? env.ORGANIZER_SECRET ?? "unset"}|${digits.slice(-10)}`);
 
 /** An employee ID as typed: spaces dropped, upper case. "" = nothing typed, null = not a usable ID. */
-export const normEmp = (raw: unknown): string | null => { const s = String(raw ?? "").replace(/\s+/g, "").toUpperCase(); if (!s) return ""; return /^[A-Z0-9][A-Z0-9._\-/]{0,29}$/.test(s) ? s : null; };
+export const EMP_CLEAN_FROM_MS = Date.UTC(2099, 0, 1); // RELEASE SESSION: set this to the exact deploy instant (Date.UTC(...) or epoch ms) in the same commit that is deployed. Until it is set it is far in the future, so NO game takes the uniform employee ID rule early. A game created before the deploy instant keeps the old behaviour.
+/** THE one cleaning rule for an employee ID (owner rule 2026-10-30): NFKC, upper case, then keep only A-Z and 0-9. 1B-678, 1b-678, 1B/678 and 1B 678 all become 1B678. */
+export const empClean = (raw: unknown): string => String(raw ?? "").normalize("NFKC").toUpperCase().replace(/[^A-Z0-9]/g, "");
+/** An employee ID as typed. "" = nothing typed, null = not a usable ID (only symbols, or over 30 characters after cleaning). `createdMs` is when the game was made; an older game keeps the old rule. */
+export const normEmp = (raw: unknown, createdMs?: number | null): string | null => {
+  if (createdMs != null && createdMs < EMP_CLEAN_FROM_MS) { const s = String(raw ?? "").replace(/\s+/g, "").toUpperCase(); if (!s) return ""; return /^[A-Z0-9][A-Z0-9._\-/]{0,29}$/.test(s) ? s : null; }
+  if (!String(raw ?? "").replace(/[\s\u200B-\u200D\u2060\uFEFF]/g, "")) return "";
+  const s = empClean(raw); return s && s.length <= 30 ? s : null;
+};
+/** An Email ID shape check on the cleaned form. */
+const EMAIL_ID_RE = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
+/** Does the text look like an e-mail address (an "@" after NFKC)? An employee-ID box never turns one into letters and digits. */
+export const looksLikeEmail = (raw: unknown): boolean => String(raw ?? "").normalize("NFKC").includes("@");
+export const EMP_LOOKS_LIKE_EMAIL = "This looks like an Email ID. This game asks for an employee ID: letters and numbers only.";
+/** The ID a person gives, by what this game asks for: an employee ID (cleaned to A-Z 0-9) or an Email ID (cleaned with emailKey). "" = nothing typed, null = not usable. */
+export const normId = (raw: unknown, kind: "emp" | "email", createdMs?: number | null): string | null => {
+  if (kind === "email") { const t = String(raw ?? ""); if (!emailKey(t)) return ""; const k = emailKey(t); return EMAIL_ID_RE.test(k) && k.length <= 254 && !k.includes("..") && !k.split("@")[1]!.startsWith(".") && !k.endsWith(".") ? k : null; }
+  if ((createdMs == null || createdMs >= EMP_CLEAN_FROM_MS) && looksLikeEmail(raw)) return null; // an Email ID typed where an employee ID is asked is refused, never mangled
+  return normEmp(raw, createdMs);
+};
+export const EMP_TOO_LONG = "This Employee ID is too long. An employee ID may be up to 30 characters once cleaned.";
+export const badIdMessage = (raw: unknown, kind: "emp" | "email", createdMs?: number | null): string => kind === "email" ? "Please check your Email ID. It looks incomplete." : (createdMs == null || createdMs >= EMP_CLEAN_FROM_MS) && looksLikeEmail(raw) ? EMP_LOOKS_LIKE_EMAIL : (createdMs == null || createdMs >= EMP_CLEAN_FROM_MS) && empClean(raw).length > 30 ? EMP_TOO_LONG : "An employee ID has letters and numbers only (up to 30).";
+/** Does anybody in this game hold an identity made from an ID (an employee ID or an Email ID)? A listed person or a joined person with an ID, in pages of 100. A name-only or mobile-only guest does not count:
+ *  only a stored ID hash is orphaned when "what a person must give" changes, so only that locks the setting. */
+export async function anyoneHoldsIdHash(env: Env, eid: string): Promise<boolean> {
+  for (const q of ["SELECT pii FROM person WHERE eid=? AND status<>'removed' AND pii IS NOT NULL LIMIT 100 OFFSET ?", "SELECT pii FROM participant WHERE eid=? AND pii IS NOT NULL LIMIT 100 OFFSET ?"]) {
+    for (let off = 0; ; off += 100) {
+      const rows = (await env.DB.prepare(q).bind(eid, off).all<{ pii: string }>().catch(() => ({ results: [] as { pii: string }[] }))).results ?? [];
+      for (const r of rows) { const p = await openPii(env as any, r.pii); if (p?.empId) return true; }
+      if (rows.length < 100) break;
+    }
+  }
+  return false;
+}
 /** The identity of a person who is known by employee ID alone (no mobile number needed). One hash for the same ID in every game, like the phone hash. */
 export const empHashOf = (env: { PHONE_SALT?: string; ORGANIZER_SECRET?: string }, id: string) => sha(`${env.PHONE_SALT ?? env.ORGANIZER_SECRET ?? "unset"}|emp|${id}`);
 /** What the organizer asked people to give to get in, read from the game's stored settings. */
-export const verifyOf = (e: { config?: string | null }): { mode: "mobile" | "id" | "either" | "both"; employeesOnly: boolean } => { try { const j = e.config ? JSON.parse(e.config) : {}; return { mode: j.verify === "id" || j.verify === "either" || j.verify === "both" ? j.verify : "mobile", employeesOnly: j.employeesOnly === true }; } catch { return { mode: "mobile", employeesOnly: false }; } };
+export const verifyOf = (e: { config?: string | null }): { mode: "mobile" | "id" | "either" | "both"; employeesOnly: boolean; idKind: "emp" | "email" } => { try { const j = e.config ? JSON.parse(e.config) : {}; return { mode: j.verify === "id" || j.verify === "either" || j.verify === "both" ? j.verify : "mobile", employeesOnly: j.employeesOnly === true, idKind: j.idKind === "email" ? "email" : "emp" }; } catch { return { mode: "mobile", employeesOnly: false, idKind: "emp" }; } };
 
 export { cleanPhone, maskedPhone, keptPhone, phoneDigits, keptFromClean } from "./phonekit";
 export type { Cleaned } from "./phonekit";
 import { cleanPhone, maskedPhone, keptFromClean, phoneDigits } from "./phonekit";
 /** A name as kept: no control or invisible characters, no markup characters, and nothing at the front that a spreadsheet would run as a formula (= + - @). Also the server's answer to a hand-made request: the page already sends only tidy names. */
-export const cleanName = (n: unknown) => (typeof n === "string" ? Array.from(n).filter((ch) => { const c = ch.charCodeAt(0); return !(c < 32 || c === 127 || (c >= 0x200b && c <= 0x200f) || c === 0x2028 || c === 0x2029 || c === 0xfeff); }).join("").replace(/[<>`]/g, "").replace(/\s+/g, " ").replace(/^[=+\-@\s]+/, "").trim().slice(0, 60) : "");
+export const cleanName = (n: unknown) => (typeof n === "string" ? Array.from(n).filter((ch) => { const c = ch.charCodeAt(0); return !(c < 32 || c === 127 || (c >= 0x200b && c <= 0x200f) || c === 0x2028 || c === 0x2029 || c === 0xfeff); }).join("").replace(/[<>`]/g, "").replace(/\s+/g, " ").replace(/^[=+\-@\s]+/, "").trim().slice(0, 60).replace(/[\uD800-\uDBFF]$/, "").trim() : ""); // cut to 60, then drop half an emoji and any blank the cut left at the end (smoke rules P-10, P-11, T-73)
 
 /** What a `from=` code on a common link means. */
 export type FromOwner = { kind: "org" } | { kind: "host"; hex: string } | { kind: "cohost"; hex: string } | { kind: "guest"; seq: number };
@@ -86,7 +122,7 @@ export const inviterOf = (o: FromOwner): string => (o.kind === "org" ? "o" : o.k
 /** What `seat.src` says for a person who came in under this inviter (a Co-host's count of people brought reads it). */
 export const srcOf = (inviter: string): string => (inviter.startsWith("c:") ? "co:" + inviter.slice(2) : inviter.startsWith("h:") ? "ho:" + inviter.slice(2) : "link");
 
-export const waMessage = (name: string | null, game: string, link: string) => `${name ? name + ", you" : "You"} are invited to ${game}. Open your card here: ${link}`;
+export const waMessage = (name: string | null, game: string, link: string, block?: string) => `${block ? block + "\n\n" : ""}${name ? name + ", you" : "You"} are invited to ${game}. Open your card here: ${link}`; // (block: a rehearsal says so first)
 export const waLinkOf = (digits: string, text: string) => `https://wa.me/${phoneDigits(digits)}?text=${encodeURIComponent(text)}`; // a kept number may start with +: wa.me wants the digits only
 
 /** Callers of the people routes. `all` = sees every list of the game (Organizer, Host). */
@@ -95,7 +131,7 @@ export interface Ctx {
   req: Request; env: Env; now: number; url: URL; e: any; eid: string; tail: string;
   /** From worker.ts `authOf`: who holds the key, and the first 7 hex of its hash (its id in the chains). */
   a: { plat: boolean; org: string | null; kind: string | null; eid?: string | null; viaLink?: boolean };
-  keyId7: string; viaLink: boolean; origin: string; gameName: string; invites: { on: boolean; per: number; cats: string[] };
+  keyId7: string; viaLink: boolean; origin: string; gameName: string; block?: string; invites: { on: boolean; per: number; cats: string[] };
   started: boolean; draft: boolean; cancelled: boolean;
   json: (o: unknown, status?: number) => Response;
   body: (req: Request, max?: number) => Promise<any | null>;
@@ -154,7 +190,7 @@ async function viewOf(c: Ctx, r: PersonRow, label: (id: string | null) => string
   const digits = pii?.phone ?? "";
   return {
     id: r.id, name: pii?.name ?? "", maskedPhone: digits ? maskedPhone(digits) : "", status: r.status, ...(pii?.empId ? { empId: pii.empId } : {}),
-    link, waLink: link && digits ? waLinkOf(digits, waMessage(pii?.name || null, c.gameName, link)) : null,
+    link, waLink: link && digits ? waLinkOf(digits, waMessage(pii?.name || null, c.gameName, link, c.block)) : null,
     ...(r.role ? { role: r.role } : {}), ...(showInviter ? { inviter: label(r.inviter) } : {}), ...(r.approved_by ? { approvedBy: label(r.approved_by) } : {}),
   };
 }
@@ -219,7 +255,7 @@ export async function peopleRoute(c: Ctx): Promise<Response> {
   const got = await callerOf(c, bodyObj?.me, bodyObj?.device);
   if ("res" in got) return got.res;
   const who = got.who;
-  if (c.e.unplayed_ms && method !== "GET") return c.json({ error: "This game did not start. Your details have been erased.", code: "did-not-start", didNotStart: true }, 409);
+  if (c.e.unplayed_ms && method !== "GET") return c.json({ error: "This game did not start. Your details have been auto-deleted.", code: "did-not-start", didNotStart: true }, 409);
   if (c.cancelled && method !== "GET") return c.json({ error: "This game was cancelled by the organizer.", code: "cancelled", cancelled: true }, 409);
 
   if (parts[0] === "waiting") {
@@ -241,8 +277,8 @@ export async function peopleRoute(c: Ctx): Promise<Response> {
 async function listPeople(c: Ctx, who: Caller): Promise<Response> {
   const limit = Math.min(Math.max(Number(c.url.searchParams.get("limit")) || 200, 1), 500), offset = Math.max(Number(c.url.searchParams.get("offset")) || 0, 0);
   const rows = await (who.all
-    ? c.env.DB.prepare(`SELECT ${PERSON_COLS} FROM person WHERE eid=? ORDER BY added_ms, id LIMIT ? OFFSET ?`).bind(c.eid, limit, offset)
-    : c.env.DB.prepare(`SELECT ${PERSON_COLS} FROM person WHERE eid=? AND inviter=? ORDER BY added_ms, id LIMIT ? OFFSET ?`).bind(c.eid, who.id, limit, offset)).all<PersonRow>();
+    ? c.env.DB.prepare(`SELECT ${PERSON_COLS} FROM person WHERE eid=? ORDER BY added_ms, rowid LIMIT ? OFFSET ?`).bind(c.eid, limit, offset)
+    : c.env.DB.prepare(`SELECT ${PERSON_COLS} FROM person WHERE eid=? AND inviter=? ORDER BY added_ms, rowid LIMIT ? OFFSET ?`).bind(c.eid, who.id, limit, offset)).all<PersonRow>();
   const label = await labelsOf(c);
   const people: PersonView[] = [];
   for (const r of rows.results ?? []) people.push(await viewOf(c, r, label, who.all));
@@ -261,34 +297,42 @@ async function addPeople(c: Ctx, who: Caller, b: any): Promise<Response> {
   { const cm = consentMissing(b, "K6"); if (cm) return cm; } // K6: "I am allowed to use these names and numbers for this game. The people have been told."
   if (b.people.length > MAX_ADD_BATCH) return c.json({ error: `Send up to ${MAX_ADD_BATCH} people at a time; the console sends a bigger list in several parts.`, code: "too-many" }, 413);
   if (c.now >= await c.endBound()) return c.json({ error: "The game has ended, so no one can be added." }, 409);
-  const invalid: { raw: string; why: string }[] = []; let duplicates = 0;
-  const seen = new Set<string>(); const todo: { name: string; digits: string; ph: string; empId?: string; idHash?: string }[] = [];
-  const vf = verifyOf(c.e);
-  for (const x of b.people) {
+  const invalid: { raw: string; why: string; name?: string; id?: string }[] = []; let duplicates = 0; const sameAfterCleaning: { raw: string; as: string }[] = []; const duplicateRows: { raw: string; name: string; why: string }[] = []; const DUP_WHY = "Already on the list."; const typedOf = (x: any): string => String(x?.empId ?? x?.employeeId ?? x?.phone ?? "").slice(0, 120); // the same employee ID typed two ways in one list: named, never dropped silently
+  const seen = new Set<string>(); const todo: { typed?: string; name: string; digits: string; ph: string; empId?: string; idHash?: string }[] = [];
+  const vf = idOnlyNow() ? { mode: "id" as const, employeesOnly: true, idKind: "emp" as const } : verifyOf(c.e);
+  // ID-only joining: a family member is added by name. They join under the guest's own ID (E1001 becomes E1001F1, E1001F2 ...), and adding them is the guest's confirmation.
+  let famOwner = "", famN = 0;
+  if (idOnlyNow() && who.id.startsWith("s:")) {
+    const own = await c.env.DB.prepare("SELECT p.pii AS pii FROM participant p JOIN seat s ON s.eid=p.eid AND s.pid=p.pid WHERE s.eid=? AND s.seq=?").bind(c.eid, Number(who.id.slice(2))).first<{ pii: string | null }>();
+    famOwner = (await openPii(c.env, own?.pii))?.empId ?? "";
+    famN = (await c.env.DB.prepare("SELECT COUNT(*) AS c FROM person WHERE eid=? AND inviter=?").bind(c.eid, who.id).first<{ c: number }>())?.c ?? 0;
+  }
+  for (let xi = 0; xi < b.people.length; xi++) {
+    const x = famOwner && !(b.people[xi]?.empId ?? b.people[xi]?.employeeId) ? { ...b.people[xi], empId: `${famOwner}F${++famN}`, phone: "" } : b.people[xi];
     const raw = `${cleanName(x?.name)} ${String(x?.phone ?? "")}`.trim().slice(0, 100);
-    const emp = normEmp(x?.empId ?? x?.employeeId);
-    if (emp === null) { invalid.push({ raw, why: "An employee ID has letters and numbers only (up to 30)." }); continue; }
+    const empRaw = x?.empId ?? x?.employeeId, emp = normId(empRaw, vf.idKind, c.e?.created_ms);
+    if (emp === null && vf.mode !== "mobile") { invalid.push({ raw, name: cleanName(x?.name), id: String(x?.empId ?? x?.employeeId ?? "").slice(0, 120), why: badIdMessage(empRaw, vf.idKind, c.e?.created_ms) }); continue; }
     const phoneTyped = String(x?.phone ?? "").trim() !== "";
-    if (vf.mode === "either" && !emp && !phoneTyped) { invalid.push({ raw, why: "Give a mobile number or an employee ID." }); continue; }
-    if (vf.employeesOnly && vf.mode !== "mobile" && vf.mode !== "either" && !emp) { invalid.push({ raw, why: "This game is for employees: the employee ID is missing." }); continue; }
+    if (vf.mode === "either" && !emp && !phoneTyped) { invalid.push({ raw, name: cleanName(x?.name), id: String(x?.empId ?? x?.employeeId ?? "").slice(0, 120), why: "Give a mobile number or an employee ID." }); continue; }
+    if (vf.employeesOnly && vf.mode !== "mobile" && vf.mode !== "either" && !emp) { invalid.push({ raw, name: cleanName(x?.name), id: String(x?.empId ?? x?.employeeId ?? "").slice(0, 120), why: "This game is for employees: the employee ID is missing." }); continue; }
     if ((vf.mode === "id" || (vf.mode === "either" && !phoneTyped)) && emp) { // known by ID alone: a mobile number is welcome but not needed
       let digits = "";
-      if (phoneTyped) { const cl = cleanPhone(x?.phone); if (!cl.ok) { invalid.push({ raw, why: cl.why }); continue; } digits = keptFromClean(cl.digits); }
+      if (phoneTyped) { const cl = cleanPhone(x?.phone); if (!cl.ok) { invalid.push({ raw, name: cleanName(x?.name), id: String(x?.empId ?? x?.employeeId ?? "").slice(0, 120), why: cl.why }); continue; } digits = keptFromClean(cl.digits); }
       const ph = await empHashOf(c.env, emp);
-      if (seen.has(ph)) { duplicates++; continue; }
-      seen.add(ph); todo.push({ name: cleanName(x?.name), digits, ph, empId: emp }); continue;
+      if (seen.has(ph)) { duplicates++; duplicateRows.push({ raw: typedOf(x), name: cleanName(x?.name), why: DUP_WHY }); sameAfterCleaning.push({ raw: String(x?.empId ?? x?.employeeId ?? ""), as: emp }); continue; }
+      seen.add(ph); todo.push({ typed: typedOf(x), name: cleanName(x?.name), digits, ph, empId: emp }); continue;
     }
     const cl = cleanPhone(x?.phone);
-    if (!cl.ok) { invalid.push({ raw, why: cl.why }); continue; }
+    if (!cl.ok) { invalid.push({ raw, name: cleanName(x?.name), id: String(x?.empId ?? x?.employeeId ?? "").slice(0, 120), why: cl.why }); continue; }
     const ph = await phoneHashOf(c.env, cl.digits);
-    if (seen.has(ph)) { duplicates++; continue; }
+    if (seen.has(ph)) { duplicates++; duplicateRows.push({ raw: typedOf(x), name: cleanName(x?.name), why: DUP_WHY }); continue; }
     const idHash = vf.mode === "either" && emp ? await empHashOf(c.env, emp) : undefined; // "mobile number or employee ID": a listed person with both can come in with either, so the ID points to the mobile-number identity
     if (idHash) { // the same employee ID on two people of one list would let the second take over the first's ID: the second is a duplicate
       const al = await c.env.DB.prepare("SELECT v FROM kv WHERE k=?").bind(`idx/${c.eid}/${idHash}`).first<{ v: string }>();
-      if ((al && al.v !== ph && (await c.env.DB.prepare("SELECT 1 AS x FROM person WHERE eid=? AND ph=? AND status<>'removed'").bind(c.eid, al.v).first())) || seen.has("I" + idHash)) { duplicates++; continue; }
+      if ((al && al.v !== ph && (await c.env.DB.prepare("SELECT 1 AS x FROM person WHERE eid=? AND ph=? AND status<>'removed'").bind(c.eid, al.v).first())) || seen.has("I" + idHash)) { duplicates++; duplicateRows.push({ raw: typedOf(x), name: cleanName(x?.name), why: DUP_WHY }); sameAfterCleaning.push({ raw: String(x?.empId ?? x?.employeeId ?? ""), as: emp! }); continue; }
       seen.add("I" + idHash);
     }
-    seen.add(ph); todo.push({ name: cleanName(x?.name), digits: keptFromClean(cl.digits), ph, ...(emp && vf.mode !== "mobile" ? { empId: emp } : {}), ...(idHash ? { idHash } : {}) });
+    seen.add(ph); todo.push({ typed: typedOf(x), name: cleanName(x?.name), digits: keptFromClean(cl.digits), ph, ...(emp && vf.mode !== "mobile" ? { empId: emp } : {}), ...(idHash ? { idHash } : {}) });
   }
   const db = c.env.DB, hashes = todo.map((t) => t.ph);
   const persons = await existingBy(db, "person", c.eid, hashes, "ph, status, id, inviter, removed_by");
@@ -297,12 +341,12 @@ async function addPeople(c: Ctx, who: Caller, b: any): Promise<Response> {
   const fresh: typeof todo = [], revive: typeof todo = [];
   for (const t of todo) {
     const p = persons.get(t.ph);
-    if (p) { if (p.status === "removed" && (who.all || (p.inviter === who.id && p.removed_by === who.id))) revive.push(t); /* an Organizer or Host puts anyone back; a Co-host or guest only takes back a person they removed themselves */ else if (p.status === "removed") invalid.push({ raw: `${t.name} ${t.digits ? "+" + phoneDigits(t.digits) : ""}`.trim(), why: "This person was removed. Ask the Organizer or a Host to put them back." }); else duplicates++; continue; }
-    if (seats.has(t.ph)) { duplicates++; continue; } // a seat from an older flow (a loaded list): already in the game
+    if (p) { if (p.status === "removed" && (who.all || (p.inviter === who.id && p.removed_by === who.id))) revive.push(t); /* an Organizer or Host puts anyone back; a Co-host or guest only takes back a person they removed themselves */ else if (p.status === "removed") invalid.push({ raw: `${t.name} ${t.digits ? "+" + phoneDigits(t.digits) : ""}`.trim(), why: "This person was removed. Ask the Organizer or a Host to put them back." }); else { duplicates++; duplicateRows.push({ raw: t.typed || t.empId || t.digits, name: t.name, why: DUP_WHY }); } continue; }
+    if (seats.has(t.ph)) { duplicates++; duplicateRows.push({ raw: t.typed || t.empId || t.digits, name: t.name, why: DUP_WHY }); continue; } // a seat from an older flow (a loaded list): already in the game
     fresh.push(t);
   }
   const adds = fresh.length + revive.length;
-  if (adds === 0) return c.json({ added: 0, duplicates, invalid, people: [] });
+  if (adds === 0) return c.json({ added: 0, duplicates, duplicateRows, sameAfterCleaning, invalid, people: [] });
   if (who.limit !== null) {
     const used = await listCount(db, c.eid, who.id), room = Math.max(0, who.limit - used);
     if (adds > room) return c.json({ error: room === 0 ? `Your list is full: ${who.limit} people. Remove someone first, or ask the Organizer.` : `You can add ${room} more ${room === 1 ? "person" : "people"} (your limit is ${who.limit}). Nothing was added; please send fewer.`, code: "over-limit", limit: who.limit, used, room }, 409);
@@ -333,15 +377,15 @@ async function addPeople(c: Ctx, who: Caller, b: any): Promise<Response> {
   if (c.started && revive.length) await refreshBlocked(db, c.eid);
   // stmts are in the order fresh..., revive (+seat update)..., waiting...: map the person inserts back by position
   let i = 0; const done: typeof todo = [];
-  for (const t of fresh) { if ((res[i++]?.meta?.changes ?? 0) > 0) done.push(t); else duplicates++; }
-  for (const t of revive) { if ((res[i++]?.meta?.changes ?? 0) > 0) done.push(t); else duplicates++; if (seats.has(t.ph)) i++; }
+  for (const t of fresh) { if ((res[i++]?.meta?.changes ?? 0) > 0) done.push(t); else { duplicates++; duplicateRows.push({ raw: t.typed || t.empId || t.digits, name: t.name, why: DUP_WHY }); } }
+  for (const t of revive) { if ((res[i++]?.meta?.changes ?? 0) > 0) done.push(t); else { duplicates++; duplicateRows.push({ raw: t.typed || t.empId || t.digits, name: t.name, why: DUP_WHY }); } if (seats.has(t.ph)) i++; }
   const label = await labelsOf(c);
   const out: PersonView[] = [];
   for (const t of done) {
     const token = toks.get(t.ph)!, link = `${c.origin}/j/${token}`;
     out.push({ id: ids.get(t.ph)!, name: t.name, maskedPhone: t.digits ? maskedPhone(t.digits) : "", status: "invited", ...(t.empId ? { empId: t.empId } : {}), link, waLink: t.digits ? waLinkOf(t.digits, waMessage(t.name || null, c.gameName, link)) : null, ...(who.all ? { inviter: label(who.id) } : {}) });
   }
-  return c.json({ added: done.length, duplicates, invalid, people: out });
+  return c.json({ added: done.length, duplicates, duplicateRows, sameAfterCleaning, invalid, people: out });
 }
 
 async function exportPeople(c: Ctx, who: Caller): Promise<Response> {
@@ -433,7 +477,7 @@ async function resendPerson(c: Ctx, who: Caller, id: string, b: any): Promise<Re
   if ((res[0]?.meta?.changes ?? 0) === 0) return c.json({ error: "That number is already invited.", code: "duplicate" }, 409);
   if (newPii && pii?.empId && verifyOf(c.e).mode === "either") await db.prepare("INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(`idx/${c.eid}/${await empHashOf(c.env, pii.empId)}`, ph).run(); // the employee ID keeps pointing at this person's current number
   const link = `${c.origin}/j/${token}`;
-  return c.json({ ok: true, link, waLink: pii?.phone ? waLinkOf(pii.phone, waMessage(pii.name || null, c.gameName, link)) : null, unlocked: hasSeat });
+  return c.json({ ok: true, link, waLink: pii?.phone ? waLinkOf(pii.phone, waMessage(pii.name || null, c.gameName, link, c.block)) : null, unlocked: hasSeat });
 }
 
 /** The caller's OWN play seat: Organizer, Host and Co-host also play, through a personal link, and their seat is flagged so they stay out of the lucky draws. */
@@ -476,15 +520,15 @@ async function myOwnSeat(c: Ctx, who: Caller, b: any): Promise<Response> {
 async function waitingRows(c: Ctx, who: Caller, limit: number): Promise<{ id: string; pii: string; via: string; inviter: string; overlimit: number; at_ms: number }[]> {
   const cols = "id, pii, via, inviter, overlimit, at_ms";
   const q = who.all
-    ? c.env.DB.prepare(`SELECT ${cols} FROM waiting WHERE eid=? AND status='waiting' ORDER BY at_ms LIMIT ?`).bind(c.eid, limit)
-    : c.env.DB.prepare(`SELECT ${cols} FROM waiting WHERE eid=? AND status='waiting' AND chain LIKE ? ORDER BY at_ms LIMIT ?`).bind(c.eid, `%,${who.id},%`, limit);
+    ? c.env.DB.prepare(`SELECT ${cols} FROM waiting WHERE eid=? AND status='waiting' AND at_ms>? ORDER BY at_ms LIMIT ?`).bind(c.eid, waitSince(c.e, c.now), limit)
+    : c.env.DB.prepare(`SELECT ${cols} FROM waiting WHERE eid=? AND status='waiting' AND chain LIKE ? AND at_ms>? ORDER BY at_ms LIMIT ?`).bind(c.eid, `%,${who.id},%`, waitSince(c.e, c.now), limit);
   return (await q.all<any>()).results ?? [];
 }
 async function listWaiting(c: Ctx, who: Caller): Promise<Response> {
   const label = await labelsOf(c), out = [];
   for (const r of await waitingRows(c, who, 200)) {
     const p = await openPii(c.env, r.pii), first = (p?.name ?? "").trim().split(/\s+/)[0] ?? "";
-    out.push({ id: r.id, firstName: first, last4: (p?.phone ?? "").slice(-4), via: r.via, at: r.at_ms, ...(who.all ? { inviter: label(r.inviter), overLimit: !!r.overlimit, ...(p?.empId ? { empId: p.empId } : {}) } : {}) }); // the Employee ID is shown to the Organizer and the Hosts only (they decide whether this person is an employee)
+    out.push({ id: r.id, firstName: first, last4: (p?.phone ?? "").slice(-4), ...(who.all || idOnlyNow() ? { name: (p?.name ?? "").trim(), ...(p?.loc ? { loc: p.loc } : {}), ...(p?.empId ? { empId: p.empId } : {}) } : {}), via: r.via, at: r.at_ms, ...(who.all ? { inviter: label(r.inviter), overLimit: !!r.overlimit, ...(p?.empId ? { empId: p.empId } : {}) } : {}) }); // the Employee ID is shown to the Organizer and the Hosts only (they decide whether this person is an employee)
   }
   return c.json({ waiting: out });
 }
@@ -500,9 +544,11 @@ async function decideWaiting(c: Ctx, who: Caller, wid: string, b: any): Promise<
   const decision = b?.decision;
   if (decision !== "admit" && decision !== "decline") return c.json({ error: "Say admit or decline." }, 400);
   const db = c.env.DB;
-  const w = await db.prepare("SELECT id, ph, pii, inviter, chain, overlimit, status FROM waiting WHERE eid=? AND id=?").bind(c.eid, wid).first<any>();
+  const w = await db.prepare("SELECT id, ph, pii, inviter, chain, overlimit, status, at_ms FROM waiting WHERE eid=? AND id=?").bind(c.eid, wid).first<any>();
   if (!w || (!who.all && !String(w.chain).includes(`,${who.id},`))) return c.json({ error: "No such request." }, 404);
   if (w.status !== "waiting") return c.json({ ok: true, already: w.status });
+  if (approvalRulesOn(c.e) && waitingLapsed(Number(w.at_ms), c.now)) { await db.prepare("UPDATE waiting SET status='lapsed', decided_ms=? WHERE eid=? AND id=? AND status='waiting'").bind(c.now, c.eid, wid).run(); return c.json({ error: "This request waited more than 30 minutes, so it has lapsed. The person can ask again.", code: "lapsed" }, 409); }
+  if (approvalRulesOn(c.e) && decision === "admit" && !who.all && String(w.inviter).startsWith("s:") && familyCutoffPassed(roundStartMs(c.e.start_round), c.now)) return c.json({ error: FAMILY_CLOSED_MESSAGE, code: "family-closed" }, 409);
   if (c.now >= await c.endBound()) return c.json({ error: "The game has ended, so this request has lapsed." }, 409);
   if (!(await c.spend(3))) return c.busy();
   if (decision === "decline") { await db.prepare("UPDATE waiting SET status='declined', decided_by=?, decided_ms=? WHERE eid=? AND id=? AND status='waiting'").bind(who.id, c.now, c.eid, wid).run(); return c.json({ ok: true, declined: true }); }
@@ -531,9 +577,10 @@ async function decideAll(c: Ctx, who: Caller, b: any): Promise<Response> {
   const db = c.env.DB;
   if (c.now >= await c.endBound()) return c.json({ error: "The game has ended, so these requests have lapsed." }, 409);
   const cols = "id, ph, pii, inviter, overlimit";
+  const familyClosed = approvalRulesOn(c.e) && !who.all && familyCutoffPassed(roundStartMs(c.e.start_round), c.now);
   const rows = await (who.all
-    ? db.prepare(`SELECT ${cols} FROM waiting WHERE eid=? AND status='waiting' ORDER BY at_ms, id LIMIT ?`).bind(c.eid, WAITING_MAX)
-    : db.prepare(`SELECT ${cols} FROM waiting WHERE eid=? AND status='waiting' AND chain LIKE ? ORDER BY at_ms, id LIMIT ?`).bind(c.eid, `%,${who.id},%`, WAITING_MAX)).all<any>();
+    ? db.prepare(`SELECT ${cols} FROM waiting WHERE eid=? AND status='waiting' AND at_ms>? ORDER BY at_ms, id LIMIT ?`).bind(c.eid, waitSince(c.e, c.now), WAITING_MAX)
+    : db.prepare(`SELECT ${cols} FROM waiting WHERE eid=? AND status='waiting' AND chain LIKE ? AND at_ms>? ORDER BY at_ms, id LIMIT ?`).bind(c.eid, `%,${who.id},%`, waitSince(c.e, c.now), WAITING_MAX)).all<any>();
   const list = rows.results ?? [];
   if (!list.length) return c.json({ admitted: 0, declined: 0, stillWaiting: 0 });
   if (!(await c.spend(list.length * 3))) return c.busy();
@@ -545,7 +592,9 @@ async function decideAll(c: Ctx, who: Caller, b: any): Promise<Response> {
   }
   let total = await totalCount(db, c.eid), admitted = 0, notAdmitted = 0, skippedFull = false;
   const counts = new Map<string, number>(), limits = new Map<string, number | null>();
+  let familySkipped = false;
   for (const w of list) {
+    if (familyClosed && String(w.inviter).startsWith("s:")) { familySkipped = true; notAdmitted++; continue; } // family approvals closed 15 minutes before the start
     let inviter: string = w.overlimit ? who.id : w.inviter;
     const existing = await db.prepare("SELECT id, status FROM person WHERE eid=? AND ph=?").bind(c.eid, w.ph).first<{ id: string; status: string }>();
     if (!existing || existing.status === "removed") {
@@ -562,7 +611,7 @@ async function decideAll(c: Ctx, who: Caller, b: any): Promise<Response> {
     admitted++;
   }
   await batched(db, stmts);
-  return c.json({ admitted, declined: 0, stillWaiting: notAdmitted, ...(skippedFull ? { message: `The game is full (${c.e.cap} places). The rest are still waiting.` } : notAdmitted ? { message: "Some lists are full, so those requests are still waiting." } : {}) });
+  return c.json({ admitted, declined: 0, stillWaiting: notAdmitted, ...(familySkipped ? { code: "family-closed", message: FAMILY_CLOSED_MESSAGE } : skippedFull ? { message: `The game is full (${c.e.cap} places). The rest are still waiting.` } : notAdmitted ? { message: "Some lists are full, so those requests are still waiting." } : {}) });
 }
 
 // ------------------------------------------------------------------------------------------------------------------------------- the phone's own status (public)
@@ -577,12 +626,12 @@ async function meRoute(c: Ctx): Promise<Response> {
     return c.json({ state: s.blocked ? "removed" : "playing", removed: !!s.blocked, role: s.role ?? null, seat: s.seq, canInvite: !s.blocked && ownList && c.invites.on, per: c.invites.per, used: ownList ? await listCount(db, c.eid, "s:" + s.seq) : 0, whoCanJoin: c.e.closed ? "list" : "anyone", ...(p ? { listed: true } : {}) });
   }
   if (wid && /^[0-9a-f]{12}$/.test(wid)) {
-    const w = await db.prepare("SELECT status, inviter, overlimit FROM waiting WHERE eid=? AND id=?").bind(c.eid, wid).first<{ status: string; inviter: string; overlimit: number }>();
+    const w = await db.prepare("SELECT status, inviter, overlimit, at_ms FROM waiting WHERE eid=? AND id=?").bind(c.eid, wid).first<{ status: string; inviter: string; overlimit: number; at_ms: number }>();
     if (!w) return c.json({ state: "gone", error: "That request is not here any more." }, 404);
     const ended = c.now >= await c.endBound();
-    const state = w.status === "waiting" && ended ? "lapsed" : w.status;
+    const state = w.status === "waiting" && (ended || (approvalRulesOn(c.e) && waitingLapsed(Number(w.at_ms), c.now))) ? "lapsed" : w.status;
     const who = await waitingWho(c, w.overlimit ? "o" : w.inviter);
-    return c.json({ state, with: who, message: state === "waiting" ? `Your request is with ${who}. You can come in as soon as they say yes.` : state === "admitted" ? "You are in. Open your card again to join." : state === "declined" ? "This game could not add you. Please talk to whoever invited you." : "This game has ended." });
+    return c.json({ state, with: who, message: state === "waiting" ? `Your request is with ${who}. You can come in as soon as they say yes.` : state === "admitted" ? "You are in. Open your card again to join." : state === "declined" ? DECLINED_MESSAGE : state === "lapsed" && !ended ? LAPSED_MESSAGE : "This game has ended." });
   }
   return c.json({ error: "Say which: ?pid=<your card id> or ?wid=<your request id>." }, 400);
 }
@@ -595,15 +644,23 @@ export async function waitingWho(c: { env: Env; e: any; eid: string }, inviter: 
 }
 
 /** Joins a person's request to wait. Used by the Worker's `join`. Returns the existing request when the number already asked. */
-export async function addWaiting(c: { env: Env; eid: string; e: any; now: number }, o: { ph: string; digits: string; name: string | null; empId?: string | null; via: "personal-link" | "common-link" | "direct"; inviter: string; overlimit: boolean }): Promise<{ id: string; status: string } | { full: true }> {
+export async function addWaiting(c: { env: Env; eid: string; e: any; now: number }, o: { ph: string; digits: string; name: string | null; empId?: string | null; loc?: string | null; via: "personal-link" | "common-link" | "direct"; inviter: string; overlimit: boolean }): Promise<{ id: string; status: string } | { full: true }> {
   const db = c.env.DB;
-  const have = await db.prepare("SELECT id, status FROM waiting WHERE eid=? AND ph=?").bind(c.eid, o.ph).first<{ id: string; status: string }>();
-  if (have) return have;
-  const n = (await db.prepare("SELECT COUNT(*) AS c FROM waiting WHERE eid=? AND status='waiting'").bind(c.eid).first<{ c: number }>())?.c ?? 0;
+  const have = await db.prepare("SELECT id, status, at_ms FROM waiting WHERE eid=? AND ph=?").bind(c.eid, o.ph).first<{ id: string; status: string; at_ms: number }>();
+  const rules = approvalRulesOn(c.e);
+  const stale = !!have && rules && (have.status === "lapsed" || (have.status === "waiting" && waitingLapsed(Number(have.at_ms), c.now)));
+  if (have && !stale) return { id: have.id, status: have.status };
+  const n = (await db.prepare("SELECT COUNT(*) AS c FROM waiting WHERE eid=? AND status='waiting' AND at_ms>?").bind(c.eid, waitSince(c.e, c.now)).first<{ c: number }>())?.c ?? 0;
   if (n >= WAITING_MAX) return { full: true };
+  if (have && stale) { // asking again after 30 minutes: the same request starts a new wait
+    const chain2 = o.overlimit ? ",o," : await chainOf(db, c.eid, o.inviter);
+    await db.prepare("UPDATE waiting SET status='waiting', at_ms=?, decided_by=NULL, decided_ms=NULL, via=?, inviter=?, chain=?, overlimit=?, pii=? WHERE eid=? AND id=? AND status IN ('waiting','lapsed')")
+      .bind(c.now, o.via, o.inviter, chain2, o.overlimit ? 1 : 0, await sealPii(c.env as any, { phone: o.digits, name: o.name, empId: o.empId, loc: o.loc }), c.eid, have.id).run();
+    return { id: have.id, status: "waiting" };
+  }
   const id = randHex(6), chain = o.overlimit ? ",o," : await chainOf(db, c.eid, o.inviter);
   await db.prepare("INSERT OR IGNORE INTO waiting(eid,id,ph,pii,via,inviter,chain,overlimit,status,at_ms) VALUES(?,?,?,?,?,?,?,?,'waiting',?)")
-    .bind(c.eid, id, o.ph, await sealPii(c.env as any, { phone: o.digits, name: o.name, empId: o.empId }), o.via, o.inviter, chain, o.overlimit ? 1 : 0, c.now).run();
+    .bind(c.eid, id, o.ph, await sealPii(c.env as any, { phone: o.digits, name: o.name, empId: o.empId, loc: o.loc }), o.via, o.inviter, chain, o.overlimit ? 1 : 0, c.now).run();
   return (await db.prepare("SELECT id, status FROM waiting WHERE eid=? AND ph=?").bind(c.eid, o.ph).first<{ id: string; status: string }>()) ?? { id, status: "waiting" };
 }
 
