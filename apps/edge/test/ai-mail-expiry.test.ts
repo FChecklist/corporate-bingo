@@ -1,4 +1,4 @@
-// The e-mailed link lasts 24 hours; "Get a fresh AI link"; the signed-in "Show my AI work link" read; the alert on unfamiliar use.
+// The e-mailed link lasts 24 hours; "Get a fresh AI link"; the signed-in "Show your AI work link" read; the alert on unfamiliar use.
 import { beforeEach, describe, expect, test } from "bun:test";
 import { withDevice } from "./device";
 import { type Env } from "../src/worker";
@@ -67,7 +67,7 @@ describe("the e-mailed link lasts 24 hours", () => {
   });
 });
 
-describe("Show my AI work link: the signed-in read behind the e-mail's button", () => {
+describe("Show your AI work link: the signed-in read behind the e-mail's button", () => {
   test("only the organizer's own sign-in gets the lasting paste; it is never the key in the mail; AI, co-host, platform and anonymous are refused", async () => {
     const o = await organizer(); const mailKey = mailedKey(outbox()[0]!.body);
     const r = await j(await call("GET", "/api/org/ai/link", undefined, o.h));

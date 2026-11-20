@@ -1,4 +1,4 @@
-// Demo passes: a secret link that gives the account opening it ONE free game (Rs 0) of up to a set size. One to one, nothing public, no payment.
+// Demo passes: a secret link that gives the account opening it ONE free game (₹0) of up to a set size. One to one, nothing public, no payment.
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { DEMO_PASSES } from "../src/worker";
 import { T, call, create, j, keyH, one, organizer, publish, q, reset, restore, uid } from "./param-harness";

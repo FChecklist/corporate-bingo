@@ -76,7 +76,7 @@ describe("the guided path, followed like an outside AI", () => {
     t = await pick(t, /Start a new game/); expect(t).toMatch(/Which time zone/); t = await pick(t, /^India time/); expect(t).toMatch(/Which day/); expect(t).toMatch(/Tomorrow, Fri 2 Oct/);
     t = await pick(t, /^Tomorrow/); expect(t).toMatch(/At what time/);
     t = await pick(t, /^4 pm/); expect(t).toMatch(/What is the occasion/);
-    t = await pick(t, /Diwali party/); expect(t).toMatch(/How many people at most/); expect(t).toMatch(/Rs 2,399 \(about US\$/); // price from the software's own list
+    t = await pick(t, /Diwali party/); expect(t).toMatch(/How many people at most/); expect(t).toMatch(/₹2,399 \(about US\$/); // price from the software's own list
     t = await pick(t, /Up to 250/); expect(t).toMatch(/recommended choices/);
     t = await pick(t, /2 cards/); expect(t).toMatch(/2 cards per person/); // a toggle: same screen, changed
     t = await pick(t, /Looks good/); expect(t).toMatch(/Which prizes/);
@@ -84,7 +84,7 @@ describe("the guided path, followed like an outside AI", () => {
     t = await pick(t, /Add one lucky draw/);
     expect(t).toMatch(/clear yes/); expect(t).toMatch(/Nothing has been saved yet/); expect(t).toMatch(/Fri 2 Oct, 4 pm India time/); expect(t).toMatch(/up to 250/);
     expect((await j(await call("GET", `/ai/${o.key}/history`))).engagements.length).toBe(0); // the read-back saved nothing
-    t = await pick(t, /Yes, save your draft/); expect(t).toMatch(/Your draft is saved\. Its code is DIWALI-1002/); expect(t).toMatch(/Nobody else can see it/);
+    t = await pick(t, /Yes, save my draft/); expect(t).toMatch(/Your draft is saved\. Its code is DIWALI-1002/); expect(t).toMatch(/Nobody else can see it/);
     expect(t).toContain(`${ORIGIN}/zc.html?e=DIWALI-1002&do=publish`); // the one-tap hand-over for publishing
     expect(t).toMatch(/I never pay/);
     const sm = await j(await call("GET", `/ai/${o.key}/z/DIWALI-1002/summary`));

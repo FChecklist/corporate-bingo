@@ -25,7 +25,7 @@
 //      C places it at paid_ms, the moment THIS website fulfilled the payment (a few seconds later). A payment captured in the last seconds of a month can
 //      therefore sit in different months in B and C. Counts and amounts agree again in the next month's figures.
 //   2. What counts as a sale. C counts a payment that is PAID, has a Razorpay payment id (so money really moved) and is a real payment: is_test = 0, or
-//      the Rs 1 "payment_test" (which the site flags as test because it buys nothing, but which is real money in A and a paid sale in B). A payment made in
+//      the ₹1 "payment_test" (which the site flags as test because it buys nothing, but which is real money in A and a paid sale in B). A payment made in
 //      TEST mode (no Razorpay at all) and a game paid wholly from credit are never counted, and never sent to B.
 //   3. Fee and tax. fee_minor is Razorpay's fee INCLUDING the GST on it; tax_minor is that GST. (B's pnl view shows the fee without GST as gateway_fee and the GST
 //      as gateway_tax; the sum is the same.)

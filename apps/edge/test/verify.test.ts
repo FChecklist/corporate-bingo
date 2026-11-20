@@ -224,7 +224,7 @@ describe("Bingo's name-only join next to the ID", () => {
   });
 });
 
-describe("a game for 10 people or fewer is Rs 0", () => {
+describe("a game for 10 people or fewer is ₹0", () => {
   test("publishing a 10-person game needs no payment; an 11-person game still does", async () => {
     const st = await j(await handle(new Request("http://x/api/start", { method: "POST", headers: { "content-type": "application/json", "cf-connecting-ip": "7.7.8.1" }, body: JSON.stringify({ email: "free@acme.com" }) }), env as Env, T));
     for (const [id, cap] of [["FREE-10", 10], ["PAID-11", 11]] as const) {

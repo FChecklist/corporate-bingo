@@ -43,7 +43,7 @@ afterEach(() => { globalThis.fetch = realFetch; });
 
 let ip = 0, lastAi = "";
 const start = async (email: string) => { const r = await j(await handle(new Request("http://x/api/start", { method: "POST", headers: { "content-type": "application/json", "cf-connecting-ip": `9.9.9.${++ip}` }, body: JSON.stringify({ email }) }), env as Env, T)); lastAi = r.aiKey as string; return r.token as string; };
-/** Organizer + a Host (own e-mail) + a Co-host for game GAME-1 (300 places = the 500 pack, Rs 4,699, no GST), starting 3 hours after T. */
+/** Organizer + a Host (own e-mail) + a Co-host for game GAME-1 (300 places = the 500 pack, ₹4,699, no GST), starting 3 hours after T. */
 const team = async () => {
   const master = await start("boss@acme.com"); const ai = lastAi;
   await game(master, "GAME-1", 300, T + 3 * H);
@@ -231,7 +231,7 @@ describe("using credit: pay-with-credit", () => {
     expect(first.expiresMs).toBeLessThan(second.expiresMs);
     await game(t.master, "GAME-8", 750, LATER + 5 * H, LATER);
     const r = await j(await withCredit(t.master, "GAME-8", LATER));
-    expect(r).toMatchObject({ paid: true, usedInr: paidOf(750), toPayInr: 0 }); // the older Rs 4,699 first, then Rs 1,200 of the newer one
+    expect(r).toMatchObject({ paid: true, usedInr: paidOf(750), toPayInr: 0 }); // the older ₹4,699 first, then ₹1,200 of the newer one
     const after = await credits(t.master, LATER);
     expect(after.credits.find((x: any) => x.sourceGame === "GAME-1").uses).toEqual([{ game: "GAME-8", amountInr: paidOf(300), atMs: LATER }]);
     expect(after.credits.find((x: any) => x.sourceGame === "GAME-1").status).toBe("used");
@@ -384,7 +384,7 @@ describe("lapse, expiry and the e-mails", () => {
     await creditTick(env, exp - 2 * DAY); for (const a of to) { expect(mailsEver(a, /lapses on/)).toHaveLength(2); expect(mailsEver(a, /lapses on/)[1]!.body).toContain("in 3 days"); }
     await creditTick(env, exp - DAY); for (const a of to) expect(mailsEver(a, /lapses on/)).toHaveLength(2);
     await lifecycleTick(env as any, exp + 1000); await lifecycleTick(env as any, exp + 2000);
-    for (const a of to) { const m = mailsEver(a, /lapsed/); expect(m).toHaveLength(1); expect(m[0]!.body).toContain(`Rs ${paidOf(300).toLocaleString("en-IN")}`); expect(m[0]!.body).toContain("Credit that lapsed"); }
+    for (const a of to) { const m = mailsEver(a, /lapsed/); expect(m).toHaveLength(1); expect(m[0]!.body).toContain(`₹${paidOf(300).toLocaleString("en-IN")}`); expect(m[0]!.body).toContain("Credit that lapsed"); }
     expect(raw.prepare("SELECT to_addr FROM outbox WHERE subject LIKE '%credit%' OR subject LIKE '%lapse%'").all().every((r: any) => to.includes(r.to_addr))).toBe(true);
     expect(mailsTo("payer@acme.com").filter((m) => /credit|lapse/i.test(m.subject))).toHaveLength(0);
   });

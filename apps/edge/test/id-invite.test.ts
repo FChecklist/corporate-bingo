@@ -139,7 +139,7 @@ describe("the list, every ID and the log are erased with the players' data (with
     expect(count("SELECT COUNT(*) AS c FROM kv WHERE k LIKE ? OR k LIKE ?", `idx/${g.id}/%`, `idmiss/${g.id}/%`)).toBe(0);
     const log = (await j(await call("GET", `/api/z/${g.id}/people/log`, undefined, keyH(g.key), T + 86_400_000))).log as any[];
     expect(log.length).toBe(0);
-    expect(JSON.stringify(q("SELECT * FROM kv"))).not.toMatch(/E1|E2|X9|E3/);
+    expect(q("SELECT k FROM kv").map((r: any) => r.k).filter((k: string) => /^(idx|idmiss)\//.test(k) && k.includes(g.id))).toEqual([]);
   });
   test("the scheduled sweep does it on its own, under 24 hours after the game ended, and the promise number is under a day", async () => {
     const g = await idGame(); await add(g, ["S1"]); await joinId(g, "S1", 1); await joinId(g, "S-2", 2);

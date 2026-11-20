@@ -1,4 +1,4 @@
-// The 10-player Rs 0 demo game (owner order 2026-10-27): an organizer makes a game for 10 people, publishes it with no payment, ten phones join with a name,
+// The 10-player ₹0 demo game (owner order 2026-10-27): an organizer makes a game for 10 people, publishes it with no payment, ten phones join with a name,
 // the eleventh is told the game is full, and the same phone joining twice gets the same card.
 import { beforeEach, describe, expect, test } from "bun:test";
 import { type Env } from "../src/worker";
@@ -14,7 +14,7 @@ const j = async (r: Response) => (await r.json()) as any;
 const dev = (i: number) => String(i).padStart(2, "0").repeat(16);
 beforeEach(() => { const d = makeD1(); env = { DB: d.db, ORGANIZER_SECRET: "plat", DAILY_WRITE_BUDGET: "1000000", PUBLIC_ORIGIN: "https://bingo.test", PHONE_SALT: "salt", DATA_KEY: "k" } as any; });
 
-describe("10-player demo game at Rs 0", () => {
+describe("10-player demo game at ₹0", () => {
   test("make, publish with no payment, 10 join by name, the 11th is refused, the same phone gets the same card", async () => {
     const s = await j(await call("POST", "/api/start", { email: `demo${++n}@acme.com` }, { "cf-connecting-ip": "10.0.0.9" }));
     const h = { "x-organizer": s.token as string };

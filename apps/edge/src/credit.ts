@@ -37,7 +37,7 @@ const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { sta
 export const creditExpiryMs = (paidMs: number): number => (Math.floor((paidMs + IST) / DAY) + CREDIT_DAYS + 1) * DAY - IST;
 /** The India-time date a person is told ("14 Jun 2027"): the LAST day the credit can be used. */
 export const creditLastDay = (expiresMs: number): string => new Date(expiresMs - 1).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric" });
-export const rs = (n: number, cur = "INR"): string => (cur === "USD" ? "US$" : "Rs ") + (Math.abs(n - Math.round(n)) < 0.005 ? Math.round(n).toLocaleString(cur === "USD" ? "en-US" : "en-IN") : n.toLocaleString(cur === "USD" ? "en-US" : "en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+export const rs = (n: number, cur = "INR"): string => (cur === "USD" ? "US$" : "₹") + (Math.abs(n - Math.round(n)) < 0.005 ? Math.round(n).toLocaleString(cur === "USD" ? "en-US" : "en-IN") : n.toLocaleString(cur === "USD" ? "en-US" : "en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const istStamp = (ms: number) => new Date(ms).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) + " IST";
 const gameName = (e: { id: string; config?: string | null }) => { try { return JSON.parse(e.config ?? "{}").name || e.id; } catch { return e.id; } };
 
