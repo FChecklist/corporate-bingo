@@ -996,7 +996,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     await auditAi(env.DB, a.org, new Request(new URL(req.url).origin + "/api/org/ai/replace", { method: "POST", headers: req.headers }), (await sha("key|" + presented)).slice(0, 10), 200, now);
     return json({ ok: true, ...r });
   }
-  if (req.method === "GET" && p === "/api/org/ai/link") { // the signed-in organizer reads their lasting AI link again (the page "Show my AI work link"); never an AI key, never in a mail
+  if (req.method === "GET" && p === "/api/org/ai/link") { // the signed-in organizer reads their lasting AI link again (the page "Show your AI work link"); never an AI key, never in a mail
     if (a.kind !== "master" || !a.org) return deny(a);
     const sealed = await env.DB.prepare("SELECT v FROM kv WHERE k=?").bind(`aikey/${a.org}`).first<{ v: string }>();
     const key = await openText(env as any, sealed?.v);
@@ -1006,7 +1006,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
   if (req.method === "POST" && p === "/api/org/ai/fresh") { // "Get a fresh AI link": a new 24-hour key, e-mailed to the organizer; the lasting key and other links are untouched
     if (a.kind !== "master" || !a.org) return deny(a);
     const live = (await env.DB.prepare("SELECT COUNT(*) AS c FROM organizer_key WHERE org=? AND kind='ai' AND revoked=0 AND expires_ms>?").bind(a.org, now).first<{ c: number }>())?.c ?? 0;
-    if (live >= 5) return json({ error: "You already asked for several fresh links today. Use the latest e-mail, or press Replace my AI link." }, 429);
+    if (live >= 5) return json({ error: "You already asked for several fresh links today. Use the latest e-mail, or press Replace your AI link." }, 429);
     if (!(await spend(env, now, 3))) return BUSY();
     return json({ ok: true, ...(await mailTempLink(env, req, a.org, "ai", "fresh", now)) });
   }

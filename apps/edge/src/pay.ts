@@ -371,7 +371,7 @@ export async function payRoute(req: Request, env: PayEnv, now: number, spend: (n
     // credit already applied to THIS game (by the Organizer, a Host or a Co-host, before this checkout) reduces what is charged; nothing else about credit is ever shown or used here
     const credited = boundEid ? Math.round((await creditAppliedFor(db, boundEid)) * 100) / 100 : 0;
     const cash = Math.round((full.total - credited) * 100) / 100;
-    if (boundEid && credited > 0 && cash < 1) return json({ error: "Credit already covers this game. Tap Use my credit to finish.", code: "use-credit" }, 409);
+    if (boundEid && credited > 0 && cash < 1) return json({ error: "Credit already covers this game. Tap Use your credit to finish.", code: "use-credit" }, 409);
     const pr = credited > 0 ? { total: cash, base: cur === "INR" ? Math.round((cash / 1.18) * 100) / 100 : cash, tax: cur === "INR" ? Math.round((cash - cash / 1.18) * 100) / 100 : 0 } : full;
     const id = "pay_" + randHex(8);
     await recordConsent(db, { subject: boundOrg ?? id, kind: "K3", ref: id, now });

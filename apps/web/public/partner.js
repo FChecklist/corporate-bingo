@@ -43,7 +43,7 @@
       <button class="zbtn" id="cdgo">Get my link</button>
       <p class="zsmall"><a href="#" id="back">Back</a></p></div>`;
   }
-  const twoWays = `<div class="zbanner info" style="text-align:left"><b>Option 1.</b> Go to your e-mail, find the 6 numbers and type them here.<br><b>Option 2.</b> Go to your e-mail and tap the button <b>Sign me in</b>. You do not type anything.<br>Use only one. Both work for 10 minutes.</div>`;
+  const twoWays = `<div class="zbanner info" style="text-align:left"><b>Option 1.</b> Go to your e-mail, find the 6 numbers and type them here.<br><b>Option 2.</b> Go to your e-mail and tap the button <b>Sign in</b>. You do not type anything.<br>Use only one. Both work for 10 minutes.</div>`;
   function signinView() {
     return `<div class="zcard zform"><h2>Sign in to see your sales</h2>
       <p class="zsmall" style="margin-top:0">Type your e-mail and press Continue. There is no password. We e-mail you two ways in; you use <b>one</b> of them.</p>
@@ -62,7 +62,7 @@
   }
   function linkView() {
     return `<div class="zhead"><b>Corporate Bingo · Refer &amp; earn</b></div><div class="zcard zform"><h2>Press the button to sign in</h2><p class="zsmall" style="margin-top:0">This is Option 2 from your e-mail. It works once, for 10 minutes.</p>
-      ${S.err ? `<div class="zbanner bad" role="alert">${esc(S.err)}</div>` : ""}<button class="zbtn" id="lgo">Sign me in</button><p class="zsmall">Something wrong? <a href="/partner.html">Ask for a new e-mail</a>.</p></div>`;
+      ${S.err ? `<div class="zbanner bad" role="alert">${esc(S.err)}</div>` : ""}<button class="zbtn" id="lgo">Sign in</button><p class="zsmall">Something wrong? <a href="/partner.html">Ask for a new e-mail</a>.</p></div>`;
   }
   function dashView() {
     const m = S.me; const t = m.totals;

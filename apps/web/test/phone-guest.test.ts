@@ -255,7 +255,7 @@ describe("sign-in has one way: the e-mail (no Google button, even when the serve
   const signin = async (o: O) => openPage(o.world, { url: "http://localhost/signin.html?t=abc", html: "signin.html", scripts: ["google.js", "signin.js"] });
   test("the one-tap page shows only its own button; no Google button, nothing is loaded from Google, with or without a client id", async () => {
     for (const env of [{}, { GOOGLE_CLIENT_ID: GID }]) {
-      const o = await organizer(env); const p = await signin(o); await p.waitFor((x) => /Sign me in/.test(x)); await new Promise((r) => setTimeout(r, 300));
+      const o = await organizer(env); const p = await signin(o); await p.waitFor((x) => /Sign in/.test(x)); await new Promise((r) => setTimeout(r, 300));
       expect(p.text()).not.toMatch(/Continue with Google/); expect((p.$("#gWrap") as any).hidden).toBe(true);
       expect(Array.from(p.win.document.querySelectorAll("script")).some((s: any) => /google/.test(s.src || ""))).toBe(false);
     }

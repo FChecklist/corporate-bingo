@@ -82,7 +82,8 @@
     const phone = (label, hint) => `<label for="ph">${label}</label><input id="ph" inputmode="tel" autocomplete="tel" placeholder="+1 555 010 0100" value="${pv}">${hint ? `<p class="zsmall" style="margin:2px 0 6px">${hint}</p>` : ""}`;
     const emp = (label, hint) => `<label for="emp">${label}</label><input id="emp" autocomplete="off" autocapitalize="characters" maxlength="30" value="${ev}">${hint ? `<p class="zsmall" style="margin:2px 0 6px">${hint}</p>` : ""}`;
     if (personal) return "";
-    if (vm === "id") return emp("Your employee ID", eo ? "This game is for employees only." : "") + (eo ? "" : phone("No employee ID? Type your mobile number instead", "Vendors, customers and families use their mobile number."));
+    // OWNER RULE (20 Nov 2026): an ID game has ONE box, the ID (employee, associate, vendor or customer ID: only words). No name, no mobile number, no e-mail. Spaces, dashes and symbols do not matter (A-1101, A 1101 and A/1101 are one ID).
+    if (vm === "id") return `<p class="zsmall" style="margin:0 0 6px">Enter your ID to join. If you are on the list, a card is made for you, for this game only. If not, the person who invited you is asked to say yes.</p>` + emp("Enter your ID", "") + `<p class="zsmall" style="margin:2px 0 6px">No name, mobile number or e-mail address is needed. What is typed here is deleted within 24 hours after the game.</p>`;
     if (vm === "both") return phone("Your mobile number", "") + emp(eo ? "Your employee ID" : "Your employee ID (employees only)", eo ? "This game is for employees only." : "Not an employee? Leave this empty.");
     return needPhone ? phone("Your mobile number", "") : "";
   };
@@ -97,16 +98,16 @@
     const needPhone = J.mode === "needPhone" || INFO.joinPhone; // the organizer asked guests to give a mobile number, or the link was already opened elsewhere
     return `${brandStrip()}<div class="zhead"><b>Corporate Bingo</b></div>
     <div class="zcard zform zjoin"><h2>Join the game</h2>
-    <ol class="zsteps" aria-label="How to join"><li><b>1</b><span>Tick the boxes</span></li><li><b>2</b><span>${personal ? "Press the button" : "Type your name"}</span></li><li><b>3</b><span>${personal ? "Watch your card" : "Get your card"}</span></li></ol>
+    <ol class="zsteps" aria-label="How to join"><li><b>1</b><span>Tick the boxes</span></li><li><b>2</b><span>${personal ? "Press the button" : (INFO.verify || "mobile") === "id" ? "Type your ID" : "Type your name"}</span></li><li><b>3</b><span>${personal ? "Watch your card" : "Get your card"}</span></li></ol>
     <p class="zgoalline" style="margin:0 0 6px">A card fills up as numbers are called. Complete a pattern to win a prize. No need to shout Bingo: the software checks every card.</p>${INVITE_FROM ? `<div class="zbanner ok" style="margin:0 0 8px">A colleague invited you. Join with your name to get your own card.</div>` : ""}
     ${J.mode === "needPhone" ? `<div class="zbanner info" role="status" style="margin:0 0 8px">${J.note ? esc(J.note) : "This link was already opened on another phone. Please type your mobile number to get your card."}</div>` : ""}
     ${DEMO ? "" : CBConsent.html("K4")}
     ${personal ? `<p class="zsmall" style="margin:0 0 6px">Your personal link is ready. Press the button to get your card.</p>` : ""}
-    ${personal ? "" : `<label for="nm">Your name</label><input id="nm" autocomplete="name" maxlength="60" value="${esc(J.name)}">`}
+    ${personal || (INFO.verify || "mobile") === "id" ? "" : `<label for="nm">Your name</label><input id="nm" autocomplete="name" maxlength="60" value="${esc(J.name)}">`}
     ${joinWho(personal, needPhone)}
     ${msg ? `<div class="zbanner bad" role="alert">${esc(msg)}</div>` : ""}
-    <button class="zbtn" id="go" ${DEMO ? "" : 'data-needs="K4" disabled aria-disabled="true"'}>Get my card</button>
-    <p class="zsmall">We use your name for your card and, if you win, to hand over your prize. Your organizer sees it. Other players do not.</p>
+    <button class="zbtn" id="go" ${DEMO ? "" : 'data-needs="K4" disabled aria-disabled="true"'}>${(INFO.verify || "mobile") === "id" && !personal ? "Join the game" : "Get my card"}</button>
+    <p class="zsmall">${(INFO.verify || "mobile") === "id" ? "What is typed here is deleted within 24 hours after the game. Your organizer sees it. Other players do not." : "We use your name for your card and, if you win, to hand over your prize. Your organizer sees it. Other players do not."}</p>
     <p class="spriv">Players are 18 or older. Playing is free: you never pay, and no prize money is held or paid by us.</p>
     <p class="spriv"><a href="/privacy.html" target="_blank" rel="noopener">Privacy Policy</a></p></div>`;
   };
@@ -661,7 +662,7 @@
     if (INFO.dns) { if (timer) { clearInterval(timer); timer = null; } clearInterval(J.timer); mediaHost.style.display = "none"; $app.innerHTML = dnsView(); window.__cbzOff = v.phase === "boot"; paintBrand(); return; } // a game that did not start: one calm screen, nobody can join or pay
     if (v.phase === "missing" || v.phase === "boot") { $app.innerHTML = (INFO.brand || v.phase === "boot" ? brandStrip() : "") + `<p class="zmsg">${esc(v.phase === "boot" && !navigator.onLine ? "No connection right now. Your card is safe on this phone. This page opens the game by itself when you are back online." : v.error || "Loading…")}</p>`; paintBrand(); return; }
     if (INFO.cancelled) { if (timer) { clearInterval(timer); timer = null; } clearInterval(J.timer); mediaHost.style.display = "none"; $app.innerHTML = cancelledView(); paintBrand(); return; } // a cancelled game: one calm screen, nothing else
-    if (v.phase === "join") { const f = document.getElementById("ph") || document.getElementById("nm"); if (f && document.activeElement === f) return; $app.innerHTML = joinView(J.mode ? null : v.error); paintBrand(); bindJoin(); return; }
+    if (v.phase === "join") { const f = document.getElementById("ph") || document.getElementById("nm") || document.getElementById("emp"); if (f && document.activeElement === f) return; $app.innerHTML = joinView(J.mode ? null : v.error); paintBrand(); bindJoin(); return; }
     if (ME.removed) { if (timer) { clearInterval(timer); timer = null; } mediaHost.style.display = "none"; $app.innerHTML = removedView(); paintBrand(); return; } // taken off the list: the phone stops
     const fresh = syncPrizes(v); reportToStore(v); loadCf(v); pollMe(v);
     { const af = document.activeElement; if (af && (af.id === "cfnm" || af.id === "cfph" || af.id === "mi-name" || af.id === "mi-phone")) return; } // never wipe a form someone is typing in
@@ -692,9 +693,11 @@
       if (window.TBAudio) TBAudio.unlock();
       const ph = document.getElementById("ph"), nm = document.getElementById("nm"), em = document.getElementById("emp");
       J.phone = ph ? ph.value : J.phone; J.emp = em ? em.value.trim() : J.emp; J.name = nm ? nm.value.trim() : J.name;
+      if ((INFO.verify || "mobile") === "id" && !personal0() && !J.emp) { rt.error = "Please type your ID."; go.disabled = false; paint(); return; } // the ID game asks for the ID and nothing else
       await doJoin(); // shows the card screen at once on success: the first tick may take a few seconds on a slow network
     };
   }
+  const personal0 = () => !!TOKEN && J.mode !== "needPhone";
   async function loop() { try { await rt.tick(); } catch { /* the loop must never die */ } paint(); }
   function start() { if (timer) return; loop(); timer = setInterval(loop, 1000); }
 

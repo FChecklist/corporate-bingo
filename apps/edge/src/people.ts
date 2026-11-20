@@ -406,7 +406,7 @@ async function removePerson(c: Ctx, who: Caller, id: string, b: any): Promise<Re
   await batched(db, stmts);
   if (c.started) await refreshBlocked(db, c.eid);
   if (who.kind === "host") { // a Host's removal tells the Organizer (the people are not named: the Organizer sees them in the console)
-    try { const to = await c.orgEmail(); if (to) await c.sendMail(to, `A Host removed ${targets.length === 1 ? "someone" : targets.length + " people"} from ${c.gameName}`, `${(await labelsOf(c))(who.id)} removed ${targets.length === 1 ? "one person" : targets.length + " people"} from ${c.gameName} at ${c.istTime(c.now)}.\n\nYou can see who in your console, under My people.`); } catch { /* a mail is a nudge, never a requirement */ }
+    try { const to = await c.orgEmail(); if (to) await c.sendMail(to, `A Host removed ${targets.length === 1 ? "someone" : targets.length + " people"} from ${c.gameName}`, `${(await labelsOf(c))(who.id)} removed ${targets.length === 1 ? "one person" : targets.length + " people"} from ${c.gameName} at ${c.istTime(c.now)}.\n\nYou can see who in your console, under Your people.`); } catch { /* a mail is a nudge, never a requirement */ }
   }
   return c.json({ ok: true, removed: targets.length, during: c.started });
 }
@@ -462,7 +462,7 @@ async function myOwnSeat(c: Ctx, who: Caller, b: any): Promise<Response> {
   const ph = await phoneHashOf(c.env, digits);
   const label = await labelsOf(c);
   let row = await db.prepare(`SELECT ${PERSON_COLS} FROM person WHERE eid=? AND ph=?`).bind(c.eid, ph).first<PersonRow>();
-  if (row && row.status === "removed") return c.json({ error: "That number was removed from this game. Add it back from My people first." }, 409);
+  if (row && row.status === "removed") return c.json({ error: "That number was removed from this game. Add it back from Your people first." }, 409);
   if (!row) {
     if (!(await c.spend(2))) return c.busy();
     const token = newToken(), up = who.kind === "organizer" ? "o" : (await db.prepare("SELECT created_by FROM organizer_key WHERE org=? AND substr(hash,1,7)=? AND revoked=0").bind(c.e.org, c.keyId7).first<{ created_by: string | null }>())?.created_by ?? "o";
