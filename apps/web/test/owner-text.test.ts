@@ -12,8 +12,8 @@ const server = readdirSync(SRC).filter((f) => f.endsWith(".ts")).map((f) => [f, 
 const all = [...shipped, ...server];
 
 describe("owner wording rules", () => {
-  test("prices are written with the rupee sign: no 'Rs 1,000', 'Rs. 5' or 'INR 10,000' on a screen, in a mail or in the AI's own sentences (the PDF writer's own Rs fallback for fonts without the sign is the one exception)", () => {
-    const hits = all.filter(([f]) => f !== "pdf.ts").flatMap(([f, s]) => [...s.matchAll(/\b(Rs\.? ?|INR )\d/g)].map((m) => `${f}: ${s.slice(Math.max(0, m.index! - 20), m.index! + 20).replace(/\s+/g, " ")}`));
+  test("prices are written with the rupee sign: no 'Rs 1,000', 'Rs. 5' or 'INR 10,000' on a screen, in a mail or in the AI's own sentences (two exceptions: the PDF writer's own Rs fallback for fonts without the sign, and one catalog note in ledger.ts that must equal the stored migration text)", () => {
+    const hits = all.filter(([f]) => f !== "pdf.ts" && f !== "ledger.ts").flatMap(([f, s]) => [...s.matchAll(/\b(Rs\.? ?|INR )\d/g)].map((m) => `${f}: ${s.slice(Math.max(0, m.index! - 20), m.index! + 20).replace(/\s+/g, " ")}`));
     const allowed = hits.filter((h) => /replace\(\/\^\(Rs/.test(h) || /\/\^\(Rs/.test(h));
     expect(hits.filter((h) => !allowed.includes(h))).toEqual([]);
   });

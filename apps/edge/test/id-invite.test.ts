@@ -3,11 +3,12 @@
 // (within 24 hours after the game ends). Real Worker code against an in-memory D1.
 // FALSIFIED BY: idinvite-dash-differs, idinvite-space-differs, idinvite-slash-differs, idinvite-unlisted-joins-straight-in, idinvite-log-shows-name, idinvite-erase-keeps-ids, idinvite-legacy-locked-out
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { HOUR, T, W, call, callRaw, create, dev, j, keyH, one, organizer, publish, q, reset, restore, uid } from "./param-harness";
+import { HOUR, T, W, call, callRaw, create, dev, j, one, organizer, publish, q, reset, restore, uid } from "./param-harness";
 import { EMP_LEGACY_BEFORE_MS, cleanEmpId, legacyEmpFor, normEmpFor } from "../src/empid";
 import { empHashOf } from "../src/people";
 import { erasePersonal, lifecycleTick, endBoundMs, PURGE_AFTER_MS } from "../src/lifecycle";
 
+const kh = (k: string): Record<string, string> => ({ "x-organizer": k });
 beforeEach(() => reset());
 afterEach(restore);
 
@@ -16,10 +17,10 @@ async function idGame(over: Record<string, unknown> = {}, settings: Record<strin
   const o = await organizer(), id = uid("ID");
   expect((await create(o.key, id, { cap: 20, whoCanJoin: "list", ...over })).status).toBe(200);
   expect((await publish(o.key, id)).status).toBe(200);
-  expect((await call("PATCH", `/api/z/${id}/settings`, { verify: "id", ...settings }, keyH(o.key))).status).toBe(200);
+  expect((await call("PATCH", `/api/z/${id}/settings`, { verify: "id", ...settings }, kh(o.key))).status).toBe(200);
   return { ...o, id };
 }
-const add = (g: { key: string; id: string }, ids: string[], now = T) => call("POST", `/api/z/${g.id}/people`, { people: ids.map((empId) => ({ empId })) }, keyH(g.key), now);
+const add = (g: { key: string; id: string }, ids: string[], now = T) => call("POST", `/api/z/${g.id}/people`, { people: ids.map((empId) => ({ empId })) }, kh(g.key), now);
 const joinId = (g: { id: string }, empId: string, i: number, now = T) => call("POST", `/api/z/${g.id}/join`, { empId, device: dev(i) }, {}, now);
 const count = (sql: string, ...a: unknown[]) => Number(one(sql, ...a)?.c ?? 0);
 
@@ -72,12 +73,12 @@ describe("an ID that is not on the list waits for a yes", () => {
     const g = await idGame(); await add(g, ["A1101"]);
     const w1 = await joinId(g, "Z 9001", 1), w2 = await joinId(g, "Z-9002", 2);
     expect(w1.status).toBe(403); expect((await j(w1)).code).toBe("waiting"); expect(w2.status).toBe(403);
-    const list = await j(await call("GET", `/api/z/${g.id}/waiting`, undefined, keyH(g.key)));
+    const list = await j(await call("GET", `/api/z/${g.id}/waiting`, undefined, kh(g.key)));
     expect(list.waiting.map((x: any) => x.empId).sort()).toEqual(["Z9001", "Z9002"]);
     expect(list.waiting.every((x: any) => !String(x.firstName || "").trim() && !x.last4)).toBe(true); // no name, no number
     const [a, b] = list.waiting;
-    expect((await call("POST", `/api/z/${g.id}/waiting/${a.id}`, { decision: "admit" }, keyH(g.key))).status).toBe(200);
-    expect((await call("POST", `/api/z/${g.id}/waiting/${b.id}`, { decision: "decline" }, keyH(g.key))).status).toBe(200);
+    expect((await call("POST", `/api/z/${g.id}/waiting/${a.id}`, { decision: "admit" }, kh(g.key))).status).toBe(200);
+    expect((await call("POST", `/api/z/${g.id}/waiting/${b.id}`, { decision: "decline" }, kh(g.key))).status).toBe(200);
     expect(count("SELECT COUNT(*) AS c FROM person WHERE eid=? AND role IS NULL", g.id)).toBe(2); // A1101 and the one let in
     const again = await joinId(g, a.empId === "Z9001" ? "z/9001" : "Z.9002", a.empId === "Z9001" ? 1 : 2);
     expect(again.status).toBe(200); // the one who was let in comes in, whichever way the ID is written
@@ -98,9 +99,9 @@ describe("the invite and approval log", () => {
   test("lists who asked, through what, what was decided and by whom; only the ID, never a name or a number", async () => {
     const g = await idGame(); await add(g, ["L1"]);
     await joinId(g, "L-2", 1); await joinId(g, "L 3", 2);
-    const [x, y] = (await j(await call("GET", `/api/z/${g.id}/waiting`, undefined, keyH(g.key)))).waiting;
-    await call("POST", `/api/z/${g.id}/waiting/${x.id}`, { decision: "admit" }, keyH(g.key)); await call("POST", `/api/z/${g.id}/waiting/${y.id}`, { decision: "decline" }, keyH(g.key), T + 1000);
-    const r = await call("GET", `/api/z/${g.id}/people/log`, undefined, keyH(g.key), T + 2000); expect(r.status).toBe(200);
+    const [x, y] = (await j(await call("GET", `/api/z/${g.id}/waiting`, undefined, kh(g.key)))).waiting;
+    await call("POST", `/api/z/${g.id}/waiting/${x.id}`, { decision: "admit" }, kh(g.key)); await call("POST", `/api/z/${g.id}/waiting/${y.id}`, { decision: "decline" }, kh(g.key), T + 1000);
+    const r = await call("GET", `/api/z/${g.id}/people/log`, undefined, kh(g.key), T + 2000); expect(r.status).toBe(200);
     const log = (await j(r)).log as any[];
     const kinds = (id: string) => log.filter((e) => e.id === id).map((e) => e.kind).sort();
     expect(kinds("L1")).toEqual(["listed"]);
@@ -113,17 +114,17 @@ describe("the invite and approval log", () => {
     const g = await idGame();
     expect([401, 403, 404]).toContain((await call("GET", `/api/z/${g.id}/people/log`)).status);
     expect([401, 403, 404]).toContain((await call("GET", `/api/z/${g.id}/people/log`, undefined, { "x-organizer": "cbk_" + "0".repeat(48) })).status);
-    const co = await j(await call("POST", "/api/org/cohost", { eid: g.id, name: "Rita", phone: "9812345678" }, keyH(g.key)));
-    if (co.key) expect([401, 403, 404]).toContain((await call("GET", `/api/z/${g.id}/people/log`, undefined, keyH(co.key))).status);
+    const co = await j(await call("POST", "/api/org/cohost", { eid: g.id, name: "Rita", phone: "9812345678" }, kh(g.key)));
+    if (co.key) expect([401, 403, 404]).toContain((await call("GET", `/api/z/${g.id}/people/log`, undefined, kh(co.key))).status);
   });
 });
 
 describe("family invite: each listed person may invite 1 to 10, the default is 4", () => {
   test("4 is the default; 10 is allowed; 11 is refused", async () => {
     const g = await idGame();
-    const set = async (per: number) => (await call("PATCH", `/api/z/${g.id}/settings`, { invites: { on: true, per, cats: ["family", "colleagues"] } }, keyH(g.key))).status;
+    const set = async (per: number) => (await call("PATCH", `/api/z/${g.id}/settings`, { invites: { on: true, per, cats: ["family", "colleagues"] } }, kh(g.key))).status;
     expect(await set(4)).toBe(200); expect(await set(10)).toBe(200); expect(await set(11)).toBeGreaterThanOrEqual(400);
-    const fresh = await idGame(); const s = await j(await call("PATCH", `/api/z/${fresh.id}/settings`, { invites: { on: true } }, keyH(fresh.key)));
+    const fresh = await idGame(); const s = await j(await call("PATCH", `/api/z/${fresh.id}/settings`, { invites: { on: true } }, kh(fresh.key)));
     expect((s.invites ?? s.cfg?.invites)?.per ?? 4).toBe(4);
   });
 });
@@ -137,7 +138,7 @@ describe("the list, every ID and the log are erased with the players' data (with
     await erasePersonal(W.env as any, g.id, T + 86_400_000, "test");
     for (const t of ["person", "waiting", "seat", "participant"]) expect([t, count(`SELECT COUNT(*) AS c FROM ${t} WHERE eid=?`, g.id)]).toEqual([t, 0]);
     expect(count("SELECT COUNT(*) AS c FROM kv WHERE k LIKE ? OR k LIKE ?", `idx/${g.id}/%`, `idmiss/${g.id}/%`)).toBe(0);
-    const log = (await j(await call("GET", `/api/z/${g.id}/people/log`, undefined, keyH(g.key), T + 86_400_000))).log as any[];
+    const log = (await j(await call("GET", `/api/z/${g.id}/people/log`, undefined, kh(g.key), T + 86_400_000))).log as any[];
     expect(log.length).toBe(0);
     expect(q("SELECT k FROM kv").map((r: any) => r.k).filter((k: string) => /^(idx|idmiss)\//.test(k) && k.includes(g.id))).toEqual([]);
   });
