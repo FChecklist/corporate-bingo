@@ -1,0 +1,9 @@
+bun test v1.4.4 (38afee6c8)
+
+apps/edge/test/pay.test.ts:
+central order unreachable Error: down
+
+ 624 pass
+ 0 fail
+ 3679 expect() calls
+Ran 624 tests across 20 files. [25.91s]
