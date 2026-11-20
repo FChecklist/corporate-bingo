@@ -10,6 +10,12 @@ const TEXT = new Set([".html", ".js", ".mjs", ".css", ".json", ".txt", ".xml", "
 const EVERYWHERE = /COUNSEL|\[●\]|legal(ly)?\s+(review|pending|sign-?off)|review\s+pending|pending\s+(legal|review|approval)|awaiting\s+(legal|counsel|lawyer|approval|review)|\blawyer\b|\badvocate\b|owner'?s?\s+(told|instruction|order|directive|decision)|\bTODO\b|\bFIXME\b|under review|not yet (reviewed|approved)|Shobha/i;
 const LEGAL_PAGES = ["terms", "legal", "privacy", "refund-policy", "about", "contact", "pricing", "partner-terms", "subprocessors", "dpa", "legal-position"].map((n) => n + ".html");
 const DRAFT = /\bdraft\b/i;
+// The vendored organizer pack (apps/web/public/pack, copied byte for byte from the console repo) uses "todo" as a CSS class name for the "Ready check" card (.zf-ready.todo); it is never shown.
+// Only that exact class text is exempt, in those two files: any other note in them, or in any other file, still fails.
+const PACK_CLASS: Record<string, RegExp> = {
+  "apps/web/public/pack/zc-flow.css": /\.zf-ready\.todo/g,
+  "apps/web/public/pack/zc-flow.js": /\(ok \? "ok" : "todo"\)/g,
+};
 
 function* walk(dir: string): Generator<string> {
   for (const n of readdirSync(dir)) {
@@ -28,9 +34,10 @@ describe("no internal notes in anything that is shipped", () => {
     let files = 0;
     for (const dir of SHIPPED) for (const f of walk(dir)) {
       files++;
-      const s = readFileSync(f, "utf8");
+      const rel = relative(ROOT, f);
+      const s = readFileSync(f, "utf8").replace(PACK_CLASS[rel] ?? /(?!)/g, "");
       const m = s.match(EVERYWHERE);
-      if (m) hits.push(`${relative(ROOT, f)}: ${m[0]}`);
+      if (m) hits.push(`${rel}: ${m[0]}`);
     }
     expect(files).toBeGreaterThan(50);
     expect(hits).toEqual([]);
