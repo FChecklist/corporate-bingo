@@ -49,7 +49,7 @@ describe("the dedicated mail builders", () => {
     expect(h).toContain(`${ORIGIN}/ai/${KEY}`); // but the text is in the box, to copy
     for (const t of ["ChatGPT", "Claude", "Gemini", "Grok", "DeepSeek", "z.ai"]) { expect(m.text).toContain(t); expect(h).toContain(t); }
     expect(m.text).toMatch(/1\. Copy the box/); expect(m.text).toMatch(/2\. Paste it into any AI chat/); expect(m.text).toMatch(/3\. Answer its questions/); expect(m.text).toMatch(/does the work/);
-    for (const t of [/payment/, /publishing/, /erasing/, /pause or stop/, /Replace my AI link/, /stops at once/]) { expect(m.text).toMatch(t); expect(h).toMatch(t); }
+    for (const t of [/payment/, /publishing/, /erasing/, /pause or stop/, /Replace your AI link/, /stops at once/]) { expect(m.text).toMatch(t); expect(h).toMatch(t); }
     expect(m.text.split(KEY).length).toBe(2); expect(h.split(KEY).length).toBe(2); // the key appears once, inside the paste
     expect(m.text).toContain("MY OWN Corporate Bingo account");
   });
@@ -118,7 +118,7 @@ describe("the AI link is in the dedicated mails and nowhere else", () => {
   });
 });
 
-describe("Replace my AI link", () => {
+describe("Replace your AI link", () => {
   test("the signed-in organizer replaces it: the old link answers 404 at once, the new one works, the new link is e-mailed, and the call is audited", async () => {
     const o = await organizer();
     expect((await call("GET", `/ai/${o.ai}`)).status).toBe(200);

@@ -411,7 +411,7 @@
     return `<div class="zc-roles">${only ? all[only] : all.organizer + all.host + all.cohost}</div>`;
   }
   const coLimit = () => Number((S.sum && S.sum.coHostLimit) || 100);
-  const EMAIL_RULE = "Guests and Co-hosts need only a name and a mobile number. No e-mail is needed. Only the Organizer and Hosts have an e-mail.";
+  const emailRule = () => (idGame() ? "Guests need only an ID. No name, mobile number or e-mail address is needed. Only the Organizer and Hosts have an e-mail." : "Guests and Co-hosts need only a name and a mobile number. No e-mail is needed. Only the Organizer and Hosts have an e-mail.");
   const maskPhone = (v) => { const t = String(v || ""); if (/[^0-9\s+\-]/.test(t)) return t; const d = t.replace(/\D/g, ""); return d.length > 4 ? "XXXXXX" + d.slice(-4) : t; };
   function teamRow(p, kind) {
     const link = S.teamLinks[p.id], canRetire = kind === "host" ? isOrg() : canRun();
@@ -432,7 +432,7 @@
     h += `<span class="zc-lbl zc-sec">Your Co-hosts: ${co.length} (no limit)</span>` + co.map((p) => teamRow(p, "cohost")).join("");
     h += `<div class="zc-inline"><label class="zc-sr" for="cohostlabel">Name of the new Co-host</label><input id="cohostlabel" value="${esc((S.tv || {}).cohostlabel || "")}" class="zc-in" maxlength="40" placeholder="Name" autocomplete="off" required><label class="zc-sr" for="cohostphone">Mobile number of the new Co-host</label><input id="cohostphone" value="${esc((S.tv || {}).cohostphone || "")}" class="zc-in" inputmode="tel" placeholder="Mobile number, 415 555 0132" autocomplete="off" required><button type="button" class="zc-btn zc-btn-s" id="cohostadd">Add a Co-host</button></div>`;
     if (isOrg()) h += `<span class="zc-lbl" id="gl-cohl">Each Co-host can add up to</span><div class="zc-chips" role="group" aria-labelledby="gl-cohl">${[10, 50, 100, 250, 500, 1000].map((n) => `<button type="button" class="zc-chip${coLimit() === n ? " on" : ""}" data-cohl="${n}" aria-pressed="${coLimit() === n}">${n} people</button>`).join("")}</div>${small("This is for each Co-host. You can change it any time.")}`;
-    h += `<p class="zc-small" id="emailrule">${EMAIL_RULE}</p>`;
+    h += `<p class="zc-small" id="emailrule">${emailRule()}</p>`;
     return h + small("Send it to that one person only.") + cont(5);
   }
 
@@ -604,22 +604,31 @@
   }
   const guestTools = () => (!canRun() ? "" : `<h4>A guest's own data</h4>${small("A player asks to see or delete their data? Enter their mobile number, or their card number if they joined with a name. Only you can do this.")}<div class="zc-inline"><label class="zc-sr" for="pdph">Their mobile number or card number</label><input id="pdph" class="zc-in" inputmode="tel" autocomplete="off" placeholder="415 555 0132"><button type="button" class="zc-mini" id="pdsee">Show what we hold</button><button type="button" class="zc-mini zc-danger" id="pddel">Delete their data</button></div>
       <h4>Change of phone</h4>${small("A card plays on one phone only. If someone lost or changed their phone, enter their mobile number (or their card number): the next phone they join with keeps their card.")}<div class="zc-inline"><label class="zc-sr" for="ubph">Their mobile number or card number</label><input id="ubph" class="zc-in" inputmode="tel" autocomplete="off" placeholder="415 555 0132"><button type="button" class="zc-mini" id="unbind">Let them move to a new phone</button></div>`);
+  /** The invite and approval log: every ID that was listed, asked, was let in or declined, and who said so. Only the ID is shown. Only the organizer and hosts can read it (the server refuses anybody else). */
+  const LOG_KIND = { asked: "asked to join", "let in": "was let in", declined: "was declined", listed: "was added to the list", joined: "joined", "request ran out": "asked, and the request ran out" };
+  function inviteLogBox() {
+    const P = S.pp, rows = (P.log || []).map((e) => `<div class="zc-small zc-nomargin">${esc(e.id || "")} ${esc(LOG_KIND[e.kind] || e.kind)}${e.through ? " through " + esc(e.through) : ""}${e.by ? ", let in or declined by " + esc(e.by) : ""}${e.ms ? " &middot; " + esc(dmy(e.ms)) : ""}</div>`).join("");
+    return `<div class="zc-box" id="invitelogrows"><b class="zc-bt">Invite log</b>${P.logErr ? `<p class="zc-small zc-warnt" role="status">${esc(P.logErr)}</p>` : rows || small("Nothing yet.")}</div>`;
+  }
+  async function loadInviteLog() { const P = S.pp; try { const r = await call("GET", `/api/z/${eid}/people/log`); P.log = r.log || []; P.logErr = ""; } catch (e) { P.logErr = friendly(e); } }
   function peopleBlock() {
     if (S.shield) return `<div class="zc-block" id="shieldnote"><h3>Guest names and numbers are hidden</h3>${small("AI helper mode is on, so this page does not show or take any guest's name or mobile number: the people list, looking up a guest, moving a card to a new phone and the report. Switch off \"Your AI works in your web browser\" (in the AI Assistant box) to use them yourself.")}</div>`;
     const P = S.pp, list = P.list;
     let h = `<div class="zc-block" id="mypeople"><h3>Your people</h3>`;
-    if (list === null) return h + (P.err ? `<p class="zc-small zc-warnt" id="ppnote" role="status">${esc(P.err)}</p>` : small("Loading…")) + `<p class="zc-small" id="emailrule2">${EMAIL_RULE}</p>${guestTools()}</div>`;
+    if (list === null) return h + (P.err ? `<p class="zc-small zc-warnt" id="ppnote" role="status">${esc(P.err)}</p>` : small("Loading…")) + `<p class="zc-small" id="emailrule2">${emailRule()}</p>${guestTools()}</div>`;
     const live = list.filter((p) => stLabel(p.status) !== "Removed"), full = !!P.limit && live.length >= P.limit;
     h += `<p class="zc-small"><b id="gcount">${live.length}</b> ${live.length === 1 ? "person is" : "people are"} on your list${P.limit ? ` (up to ${P.limit})` : ""}.</p>`;
-    if (canRun()) h += small(`Who can join: <b>${whoNow() === "anyone" ? "Anyone with the link" : "Only people on a list"}</b>. You can change this in step 2 until the game starts.`);
+    if (idGame()) h += ID_INVITE();
+    else if (canRun()) h += small(`Who can join: <b>${whoNow() === "anyone" ? "Anyone with the link" : "Only people on a list"}</b>. You can change this in step 2 until the game starts.`);
     h += waitingPanel();
     h += full ? small(`You have reached your limit of ${P.limit} people. Remove someone to add another.`) : addBox();
     if (P.sum) h += `<p class="zc-small" id="cleansum" role="status"><b>${esc(P.sum)}</b></p>`;
     if (P.wrong.length) h += `<div class="zc-box" id="wronglist"><b class="zc-bt">These look wrong. Fix the number and add them.</b>${P.wrong.map((w, i) => `<div class="zc-inline"><span>${esc(w.name || "No name")}${w.why ? ` <span class="zc-small zc-nomargin">${esc(w.why)}</span>` : ""}</span><label class="zc-sr" for="fixin${i}">Mobile number for ${esc(w.name || "this person")}</label><input id="fixin${i}" class="zc-in" inputmode="tel" value="${esc(w.raw)}"><button type="button" class="zc-mini" data-fix="${i}">Fix and add</button></div>`).join("")}</div>`;
     h += list.map(personRow).join("") + (list.length ? "" : small("Nobody yet. Add your first person above."));
-    h += `<div class="zc-chips zc-gap"><button type="button" class="zc-mini" id="copycommon">Copy common link</button>${P.canExport ? `<button type="button" class="zc-mini" id="dlpeople">Download your list</button>` : ""}</div>`;
-    h += small("The common link is for groups. The person types their own mobile number. A personal link is made for one person only.");
-    h += `${small("Names and numbers stay here: your AI never sees them.")}<p class="zc-small" id="emailrule2">${EMAIL_RULE}</p>`;
+    h += `<div class="zc-chips zc-gap"><button type="button" class="zc-mini" id="copycommon">${idGame() ? "Copy the game link" : "Copy common link"}</button>${P.canExport ? `<button type="button" class="zc-mini" id="dlpeople">Download your list</button>` : ""}${idGame() && canRun() ? `<button type="button" class="zc-mini" id="logtoggle" aria-expanded="${!!P.logOpen}">${P.logOpen ? "Hide the invite log" : "Show the invite log"}</button>` : ""}</div>`;
+    if (idGame() && canRun() && P.logOpen) h += inviteLogBox();
+    h += small(idGame() ? "The game link is the same for everyone. Each person types their ID. A personal link is made for one person only." : "The common link is for groups. The person types their own mobile number. A personal link is made for one person only.");
+    h += `${small(idGame() ? "The IDs stay here: your AI never sees them." : "Names and numbers stay here: your AI never sees them.")}<p class="zc-small" id="emailrule2">${emailRule()}</p>`;
     h += guestTools();
     return h + `</div>`;
   }
@@ -905,7 +914,7 @@
   // "About this step": a short, always-visible write-up under each talking line (docs/ROLES_AND_CONSOLE_SPEC_4.md, A). At most 5 short lines each.
   const ABOUT = {
     1: ["This is the basics. Pick the occasion, the day and the time.", "Times are in your own time zone, as your device shows it.", "Guests can join before the start. The first number comes 2 minutes after the start.", "You can change all this until the game starts."],
-    2: ["Pick the biggest crowd you expect. Or type your own number. You see the price when you pay. Choose 'Demo game, 10 people, Rs 0' for a real game with nothing to pay.", "Who can join: \"Only people on a list\" keeps it private, and people not on a list wait for you to let them in.", "\"Anyone with the link\" lets people in at once.", "Cards, marking, speed and rounds can stay as they are. Guests type just their name to join.", "Each guest can invite family or colleagues if you switch it on."],
+    2: ["Pick the biggest crowd you expect. Or type your own number. You see the price when you pay. Choose 'Demo game, 10 people, Rs 0' for a real game with nothing to pay.", "Everyone joins with just an ID. People on your list get in at once, and people who are not on it wait for you to say yes or no.", "Cards, marking, speed and rounds can stay as they are.", "Each person you invite can bring family or friends if you switch it on."],
     3: ["Tick the prizes you will give: Line, Four Corners, X, Blackout and more. Pick what each one is.", "\"Decide later\" is fine. You can still publish and choose before the game starts.", "\"No prize\" shows on the card as \"No prize\".", "You give the prizes. We provide the software.", "The software picks the winners. Nobody can change them, not even us."],
     4: ["Show your message, video or audio in the game.", "You get 5 moments for each card: before the game, during it and at the end. A lucky draw is also a moment.", "Press \"Test it\" before you publish.", "Use a YouTube link, or a direct link to a video or audio file.", "Add your company name, a colour and a small logo for the top of the card. The logo also sits in the FREE square. Press \"See what guests see\" to check it."],
     5: ["A Host runs the game with you. A Host needs a name, a mobile number and an e-mail.", "A Co-host invites people and can pay. A Co-host needs a name and a mobile number only.", "Guests need a name only (a mobile number too if you chose that).", "Send each private link to one person only.", "Each Co-host can add up to 100 people unless you change it below."],
@@ -1521,6 +1530,7 @@
     all("[data-cc]", (b) => (b.onclick = () => { CC.v = b.dataset.cc; ls.set("cbz-cc", CC.v); redraw(); }));
     if ($("copy")) $("copy").onclick = async () => { const ok = await copyText(role() === "cohost" ? cohInvite() : guestLink()); $("copy").textContent = ok ? "Copied" : "Select and copy it"; };
     if ($("copybig")) $("copybig").onclick = async () => { const ok = await copyText(bigLink()); $("copybig").textContent = ok ? "Copied" : "Select and copy it"; };
+    if ($("logtoggle")) $("logtoggle").onclick = async () => { const P = S.pp; P.logOpen = !P.logOpen; if (P.logOpen) await loadInviteLog(); redraw(); };
     if ($("gadd")) $("gadd").onclick = () => { const n = $("gname").value.trim(), p = $("gphone").value.trim(), e = ($("gemp") || {}).value || ""; addPeople(p || n || e.trim() ? [{ name: n, phone: p, empId: e }] : []); };
     if ($("gtemplate")) $("gtemplate").onclick = () => { const vm = vmode(), head = vm === "mobile" ? "Name,Mobile" : vm === "id" ? "Name,Mobile (optional),Employee ID" : "Name,Mobile,Employee ID", ex = vm === "mobile" ? ["Asha Rao,98765 43210", "Ravi Shah,98765 43211"] : vm === "id" ? ["Asha Rao,,E101", "Ravi Shah,98765 43211,E102"] : ["Asha Rao,98765 43210,E101", "Ravi Shah,98765 43211,E102"]; const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["\uFEFF" + [head].concat(ex).join("\r\n") + "\r\n"], { type: "text/csv" })); a.download = "people-sheet.csv"; document.body.appendChild(a); a.click(); a.remove(); };
     if ($("gpdf")) $("gpdf").onchange = async () => { const f = $("gpdf").files && $("gpdf").files[0]; if (!f) return; S.pdfRows = null; S.pdfNote = "Reading your PDF…"; redraw(); try { const rows = parseList(await pdfText(f)); S.pdfRows = rows.filter((r) => r.phone || r.empId); S.pdfNote = S.pdfRows.length ? "" : "We could not find any names and numbers in this PDF. Please save it from Excel (File, Save as, PDF), not as a photo or a scan."; } catch (e) { S.pdfNote = (e && e.message) || "We could not read this PDF. Please save it again from Excel, or paste the list instead."; } redraw(); };
@@ -1544,7 +1554,7 @@
     }));
     all("[data-decide]", (b) => (b.onclick = async () => {
       const id = b.dataset.wid, d = b.dataset.decide, w = (S.pp.waiting || []).find((x) => String(x.id) === id);
-      try { await call("POST", `/api/z/${eid}/waiting/${encodeURIComponent(id)}`, { decision: d }); if (w) S.pp.decided.unshift({ name: firstName(w.firstName || w.name), last4: last4Of(w), empId: w.empId || "", decision: d, by: "you", ms: Date.now() }); S.pp.sum = d === "admit" ? "Let in." : "Declined."; } catch (e) { S.pp.sum = friendly(e); }
+      try { await call("POST", `/api/z/${eid}/waiting/${encodeURIComponent(id)}`, { decision: d }); if (w) S.pp.decided.unshift({ name: firstName(w.firstName || w.name), last4: last4Of(w), empId: w.empId || "", decision: d, by: "you", ms: Date.now() }); S.pp.sum = d === "admit" ? "Let in." : "Declined."; if (S.pp.logOpen) await loadInviteLog(); } catch (e) { S.pp.sum = friendly(e); }
       await loadPeople(); redraw();
     }));
     if ($("brandlogo")) $("brandlogo").onchange = async () => {
