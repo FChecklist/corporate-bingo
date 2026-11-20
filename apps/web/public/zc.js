@@ -1027,6 +1027,7 @@
   const waitLinkView0 = () => frame(`<div class="zc-body"><div class="zc-main"><div class="zc-block"><p style="margin:0">Open the link your ${role() === "cohost" ? "Organizer or Host" : "Organizer"} sent you. It opens the game directly.</p></div>${S.note ? `<div class="zc-toast" role="status">${esc(S.note)}</div>` : ""}</div></div>`, false);
   const partnerView = () => frame(`<div class="zc-body"><div class="zc-main"><div class="zc-block"><h3>Your partner area</h3><p>Your partner screens are on their own page.</p><a class="zc-btn zc-btn-s" href="/partner.html">Open your partner area</a></div></div></div>`, false);
   function loginView(msg) {
+    if (S.loginAt) return `<div class="zc-frame zc-login"><header class="zc-bar"><span class="zc-brand"><img src="/icon-192.png" alt="" width="22" height="22"> <b>Corporate Bingo</b></span></header><div class="zc-main"><div class="zc-eyebrow">Organizer console</div><h2>Please sign in at home</h2><p class="zc-lead">There is one place to sign in. After that you work in your console, and you do not need to come back to this page.</p><div class="zc-chips zc-gap"><a class="zc-btn" id="gohome" href="${esc(S.loginAt.home)}">Go to the home page</a><a class="zc-btn zc-btn-alt" id="goconsole" href="${esc(S.loginAt.console)}">Open your console</a></div></div></div>`; // while the sign-in lives at home (LOGIN_VIA_CONSOLE), this game has no sign-in of its own
     return `<div class="zc-frame zc-login"><header class="zc-bar"><span class="zc-brand"><img src="/icon-192.png" alt="" width="22" height="22"> <b>Corporate Bingo</b></span></header><div class="zc-main">
       <div class="zc-eyebrow">Organizer console</div>
       <h2>${NEWDEMO ? "Start your demo game" : NEWGAME ? "Create a new game as an organizer" : "Sign in to your console"}</h2>
@@ -1078,7 +1079,7 @@
   }
 
   // ---------- Phase 4: "Continue with Google" and the Host's Finish setup (docs/ROLES_AND_CONSOLE_SPEC_4.md, C) ----------
-  async function loadAuthConfig() { return; /* e-mail is the only way in */ try { const r = await fetch(BASE + "/api/auth/config").then((x) => (x.ok ? x.json() : null)); S.gcid = (r && (r.google || r.clientId)) || ""; } catch { S.gcid = ""; } if (S.gcid) redraw(); }
+  async function loadAuthConfig() { try { const c = await fetch(BASE + "/api/auth/config").then((x) => (x.ok ? x.json() : null)); S.loginAt = (c && c.loginAt) || null; if (S.loginAt && !secret) redraw(); } catch { S.loginAt = null; } return; /* e-mail is the only way in */ try { const r = await fetch(BASE + "/api/auth/config").then((x) => (x.ok ? x.json() : null)); S.gcid = (r && (r.google || r.clientId)) || ""; } catch { S.gcid = ""; } if (S.gcid) redraw(); }
   /** Draws Google's own button into #gbtn. The Google script is loaded only on a screen that shows the button. */
   function mountGoogle(intent) {
     const holder = document.getElementById("gbtn"); if (!holder || !S.gcid || holder.dataset.done === S.gcid + intent) return;

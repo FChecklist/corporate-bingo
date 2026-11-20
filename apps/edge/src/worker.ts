@@ -38,7 +38,7 @@ import { PARTNER_SCHEMA, partnerRoute } from "./partners";
 import { HELPDESK_SCHEMA, HELPER_MANUAL_NOTE, helpdeskCloseStatements, helpdeskRoute, helpdeskSweep, isDeskKeyId, isHelperKey, noteHelperGame } from "./helpdesk";
 import { legacyEmpFor, badIdMessage } from "./empid";
 import { normEmp, empHashOf, verifyOf, keptPhone, phoneDigits, cleanName as cleanPersonName, PEOPLE_SCHEMA, COHOST_FROM, HOST_FROM, ORG_FROM, COHOST_LIMIT_DEFAULT, COHOST_LIMIT_MIN, COHOST_LIMIT_MAX, WAITING_MAX, addWaiting, chainOf, cleanPhone, fromCodeOf, inviterOf, joinLinkPage, limitOfInviter, listCount, parseFrom, peopleRoute, personByEmpId, personByPhone, personByToken, srcOf, waitingWho, type PersonRow } from "./people";
-import { consolePaidRoute, legacyPayGate, loginGate, type ConsoleEnv } from "./console-pay";
+import { consolePaidRoute, consoleOrigin, homeOrigin, legacyPayGate, loginGate, type ConsoleEnv } from "./console-pay";
 import { PAYLINK_SCHEMA, PAYLINK_TOKEN, createPayLink, packFor } from "./paylink";
 import { HOST_LINK_TTL_MS, HOST_SCHEMA, confirmHostEmail, emailHashOf, hostForEmail, hostKeyStatus, hostSetupRoute, hostStateRow, identityRow, maskEmail, maskMobile, mintDeviceKey, retireHost } from "./hostsetup";
 import { googleClientId, verifyGoogleCredential } from "./google";
@@ -877,7 +877,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     }
     return json({ ok: true, ...(devCode ? { devCode, devToken } : {}) });
   }
-  if (req.method === "GET" && p === "/api/auth/config") return json({ google: googleClientId(env) }); // the public Google client id, or null: the pages show "Continue with Google" only when it is there
+  if (req.method === "GET" && p === "/api/auth/config") return json({ google: googleClientId(env), ...(env as ConsoleEnv).LOGIN_VIA_CONSOLE === "1" ? { loginAt: { home: homeOrigin(env as ConsoleEnv) + "/", console: consoleOrigin(env as ConsoleEnv) + "/" } } : {} }); // the public Google client id, or null: the pages show "Continue with Google" only when it is there
   if (req.method === "POST" && p === "/api/auth/google") { // "Continue with Google": proves the e-mail with Google, then does exactly what the e-mail code does (google.ts, hostsetup.ts)
     if (!googleClientId(env)) return json({ error: "Not found" }, 404);
     const b = await body(req, 8192);
