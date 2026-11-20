@@ -17,7 +17,7 @@ const j = async (r: Response) => (await r.json()) as any;
 const rd = (f: string) => readFileSync(new URL("../../web/public/" + f, import.meta.url), "utf8");
 const rows = () => raw.prepare("SELECT org, version, via, at_ms FROM organizer_terms ORDER BY at_ms, via").all() as { org: string; version: string; via: string; at_ms: number }[];
 beforeEach(() => { const d = makeD1(); raw = d.raw; env = { DB: d.db, ORGANIZER_SECRET: "plat", DAILY_WRITE_BUDGET: "100000", PUBLIC_ORIGIN: "https://bingo.test", DATA_KEY: "k", TEST_MODE: "1" }; });
-const LINKS = ["/terms.html", "/legal-position.html", "/dpa.html", "/subprocessors.html", "/organizer-guide.html"]; // the uniform footer (games-ops/footer/ufooter.py) links these documents; the partner terms are linked from the Refer and earn page
+const LINKS = ["/terms", "/legal-position", "/dpa", "/subprocessors", "/guide"]; // the footer of every page links these documents (clean addresses); the partner terms are linked from the Refer and earn page
 const LEGAL_PAGES = ["terms.html", "legal.html", "refund-policy.html", "about.html", "contact.html", "pricing.html", "partner-terms.html", "subprocessors.html", "dpa.html", "legal-position.html"];
 
 describe("the document pages", () => {
@@ -27,11 +27,10 @@ describe("the document pages", () => {
     "dpa.html": ["controller", "processor", "All player data is deleted within 24 hours", "365 days", "without undue delay", "/subprocessors.html"],
     "subprocessors.html": ["Cloudflare", "Resend", "Razorpay", "Google", "drand", "YouTube"],
     "partner-terms.html": ["independent partner", "No spam", "Tax may be deducted at source", "You are responsible for your own taxes", "No payment from the buyer, no commission"],
-    "organizer-guide.html": ["Never ask for a fee", "Players are 18 or older", "INR 10,000", "tax deducted at source", "Check your state", "The game does not begin until it is paid for"],
   };
   for (const [f, needles] of Object.entries(DOCS)) test(`${f}: brand header and footer, title pattern, the right statements, no tick box on the page itself`, () => {
     const h = rd(f);
-    expect(h).toMatch(/<title>[^<]+ \| Corporate Bingo<\/title>/); expect(h).toContain('class="legaltop"'); expect(h).toContain('<footer class="uf"'); expect(h).toContain('rel="icon"');
+    expect(h).toMatch(/<title>[^<]+ \| Corporate Bingo<\/title>/); expect(h).toContain('class="ck-top"'); expect(h).toContain('<footer class="ck-foot"'); expect(h).toContain('rel="icon"');
     for (const n of needles) expect(h).toContain(n);
     expect(h).not.toMatch(/type="checkbox"/i);
     expect(h).not.toMatch(/\bcompliant\b|certified by/i);
@@ -46,21 +45,21 @@ describe("the document pages", () => {
     for (const k of ["K1", "K2", "K3", "K4", "K5", "K6"]) for (const t of Object.values(agreed[k]) as string[]) expect([k, h.includes(esc(t))]).toEqual([k, true]);
   });
   test("the pages are named in the footer of every page that has a legal footer, in the sitemap, and in the build", () => {
-    for (const f of LEGAL_PAGES) expect([f, rd(f).includes('<a href="/legal-position.html">Legal position</a>')]).toEqual([f, true]);
+    for (const f of LEGAL_PAGES) expect([f, rd(f).includes('<a href="/legal-position">Legal position</a>')]).toEqual([f, true]);
     for (const f of ["index.html", "legal.html"]) for (const l of LINKS) expect(rd(f)).toContain(`href="${l}"`);
-    expect(rd("partner.html")).toContain('href="/partner-terms.html"');
+    expect(rd("partner.html")).toContain('href="/partner-terms');
     const b = readFileSync(new URL("../../../pages/build.mjs", import.meta.url), "utf8");
-    for (const n of ["terms", "legal-position", "dpa", "subprocessors", "partner-terms", "organizer-guide"]) { expect(b).toContain(`"${n}.html"`); expect(b).toContain(`["/${n}", PLAINCSP`); expect(rd("sitemap.xml")).toContain(`/${n}.html`); }
+    for (const n of ["terms", "legal-position", "dpa", "subprocessors", "partner-terms"]) { expect(b).toContain(`"${n}.html"`); expect(b).toContain(`["/${n}", PLAINCSP`); expect(rd("sitemap.xml")).toContain(`/${n}`); }
     expect(b).toContain('"consent.js"');
   });
   test("the public website pages describe Bingo only: no words of the game this product was copied from, and the software-only line is on the key pages", () => {
-    const files = ["index.html", "pricing.html", "about.html", "contact.html", "legal.html", "terms.html", "legal-position.html", "refund-policy.html", "dpa.html", "subprocessors.html", "partner.html", "partner-terms.html", "organizer-guide.html", "brochure.html", "404.html", "site.js"];
+    const files = ["index.html", "pricing.html", "about.html", "contact.html", "legal.html", "terms.html", "legal-position.html", "refund-policy.html", "dpa.html", "subprocessors.html", "partner.html", "partner-terms.html", "guide.html", "brochure.html", "404.html", "site.js"];
     for (const f of files) {
-      let t = rd(f).replace(/<footer class="uf"[\s\S]*?<\/footer>/, "").replace(/corporatetambola\.com/g, "").replace(/i-ticket|ic\("ticket"\)/g, ""); // the uniform footer links the sister games on purpose
+      let t = rd(f).replace(/<svg[^>]*aria-hidden[\s\S]*?<\/svg>/g, "").replace(/<footer class="ck-foot"[\s\S]*?<\/footer>/, "").replace(/corporatetambola\.com/g, "").replace(/i-ticket|ic\("ticket"\)/g, ""); // the uniform footer links the sister games on purpose
       if (f === "terms.html" || f === "legal-position.html") t = t.replace(/lottery tickets?|purchase of a ticket|purchasing tickets|purchases any ticket|selling of tickets|sells no ticket|game card\/board or ticket|ticket or chance|a ticket/gi, ""); // the legal text names the thing it says nobody buys
       expect([f, /tambola|housie|early five|full house|top line|\bIST\b|90 numbers|\bticket/i.test(t)]).toEqual([f, false]);
     }
-    for (const f of ["index.html", "organizer-guide.html"]) expect([f, /we never hold or pay prize money|we never hold prizes/i.test(rd(f))]).toEqual([f, true]);
+    for (const f of ["index.html", "guide.html"]) expect([f, /we never hold or pay prize money|we never hold prizes/i.test(rd(f))]).toEqual([f, true]);
     expect(rd("terms.html")).toMatch(/We do not hold, take or give any money or prize/);
   });
   test("the legal pages carry no draft or review language", () => {

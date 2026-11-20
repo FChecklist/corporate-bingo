@@ -1,0 +1,9 @@
+bun install v1.4.4 (38afee6c8)
+
++ @types/bun@1.4.2
++ axe-core@4.14.0
++ happy-dom@20.14.6
++ playwright-core@1.64.0
++ typescript@5.9.3
+
+17 packages installed [30.00ms]

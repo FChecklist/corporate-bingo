@@ -259,6 +259,6 @@ export interface RankRow { rank: number; pid: string; pattern: PatternKey; ordin
 export function rankWinners(engagementId: string, cfg: EngagementCfg, settled: readonly Settled[], n = 10): RankRow[] {
   const valueOf = (s: Settled) => { const i = cfg.rewards.findIndex((l) => l.pattern === s.pattern && l.ordinal === s.ordinal); return i < 0 ? 1e9 : i; };
   const rows = [...settled].filter((s) => s.pids.length > 0).sort((a, b) => valueOf(a) - valueOf(b) || a.idx - b.idx || (fateOf(engagementId, a.pids[0]!, a.pattern, a.ordinal) < fateOf(engagementId, b.pids[0]!, b.pattern, b.ordinal) ? -1 : 1));
-  return rows.slice(0, Math.max(0, n)).map((s, i) => ({ rank: i + 1, pid: s.pids[0]!, pattern: s.pattern, ordinal: s.ordinal, idx: s.idx, text: cfg.rewards.find((l) => l.pattern === s.pattern && l.ordinal === s.ordinal)?.text ?? "", note: s.tied && s.tied > 1 ? `${s.tied} guests completed it on the same call; decided by fate` : "" }));
+  return rows.slice(0, Math.max(0, n)).map((s, i) => ({ rank: i + 1, pid: s.pids[0]!, pattern: s.pattern, ordinal: s.ordinal, idx: s.idx, text: cfg.rewards.find((l) => l.pattern === s.pattern && l.ordinal === s.ordinal)?.text ?? "", note: s.tied && s.tied > 1 ? `${s.tied} cards completed it on the same number; a fixed public rule put them in order` : "" }));
 }
 export const rankName = (r: number): string => ["", "1st", "2nd", "3rd"][r] ?? `${r}th`;

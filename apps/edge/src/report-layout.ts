@@ -1,4 +1,4 @@
-// The engagement report the organizer receives by e-mail: one PDF with everything we hold about the game and its people, and a plain statement of what
+// The game report the organizer receives by e-mail: one PDF with everything we hold about the game and its people, and a plain statement of what
 // is deleted and when. This file only lays data out; it knows nothing about the database (see lifecycle.ts for where the data comes from).
 import { BRAND } from "./brand";
 import { GOLD, NAVY, PdfDoc, WHITE, type Column } from "./pdf";
@@ -44,27 +44,27 @@ const who = (w: { name: string | null; phone: string | null }) => `${w.name || "
 
 export function layoutReport(d: ReportData): Uint8Array {
   const pdf = new PdfDoc();
-  pdf.footer = `Corporate Bingo  |  Engagement ${d.engagementId}  |  sent ${istFull(d.sentAtMs, d.tz)}`;
+  pdf.footer = `Corporate Bingo  |  Game ${d.engagementId}  |  sent ${istFull(d.sentAtMs, d.tz)}`;
 
   // ---- title band
   pdf.rect(0, pdf.H, pdf.W, 92, NAVY); pdf.rect(0, pdf.H - 92, pdf.W, 3, GOLD);
   if (d.logoPix) pdf.logo(d.logoPix, pdf.W - pdf.M - 64, pdf.H - 14, 64, 64); // the organizer's logo, on a white tile at the right of the band
   pdf.y = pdf.H - 28;
   pdf.para(d.brand && d.brand.name ? `${d.brand.name} | Corporate Bingo` : "Corporate Bingo", { font: "F2", size: 11, color: GOLD, gap: 2 });
-  pdf.para("Complete engagement report", { font: "F2", size: 22, color: WHITE, gap: 2 });
-  pdf.para(`Engagement ${d.engagementId}   |   ${d.people.length} people   |   ${d.prizes.reduce((n, p) => n + p.winners.length, 0)} prize wins`, { size: 9.5, color: WHITE });
+  pdf.para("Complete game report", { font: "F2", size: 22, color: WHITE, gap: 2 });
+  pdf.para(`Game ${d.engagementId}   |   ${d.people.length} people   |   ${d.prizes.reduce((n, p) => n + p.winners.length, 0)} prize wins`, { size: 9.5, color: WHITE });
   pdf.y = pdf.H - 92 - 16;
 
   pdf.box("Sent to you", [
     `E-mail address: ${d.organizerEmail}`,
     `Sent on: ${istFull(d.sentAtMs, d.tz)}  (${utcFull(d.sentAtMs)})`,
-    "This PDF is the complete record of your engagement, including the names and mobile numbers of everyone who took part. Please keep it safe: it is the only copy of this data that exists once we delete ours.",
+    "This PDF is the complete record of your game, including the names and mobile numbers of everyone who took part. Please keep it safe: it is the only copy of this data that exists once we delete ours.",
   ], [0.93, 0.96, 1], NAVY);
 
   pdf.box("What we keep, and what we delete", [
-    `We have given you ALL the data we hold about the people in this engagement. Within 24 hours of the game ending, and no later than ${istFull(d.personalDeleteAtMs, d.tz)}, we permanently delete from our systems every participant's name, mobile number, join record, card assignment and invite link record. After that nobody at Corporate Bingo, and nothing in our software or database, holds them.`,
+    `We have given you ALL the data we hold about the people in this game. Within 24 hours of the game ending, and no later than ${istFull(d.personalDeleteAtMs, d.tz)}, we permanently delete from our systems every participant's name, mobile number, join record, card assignment and invite link record. After that nobody at Corporate Bingo, and nothing in our software or database, holds them.`,
     "We keep, for 365 days, only: (1) the details of the organizer, host and co-hosts (name, e-mail, mobile number); (2) the winners record: which prize, which round, at what time, and the card seat number; and (3) the name (and mobile number, if given) each winner confirmed for the prize hand-over, with the date it was given. The winners record itself holds no names or numbers.",
-    `Everything about this engagement, including those two records, is permanently deleted at 00:00 hours (IST) on ${istDate(d.fullDeleteAtMs)}, which is the end of the 365th day. We keep billing data for audit and tax reasons.`,
+    `Everything about this game, including those two records, is permanently deleted at 00:00 hours (IST) on ${istDate(d.fullDeleteAtMs)}, which is the end of the 365th day. We keep billing data for audit and tax reasons.`,
     "For your next game you can reuse the people list until it is deleted (the reuse button in your console), or upload your own list again afterwards from this report.",
   ]);
 
@@ -106,7 +106,7 @@ export function layoutReport(d: ReportData): Uint8Array {
     const flat = d.prizes.flatMap((p) => p.winners.map((w) => ({ p, w })));
     if (flat.length) {
       pdf.h2("Ranking: top winners");
-      const rows = flat.slice(0, 10).map((x, i) => { const tied = flat.some((y) => y !== x && base(y.p.label) === base(x.p.label) && y.w.callNo !== null && y.w.callNo === x.w.callNo); return [String(i + 1), x.p.label, x.w.seat === null ? "-" : String(x.w.seat), x.w.name || "(no name)", x.w.callNo === null ? "-" : String(x.w.callNo), tied ? "tied on the same call; decided by fate" : ""]; });
+      const rows = flat.slice(0, 10).map((x, i) => { const tied = flat.some((y) => y !== x && base(y.p.label) === base(x.p.label) && y.w.callNo !== null && y.w.callNo === x.w.callNo); return [String(i + 1), x.p.label, x.w.seat === null ? "-" : String(x.w.seat), x.w.name || "(no name)", x.w.callNo === null ? "-" : String(x.w.callNo), tied ? "same number as another card; order set by a fixed public rule" : ""]; });
       pdf.table([{ head: "Rank", width: 5, align: "r" }, { head: "Prize", width: 17 }, { head: "Seat", width: 5, align: "r" }, { head: "Name", width: 18 }, { head: "At call", width: 7, align: "r" }, { head: "How decided", width: 24 }], rows);
     }
   }
@@ -148,7 +148,7 @@ export function layoutReport(d: ReportData): Uint8Array {
 
   pdf.h1("8. Our commitment to your data");
   pdf.box("All of it is deleted. Here is exactly what, and when.", [
-    `1. Everything about the people in this engagement (every name, mobile number, seat, join record and invite record) is permanently deleted from our systems within 24 hours of the game ending, and no later than ${istFull(d.personalDeleteAtMs, d.tz)}. You have all of it in this report; after that we hold none of it.`,
+    `1. Everything about the people in this game (every name, mobile number, seat, join record and invite record) is permanently deleted from our systems within 24 hours of the game ending, and no later than ${istFull(d.personalDeleteAtMs, d.tz)}. You have all of it in this report; after that we hold none of it.`,
     "2. We keep only these, for 365 days: the details of the organizer, host and co-hosts (name, e-mail address and mobile number), the winners record (which prize, which round, at what time, which seat number), and the name (and mobile number, if given) each winner confirmed for the prize hand-over. The winners record itself has no names and no mobile numbers.",
     `3. At 00:00 hours IST on ${istDate(d.fullDeleteAtMs)}, the end of the 365th day, everything else is permanently deleted too. We keep billing data for audit and tax reasons.`,
     "4. Names and mobile numbers are stored encrypted while we hold them, and only your own game's report is ever built from them.",
@@ -208,11 +208,11 @@ function listSection(pdf: PdfDoc, people: ReportPerson[], tz?: string) {
 /** One of the extra PDFs of a big game: the invite tree and the list for up to 1,500 people. */
 export function layoutPeoplePart(d: ReportData, people: ReportPerson[], k: number, n: number): Uint8Array {
   const pdf = new PdfDoc();
-  pdf.footer = `Corporate Bingo  |  Engagement ${d.engagementId}  |  people part ${k} of ${n}  |  sent ${istFull(d.sentAtMs, d.tz)}`;
+  pdf.footer = `Corporate Bingo  |  Game ${d.engagementId}  |  people part ${k} of ${n}  |  sent ${istFull(d.sentAtMs, d.tz)}`;
   pdf.rect(0, pdf.H, pdf.W, 70, NAVY); pdf.rect(0, pdf.H - 70, pdf.W, 3, GOLD);
   pdf.y = pdf.H - 26;
   pdf.para("Corporate Bingo", { font: "F2", size: 11, color: GOLD, gap: 2 });
-  pdf.para(`People, part ${k} of ${n}  |  Engagement ${d.engagementId}`, { font: "F2", size: 16, color: WHITE });
+  pdf.para(`People, part ${k} of ${n}  |  Game ${d.engagementId}`, { font: "F2", size: 16, color: WHITE });
   pdf.y = pdf.H - 70 - 14;
   pdf.box("Sent to you", [`E-mail address: ${d.organizerEmail}`, `Sent on: ${istFull(d.sentAtMs, d.tz)}  (${utcFull(d.sentAtMs)})`, `All data about the people is deleted from our systems by ${istFull(d.personalDeleteAtMs, d.tz)}. Keep these PDFs safe: they are the only copy.`], [0.93, 0.96, 1], NAVY);
   treeSection(pdf, people); listSection(pdf, people, d.tz);

@@ -29,6 +29,7 @@ Where things are set:
 | `RAZORPAY_INTERNATIONAL` | "1" once international cards are enabled in Razorpay | Optional Pages variable | setting |
 | `PAY_SERVICE_KEY` | Key for the central payment ledger service (orders and figures are reported there) | Pages secret | secret |
 | `PAY_SERVICE_URL` | Address of the central payment ledger service | Optional Pages variable | setting |
+| `ONLY_12S` | New games use one speed, 12 seconds; older games keep theirs | wrangler var | setting |
 | `PAY_SITE` | The name this site goes by in the central ledger | Optional Pages variable | setting |
 | `PAY_HOP_URL` | The payment page on the website registered with Razorpay | wrangler var | setting |
 | `PUBLIC_ORIGIN` | The public web address of this site (links in mails, payment return) | wrangler var | setting |
