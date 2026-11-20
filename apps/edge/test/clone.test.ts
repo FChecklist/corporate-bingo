@@ -145,6 +145,15 @@ describe("what the new game is", () => {
   });
 });
 
+/** Sealed text is "v1.<nonce>.<ciphertext>" in base64: random letters, so it must never be judged by looking for a name in it. */
+const isSealed = (x: unknown) => typeof x === "string" && /^v1\.[A-Za-z0-9+/=]+\.[A-Za-z0-9+/=]+$/.test(x);
+describe("the sealed-text check used by the tests below", () => {
+  test("a sealed text that happens to contain a name's letters is still sealed; a plain JSON name is not", () => {
+    expect(isSealed("v1.AAAA.xxDevxxAshaxxBen==")).toBe(true);
+    expect(isSealed('{"name":"Asha","phone":"9876543210"}')).toBe(false);
+    expect(isSealed(null)).toBe(false);
+  });
+});
 describe("bring my people list", () => {
   test("the listed and the joined people come along as new un-joined invitations with NEW personal links; the old links stay with the old game", async () => {
     const t = await world();
@@ -158,7 +167,8 @@ describe("bring my people list", () => {
     expect(rows).toHaveLength(4); expect(rows.every((x) => x.status === "invited" && x.inviter === "o")).toBe(true);
     expect(rows.every((x) => !old.includes(x.tok_hash))).toBe(true); // different links
     expect(new Set(rows.map((x) => x.tok_hash)).size).toBe(4);
-    expect(JSON.stringify(rows)).not.toMatch(/Ben|Chitra|Asha|Dev|987654/); // still sealed
+    expect(rows.every((x) => isSealed(x.pii))).toBe(true); // still sealed: judged by the form of the stored text, because sealed text is random and by chance can contain letters like "Dev" (about 1 run in 460)
+    expect(JSON.stringify(rows.map((x) => ({ s: x.status, t: x.tok_hash, i: x.inviter })))).not.toMatch(/Ben|Chitra|Asha|Dev|987654/); // and no name or number sits in a plain column
     const list = await j(await call("GET", `/api/z/${b.id}/people`, undefined, t.master));
     expect(list.people.map((x: any) => x.name).sort()).toEqual(["Asha", "Ben", "Chitra", "Dev"]); expect(list.people.every((x: any) => x.link.startsWith("https://bingo.test/j/") && x.status === "invited")).toBe(true);
     expect(count("SELECT COUNT(*) AS c FROM person WHERE eid='OLD-1'")).toBeGreaterThanOrEqual(3); // the old game keeps its own

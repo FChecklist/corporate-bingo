@@ -75,7 +75,7 @@ const timeRows = (ctx: GoCtx, q: URLSearchParams, next: string): [string, string
   return SLOTS.filter((t) => startMsOf(d, t, tz) >= ctx.now + 2 * 3_600_000).map((t) => [timeLabel(t) + " (" + zoneLabel(q) + ")", link(ctx, next, q, { t }), t === "1600"] as [string, string, boolean?]);
 };
 const summaryLines = (q: URLSearchParams): string[] => {
-  const d = q.get("d")!, t = q.get("t")!, o = OCCASIONS[q.get("o") || "other"] ?? OCCASIONS.other!, c = Number(q.get("c")), k = q.get("k") === "2" ? 2 : 1, s = Number(q.get("s")) || 9, r = Number(q.get("r")) || 1;
+  const d = q.get("d")!, t = q.get("t")!, o = OCCASIONS[q.get("o") || "other"] ?? OCCASIONS.other!, c = Number(q.get("c")), k = q.get("k") === "2" ? 2 : 1, s = Number(q.get("s")) || 12, r = Number(q.get("r")) || 1;
   const v = Number(q.get("v")) || 0, j = q.get("j") === "c", p = BUNDLES[q.get("p") || "c"] ?? BUNDLES.c!, x = q.get("x") === "l";
   const pk = packFor(c);
   return [`Game: ${o!.label}`, `Day and time: ${dayLabel(d)}, ${timeLabel(t)} ${zoneLabel(q)} (the first number is called 2 minutes after)`, `People: up to ${c}${pk ? ` (${money(pk)})` : ""}`,
@@ -87,7 +87,7 @@ const consoleOf = (ctx: GoCtx, id: string, act = "") => `${ctx.origin}/zc.html?e
 export async function goScreen(ctx: GoCtx, step: string, q: URLSearchParams): Promise<Screen> {
   const L = (s: string, set: Record<string, string> = {}) => link(ctx, s, q, set);
   switch (step) {
-    case "": case "start": return { say: "Hello! I can set up or manage your Corporate Bingo game with you. What would you like to do?", choices: choices([["Start a new game", `${ctx.base}/go/new`, true], ["Change a game that has not started yet", `${ctx.base}/go/games`], ["Show the links of a game", `${ctx.base}/go/games?then=links`], ["Tell me about the software (is it safe, private, legal?)", `${ctx.base}/facts`], ["Watch the video first", `${ctx.origin}/demo.html`]]), ifWrong: WRONG };
+    case "": case "start": return { say: "Hello! I can set up or manage your Corporate Bingo game with you. What would you like to do?", choices: choices([["Start a new game", `${ctx.base}/go/new`, true], ["Change a game that has not started yet", `${ctx.base}/go/games`], ["Show the links of a game", `${ctx.base}/go/games?then=links`], ["Tell me about the software (is it safe, secure, legal?)", `${ctx.base}/facts`], ["Watch the video first", `${ctx.origin}/demo.html`]]), ifWrong: WRONG };
     case "new":
       if (!zoneKey(q)) return { say: "Which time zone are you in? (The start time is set in it.)", choices: choices(Object.entries(ZONES).map(([k, z]) => [z.label, L("new", { z: k })] as [string, string, boolean?])), ifWrong: WRONG };
       return { say: `Which day is the game? (${zoneLabel(q)})`, choices: choices(dayRows(ctx, q, "time")), ifWrong: WRONG };
@@ -98,7 +98,7 @@ export async function goScreen(ctx: GoCtx, step: string, q: URLSearchParams): Pr
     case "size": return { say: "How many people at most? Choose a little above your headcount (people invited by your guests count too). The price follows the size and is paid only when you are ready, before the start.", choices: choices(PACKS.map(([n]) => [`Up to ${n} people: ${money(n, zoneKey(q) === "in" || !zoneKey(q))}`, L("play", { c: String(n) }), n === 250] as [string, string, boolean?])), ifWrong: WRONG };
     case "play": {
       const k = q.get("k") === "2" ? 2 : 1, j = q.get("j") === "c", v = Number(q.get("v")) || 0;
-      const lines = `Here is how it will play: ${k} card${k === 1 ? "" : "s"} per person, a number every ${Number(q.get("s")) || 9} seconds, ${Number(q.get("r")) || 1} round. ${j ? "Invite-only." : "Open to anyone with the link."} ${v ? `Guests may invite up to ${v} more people each.` : "Guests may not invite others."}`;
+      const lines = `Here is how it will play: ${k} card${k === 1 ? "" : "s"} per person, a number every ${Number(q.get("s")) || 12} seconds, ${Number(q.get("r")) || 1} round. ${j ? "Invite-only." : "Open to anyone with the link."} ${v ? `Guests may invite up to ${v} more people each.` : "Guests may not invite others."}`;
       return { say: `${lines} These are the recommended choices. Change anything, or continue.`, choices: choices([["Looks good, continue", L("prizes"), true], [k === 1 ? "Give each person 2 cards (more chances)" : "Give each person 1 card", L("play", { k: k === 1 ? "2" : "1" })], [j ? "Open to anyone with the link" : "Invite-only (only people on my list)", L("play", { j: j ? "o" : "c" })], [v ? "Guests may not invite others" : "Let each guest invite up to 4 more (family, colleagues)", L("play", { v: v ? "0" : "4" })]]), ifWrong: WRONG };
     }
     case "prizes": return { say: "Which prizes do you want to run? (You give the prizes; we only provide the software. You name each prize afterwards.)", choices: choices(Object.entries(BUNDLES).map(([k, b]) => [b.label, L("extras", { p: k }), k === "c"] as [string, string, boolean?])), ifWrong: WRONG };
@@ -116,7 +116,7 @@ export async function goScreen(ctx: GoCtx, step: string, q: URLSearchParams): Pr
       const base = `${o.code}-${pad(istParts(startMs, tz).mo)}${pad(istParts(startMs, tz).d)}`; let id = base, made: any = null;
       for (let i = 1; i <= 9; i++) {
         id = i === 1 ? base : `${base}-${i}`;
-        const body: any = { id, name: `${o.label}, ${dayLabel(q.get("d")!)}`, startRound: startRoundOf(startMs), tz, callSeconds: Number(q.get("s")) || 9, cap: Number(q.get("c")), tickets: k, rounds: Number(q.get("r")) || 1, rewards, closed: q.get("j") === "c", ...(q.get("x") === "l" ? { breaks: [{ kind: "lucky", title: "Lucky draw", winners: 1, seconds: 60 }] } : {}) };
+        const body: any = { id, name: `${o.label}, ${dayLabel(q.get("d")!)}`, startRound: startRoundOf(startMs), tz, callSeconds: Number(q.get("s")) || 12, cap: Number(q.get("c")), tickets: k, rounds: Number(q.get("r")) || 1, rewards, closed: q.get("j") === "c", ...(q.get("x") === "l" ? { breaks: [{ kind: "lucky", title: "Lucky draw", winners: 1, seconds: 60 }] } : {}) };
         const r = await ctx.api("POST", "z", body);
         if (r.status !== 200) return { say: `I could not save it: ${r.json?.error ?? "something went wrong"}. ${r.json?.next ?? ""}`.trim(), choices: choices([["Open the organizer's console", `${ctx.origin}/zc.html`]]), ifWrong: WRONG };
         if (!r.json.existed) { made = r.json; break; }

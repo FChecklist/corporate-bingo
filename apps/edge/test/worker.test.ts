@@ -437,8 +437,8 @@ describe("organizers, their AI assistant, and what the AI may not do", () => {
     expect((await call("PATCH", "/api/z/MINE1/settings", { startRound: 5 }, asM())).status).toBe(400); // in the past
     expect((await call("PATCH", "/api/z/MINE1/settings", { callSeconds: 15, startRound: FUTURE + 100 }, asM())).status).toBe(200);
     expect(raw.query("SELECT call_seconds, start_round FROM engagement WHERE id='MINE1'").get()).toEqual({ call_seconds: 15, start_round: FUTURE + 100 });
-    await call("POST", "/api/z", { id: "OLDSTART", startRound: 5, callSeconds: 6, cap: 5 }, asM()); // already started long ago
-    expect((await call("PATCH", "/api/z/OLDSTART/settings", { cap: 9 }, asM())).status).toBe(409);
+    await call("POST", "/api/z", { id: "OLDSTART", startRound: 5, callSeconds: 6, cap: 50 }, asM()); // already started long ago (a game of 50: one for 10 or fewer is free and no longer takes the bought pack, so it would be a draft, whose old start time is a different answer)
+    expect((await call("PATCH", "/api/z/OLDSTART/settings", { cap: 40 }, asM())).status).toBe(409);
   });
   test("the limit cannot be set below the people already listed", async () => {
     await call("POST", "/api/z/MINE1/roster", { people: [{ phone: phone(1) }, { phone: phone(2) }, { phone: phone(3) }] }, asM());

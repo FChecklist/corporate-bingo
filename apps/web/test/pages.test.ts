@@ -325,6 +325,30 @@ describe("console (organizer page)", () => {
     q.click('[data-ph="corners"]'); expect(q.$('[data-ck="hs.corners.pt"][data-v="none"]')!.className).toMatch(/\bon\b/); expect(q.$('[data-ck="hs.corners.n"][data-v="2"]')!.className).toMatch(/\bon\b/);
     expect(q.text()).toMatch(/decide later/); expect(p.errors).toEqual([]);
   });
+  test("Speed: a new game starts on 12 seconds (owner 2026-10-27: Bingo gap 12 s), and a game that already has another speed keeps its own", async () => {
+    const o = await organizer();
+    const qk = await page(o, "/zc?quick=1", "zc.html", ZC_SCRIPTS, { "cbz-org": o.token }); await qk.waitFor((x) => /1\. Which game\?/.test(x));
+    const on = (pp: Page, v: string) => /\bon\b/.test(pp.$(`[data-ck="spd"][data-v="${v}"]`)?.className ?? "");
+    expect([on(qk, "12"), on(qk, "9")]).toEqual([true, false]); expect(qk.text()).toMatch(/12 seconds is the usual choice, 9 seconds is livelier/);
+    await o.api("POST", "/api/z", { id: "UI-SPD6", startRound: roundAt(T + 3 * 86_400_000), callSeconds: 6, cap: 100 }, o.aiKey);
+    const p = await consolePage(o, "UI-SPD6"); await p.waitFor((x) => /Hello/.test(x)); openStep(p, 2);
+    expect(on(p, "6")).toBe(true); expect(on(p, "12")).toBe(false); // an older game keeps the 6 it was made with
+  });
+  test("Publish step: the note about prizes left on 'decide later' says WHICH prizes (Tambola rule, owner 2026-10-28), never blocks publishing, and disappears when every prize has words", async () => {
+    const o = await organizer(); await make(o, "UI-BLANK");
+    const note = (p: Page) => (p.text().match(/[^.]*say "decide later"\. You can still publish\./) || [""])[0].replace(/^.*Change/, "").trim();
+    let p = await consolePage(o, "UI-BLANK"); await p.waitFor((x) => /Hello/.test(x)); openStep(p, 7);
+    expect(note(p)).toMatch(/Line, Four Corners, X and Blackout say "decide later"\. You can still publish\./); // all four default prizes are blank
+    expect(p.$("#publishopen")).toBeTruthy(); // the Publish button is there: the note never blocks
+    // Line gets words, Four Corners gets two winners with no words: "1st Four Corners and 2nd Four Corners"
+    const r = await o.api("PATCH", "/api/z/UI-BLANK/settings", { rewards: [{ pattern: "line", ordinal: 1, text: "Gift card: 1000" }, { pattern: "corners", ordinal: 1, text: "" }, { pattern: "corners", ordinal: 2, text: "" }, { pattern: "x", ordinal: 1, text: "No prize" }, { pattern: "blackout", ordinal: 1, text: "Hamper" }] }, o.aiKey); expect(r.status).toBe(200);
+    p = await consolePage(o, "UI-BLANK"); await p.waitFor((x) => /Hello/.test(x)); openStep(p, 7);
+    expect(note(p)).toMatch(/^1st Four Corners and 2nd Four Corners say "decide later"\. You can still publish\.$/);
+    expect(p.text()).not.toMatch(/Line.{0,30}say "decide later"/); // a prize with words, and one set to "No prize", are not listed
+    const r2 = await o.api("PATCH", "/api/z/UI-BLANK/settings", { rewards: [{ pattern: "line", ordinal: 1, text: "Gift card: 1000" }, { pattern: "corners", ordinal: 1, text: "Coffee" }] }, o.aiKey); expect(r2.status).toBe(200);
+    p = await consolePage(o, "UI-BLANK"); await p.waitFor((x) => /Hello/.test(x)); openStep(p, 7);
+    expect(p.text()).not.toMatch(/decide later/); expect(p.errors).toEqual([]);
+  });
   test("Brand moments: four kinds (message, YouTube, video file, audio file) with Test it and a link hint; each is saved as the right kind and read back", async () => {
     const o = await organizer(); await make(o, "UI-BM");
     const p = await consolePage(o, "UI-BM"); await p.waitFor((x) => /Hello/.test(x)); openStep(p, 4);
@@ -1009,7 +1033,7 @@ describe("the console for an AI that works in the browser", () => {
     const o = await organizer(); const p = await quickPage(o); await p.waitFor((x) => /1\. Which game\?/.test(x) && /Up to 250 people/.test(x)); const doc = p.win.document;
     expect((p.$("#qk-date") as any).type).toBe("date"); expect((p.$("#qk-time") as any).type).toBe("time"); // real pickers
     expect(p.text()).not.toMatch(/Rs 2,399\.00/); /* no price while choosing the size */ expect(doc.querySelectorAll("select").length).toBe(0); // prices come from the software's own list
-    const tomorrow = new Date(Date.now() + 5.5 * 3600000 + 2 * 86400000); const d = `${tomorrow.getUTCFullYear()}-${String(tomorrow.getUTCMonth() + 1).padStart(2, "0")}-${String(tomorrow.getUTCDate()).padStart(2, "0")}`;
+    const tomorrow = new Date(T + 5.5 * 3600000 + 2 * 86400000); const d = `${tomorrow.getUTCFullYear()}-${String(tomorrow.getUTCMonth() + 1).padStart(2, "0")}-${String(tomorrow.getUTCDate()).padStart(2, "0")}`;
     set(p, "#qk-name", "Diwali party"); set(p, "#qk-date", d); set(p, "#qk-time", "18:30");
     p.click('[data-ck="cap"][data-v="500"]'); p.click('[data-ck="tix"][data-v="2"]'); p.click('[data-ck="spd"][data-v="12"]'); p.click('[data-ck="join"][data-v="list"]'); p.click('[data-bool="inv"]');
     set(p, "#qk-t-blackout", "Voucher 5000"); p.click('[data-ck="hs.blackout.n"][data-v="2"]');
@@ -1092,7 +1116,7 @@ describe("console round 2 (cancel, confirming, team, e-mail rule, AI switch)", (
     expect((await o.api("POST", "/api/z/UI-MOVE/cancel", { confirmations: 3 }, o.token)).status).toBe(200);
     const p = await consolePage(o, "UI-MOVE"); await p.waitFor((x) => /This game was cancelled/.test(x)); openStep(p, 7);
     expect(p.$("#moveblock")).toBeTruthy(); expect(p.$("#movego")!.textContent).toBe("Move my game to this date"); expect(p.text()).toMatch(/You can move this game to a new date until/); expect(p.text()).toMatch(/Your payment then stays with this game/);
-    const dt = p.$("#movedt") as any; const d = new Date(Date.now() + 5 * 86_400_000); const pad = (n: number) => String(n).padStart(2, "0");
+    const dt = p.$("#movedt") as any; const d = new Date(T + 5 * 86_400_000); const pad = (n: number) => String(n).padStart(2, "0");
     dt.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T10:00`; p.click("#movego");
     await p.waitFor((x) => !/This game was cancelled/.test(x) && /Holi Fun/.test(x)); // the cancelled banner is gone, the game is back
     const row = o.world.raw.prepare("SELECT cancelled_ms, start_round FROM engagement WHERE id='UI-MOVE'").get() as any; expect(row.cancelled_ms).toBeNull(); // read back from the server, not just the message
@@ -1615,7 +1639,7 @@ describe("console: prize houses from the one table (ZG.PRIZE_HOUSES)", () => {
     expect(p.$("#qk-h-letterL")!.closest(".zc-box")!.querySelector(".zc-how")!.textContent).toBe(PRIZE_HOUSES.find((h) => h.id === "letterL")!.how);
     expect(p.win.document.querySelectorAll('[data-ck="hs.blackout.n"]').length).toBe(2); expect(p.win.document.querySelectorAll('[data-ck="hs.line.n"]').length).toBe(3);
     const el = p.$("#qk-h-letterL") as any; el.checked = true; el.dispatchEvent(new p.win.Event("change", { bubbles: true })); setField(p, "#qk-t-letterL", "Mug");
-    const tomorrow = new Date(Date.now() + 5.5 * 3600000 + 2 * 86400000); setField(p, "#qk-date", tomorrow.toISOString().slice(0, 10)); setField(p, "#qk-time", "18:30");
+    const tomorrow = new Date(T + 5.5 * 3600000 + 2 * 86400000); setField(p, "#qk-date", tomorrow.toISOString().slice(0, 10)); setField(p, "#qk-time", "18:30");
     p.click("#qk-save"); await p.waitFor((x) => /Your draft is saved/.test(x), 10000);
     const hist = await o.json(await o.api("GET", "/api/history", undefined, o.aiKey)); const sm = await o.json(await o.api("GET", `/api/z/${hist.engagements[0].id}/summary`, undefined, o.aiKey));
     expect(sm.rewards.find((r: any) => r.pattern === "letterL").text).toBe("Mug");
@@ -1703,7 +1727,7 @@ describe("console: no refunds (credit), games that wait or did not start, 'Creat
     expect(p.$("#newgameread")!.textContent).toMatch(/date and time still to pick/); expect(p.win.document.querySelectorAll("#newgameread [data-open]").length).toBeGreaterThanOrEqual(3); // Change buttons for each part
     expect(p.$("#zcnote")!.textContent).toBe("Your new game is ready to check. Pick the date and time, then publish.");
     p.click('[data-save="1"]'); await p.waitFor((x) => /Pick the day and the time/.test(x)); // the date is never copied, it must be picked
-    p.click('[data-ck="day"][data-v="other"]'); const d = new Date(Date.now() + 5.5 * 3600000 + 3 * 86400000); setField(p, "#f-dayo", d.toISOString().slice(0, 10)); p.click('[data-ck="time"][data-v="18:00"]'); p.click('[data-save="1"]'); await p.waitFor((x) => /Saved\./.test(x));
+    p.click('[data-ck="day"][data-v="other"]'); const d = new Date(T + 5.5 * 3600000 + 3 * 86400000); setField(p, "#f-dayo", d.toISOString().slice(0, 10)); p.click('[data-ck="time"][data-v="18:00"]'); p.click('[data-save="1"]'); await p.waitFor((x) => /Saved\./.test(x));
     expect(p.$("#newgameread")).toBeNull();
     const home = await page(o, "/zc", "zc.html", ZC_SCRIPTS, { "cbz-org": o.token, "cbz-aimsg": o.aiMessage }, { afterLoad: w.hook }); await home.waitFor((x) => /Start a new game/.test(x)); home.click('[data-hist="1"]'); await home.waitFor(() => !!home.$('[data-clonebtn][data-from="UI-OLD1"]'));
     home.click('[data-clonebtn][data-from="UI-OLD1"]'); await home.waitFor(() => !!home.$("#clonepanel")); expect(home.$("#clonepeople")).toBeTruthy();
@@ -1721,9 +1745,9 @@ describe("console: no refunds (credit), games that wait or did not start, 'Creat
   test("Rescheduling: a date more than 30 days ahead is refused politely before anything is sent; the server's own message (a game that has started) is shown as it is", async () => {
     const o = await organizer(); await make(o, "UI-RESC"); const w = spy({ "PATCH /api/z/UI-RESC/settings": () => ({ status: 409, body: { error: "This game has started, so its time cannot be changed." } }) });
     const p = await consolePage(o, "UI-RESC", o.token, {}, { afterLoad: w.hook }); await p.waitFor((x) => /Hello/.test(x));
-    p.click('[data-ck="day"][data-v="other"]'); const far = new Date(Date.now() + 5.5 * 3600000 + 45 * 86400000); setField(p, "#f-dayo", far.toISOString().slice(0, 10)); p.click('[data-ck="time"][data-v="18:00"]'); p.click('[data-save="1"]');
+    p.click('[data-ck="day"][data-v="other"]'); const far = new Date(T + 5.5 * 3600000 + 45 * 86400000); setField(p, "#f-dayo", far.toISOString().slice(0, 10)); p.click('[data-ck="time"][data-v="18:00"]'); p.click('[data-save="1"]');
     await p.waitFor((x) => /at most 30 days from today/.test(x)); expect(w.st.patches.length).toBe(0); expect(p.$("#f-dayo")!.getAttribute("max")).toMatch(/^\d{4}-\d\d-\d\d$/);
-    const near = new Date(Date.now() + 5.5 * 3600000 + 5 * 86400000); setField(p, "#f-dayo", near.toISOString().slice(0, 10)); p.click('[data-save="1"]'); await p.waitFor((x) => /This game has started, so its time cannot be changed\./.test(x));
+    const near = new Date(T + 5.5 * 3600000 + 5 * 86400000); setField(p, "#f-dayo", near.toISOString().slice(0, 10)); p.click('[data-save="1"]'); await p.waitFor((x) => /This game has started, so its time cannot be changed\./.test(x));
   });
 
   test("words: no 'refund' or 'money back' anywhere in the console; the About lines and Help say credit for 365 days", async () => {

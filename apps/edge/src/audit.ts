@@ -41,6 +41,8 @@ const clip = (s: unknown, n: number) => (typeof s === "string" ? s.replace(/[\u0
 
 // ------------------------------------------------------------------------------------------------ what is never written
 const SECRET_KEY = /pass|otp|code|card|cvv|cvc|bank|account_?no|ifsc|iban|secret|token|key|auth|bearer|signature|upi|pan\b|gstin/i;
+/** A guest's or a Co-host's number, ID or label never goes into the log: the log outlives the 20-hour erasure by a year. A name is hidden when it sits next to one of these (a game name does not). */
+const PERSONAL_KEY = /phone|mobile|msisdn|emp(loyee)?_?id|^label$/i;
 /** Copies a body for the log: secret-looking fields become "[redacted]", long text is cut, the roster and big bodies are never copied. */
 export function redact(v: unknown, depth = 0): unknown {
   if (v === null || v === undefined) return v ?? null;
@@ -50,7 +52,8 @@ export function redact(v: unknown, depth = 0): unknown {
   if (Array.isArray(v)) return v.length > 20 ? { count: v.length } : v.map((x) => redact(x, depth + 1));
   if (typeof v === "object") {
     const o: Record<string, unknown> = {};
-    for (const [k, x] of Object.entries(v as Record<string, unknown>).slice(0, 40)) o[k] = SECRET_KEY.test(k) ? "[redacted]" : redact(x, depth + 1);
+    const personal = Object.keys(v as object).some((k) => PERSONAL_KEY.test(k));
+    for (const [k, x] of Object.entries(v as Record<string, unknown>).slice(0, 40)) o[k] = SECRET_KEY.test(k) || PERSONAL_KEY.test(k) || (personal && k === "name") ? "[redacted]" : redact(x, depth + 1);
     return o;
   }
   return "[unsupported]";

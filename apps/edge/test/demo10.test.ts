@@ -33,4 +33,27 @@ describe("10-player demo game at Rs 0", () => {
     expect(pids.has(again.pid)).toBe(true);
     const sum = await j(await call("GET", "/api/z/DEMO-10/summary", undefined, h)); expect(sum.joined ?? sum.participants ?? 10).toBe(10);
   });
+
+  test("the draft of a 10-person game says it costs Rs 0 (it used to quote the 100-person price Rs 2,399), the 11-person draft quotes the 100-person pack", async () => {
+    const s = await j(await call("POST", "/api/start", { email: `demo${++n}@acme.com` }, { "cf-connecting-ip": "10.0.0.8" }));
+    const h = { "x-organizer": s.token as string };
+    for (const [id, cap] of [["DEMO-D10", 10], ["DEMO-D1", 1], ["DEMO-D11", 11]] as const) expect((await call("POST", "/api/z", { id, startRound: START, callSeconds: 12, cap }, h)).status).toBe(200);
+    for (const id of ["DEMO-D10", "DEMO-D1"]) {
+      const sm = await j(await call("GET", `/api/z/${id}/summary`, undefined, h));
+      expect([sm.priceInr, sm.priceUsd, sm.free, sm.paid]).toEqual([0, 0, true, false]); expect(sm.pack).toBe(sm.limit);
+      expect(sm.nextSteps.find((x: any) => /^Pay/.test(x.step)).step).toMatch(/nothing to pay.*Rs 0/);
+    }
+    const big = await j(await call("GET", "/api/z/DEMO-D11/summary", undefined, h));
+    expect([big.pack, big.priceInr, big.free]).toEqual([100, 2399, undefined]); expect(big.nextSteps.find((x: any) => /^Pay/.test(x.step)).step).toBe("Pay (the game does not begin until it is paid)");
+  });
+
+  test("a game bigger than the biggest pack: the summary says to write to us instead of a silent empty price (the console and the checkout say the same)", async () => {
+    const s = await j(await call("POST", "/api/start", { email: `demo${++n}@acme.com` }, { "cf-connecting-ip": "10.0.0.7" }));
+    const h = { "x-organizer": s.token as string };
+    expect((await call("POST", "/api/z", { id: "BIG-20K", startRound: START, callSeconds: 12, cap: 20000 }, h)).status).toBe(200);
+    const sm = await j(await call("GET", "/api/z/BIG-20K/summary", undefined, h));
+    expect([sm.pack, sm.priceInr]).toEqual([null, null]); expect(sm.customNote).toMatch(/write to us.*custom arrangement/);
+    expect((await call("POST", "/api/z", { id: "ORD-100", startRound: START, callSeconds: 12, cap: 100 }, h)).status).toBe(200);
+    const ok = await j(await call("GET", "/api/z/ORD-100/summary", undefined, h)); expect(ok.priceInr).toBe(2399); expect(ok.customNote).toBeUndefined(); // an ordinary size has no such note
+  });
 });
