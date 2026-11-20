@@ -46,6 +46,11 @@ Where things are set:
 | `JOIN_PER_IP_DAY` | Joins one network address may make per day (default in code) | wrangler var | setting |
 | `JOIN_PER_IP_MINUTE` | Joins one network address may make per minute (default in code) | wrangler var | setting |
 | `GOOGLE_CLIENT_ID` | Google sign-in client id (public, not a secret); without it the Google button is off | Optional Pages variable | setting |
+| `CONSOLE_PUBKEYS` | The console's public signing keys ("k1:<key>,k2:<key>", not secret). Without it the console's signed paid notice (/api/console/paid) does not exist. Set only when the owner says go. | Optional Pages variable | setting |
+| `PAY_VIA_CONSOLE` | "1" sends the old pay pages and pay routes of this game to the console (nothing is deleted). Off until the owner says go. | Optional Pages variable | setting |
+| `LOGIN_VIA_CONSOLE` | "1" sends this game's own sign-in page and sign-in routes to home and the console. Off until the owner says go. | Optional Pages variable | setting |
+| `CONSOLE_ORIGIN` | The console's web address (default https://console.corporatetambola.com) | Optional Pages variable | setting |
+| `HOME_ORIGIN` | The home page's web address, the one place to sign in (default https://home.corporatetambola.com) | Optional Pages variable | setting |
 | `CONTROL_R2` | Optional R2 bucket holding the static copy of the pause file | Optional binding | binding |
 | `CONTROL_BASE` | Optional public address of that bucket | Optional Pages variable | setting |
 | `ANALYZE_AI_URL` | Optional chat endpoint the owner's analyze route may send masked totals to | Optional Pages variable | setting |
