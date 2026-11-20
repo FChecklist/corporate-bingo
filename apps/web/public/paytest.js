@@ -1,4 +1,4 @@
-/* Corporate Bingo: Payment testing. A real payment of Rs 1 (India) or US$ 1 (abroad) that buys nothing, so anyone can see that paying and the invoice work. Any number of times. */
+/* Corporate Bingo: Payment testing. A real payment of ₹1 (India) or US$ 1 (abroad) that buys nothing, so anyone can see that paying and the invoice work. Any number of times. */
 (function () {
   const TB = window.TB, esc = TB.esc, $app = document.getElementById("app");
   const S = { k3: {}, country: "IN", pcode: "91", err: "", busy: false, done: null, ...(() => { const v = TB.payer.load(); return { name: v.name || "", email: v.email || "", phone: v.phone || "", org: v.org || "", tax: v.tax || "" }; })() };
@@ -13,7 +13,7 @@
     }
     const cur = S.country === "IN" ? "INR" : "USD", amt = TB.money(1, cur);
     return `${head}<div class="zcard"><h2>Test our payment</h2>
-      <p class="zsmall" style="margin-top:0">This is a real payment of <b>${esc(amt)}</b> (Rs 1 if you are in India, US$ 1 if you are abroad). It buys nothing. You get an invoice, so you can see the whole experience. Anyone can test it, any number of times.</p></div>
+      <p class="zsmall" style="margin-top:0">This is a real payment of <b>${esc(amt)}</b> (₹1 if you are in India, US$ 1 if you are abroad). It buys nothing. You get an invoice, so you can see the whole experience. Anyone can test it, any number of times.</p></div>
       <div class="zcard zform"><h2>Details</h2>
         <label for="nm">Name</label><input id="nm" autocomplete="name" value="${esc(S.name)}" placeholder="Full name">
         <label for="em">Email (your invoice comes here)</label><input id="em" type="email" autocomplete="email" value="${esc(S.email)}" placeholder="Email">

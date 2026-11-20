@@ -148,7 +148,7 @@ export async function retryOutbox(env: PayEnv, now: number): Promise<{ retried: 
   return { retried, dropped: await purgeOutbox(db, now) };
 }
 
-/** The public "Payment Testing" page (Rs 1 / US$ 1, owner order 2026-10-10): a REAL payment that buys nothing. It never touches packs, credit, commission or the real invoice series; the receipt is numbered PAYTEST-<year>-<n> and the row is flagged is_test so it stays out of the owner's reports. */
+/** The public "Payment Testing" page (₹1 / US$ 1, owner order 2026-10-10): a REAL payment that buys nothing. It never touches packs, credit, commission or the real invoice series; the receipt is numbered PAYTEST-<year>-<n> and the row is flagged is_test so it stays out of the owner's reports. */
 async function fulfilPaytest(env: PayEnv, p: any, meta: any, now: number) {
   const db = env.DB;
   const co = company(env), fy = financialYear(new Date(now));
@@ -371,7 +371,7 @@ export async function payRoute(req: Request, env: PayEnv, now: number, spend: (n
     // credit already applied to THIS game (by the Organizer, a Host or a Co-host, before this checkout) reduces what is charged; nothing else about credit is ever shown or used here
     const credited = boundEid ? Math.round((await creditAppliedFor(db, boundEid)) * 100) / 100 : 0;
     const cash = Math.round((full.total - credited) * 100) / 100;
-    if (boundEid && credited > 0 && cash < 1) return json({ error: "Credit already covers this game. Tap Use my credit to finish.", code: "use-credit" }, 409);
+    if (boundEid && credited > 0 && cash < 1) return json({ error: "Credit already covers this game. Tap Use your credit to finish.", code: "use-credit" }, 409);
     const pr = credited > 0 ? { total: cash, base: cur === "INR" ? Math.round((cash / 1.18) * 100) / 100 : cash, tax: cur === "INR" ? Math.round((cash - cash / 1.18) * 100) / 100 : 0 } : full;
     const id = "pay_" + randHex(8);
     await recordConsent(db, { subject: boundOrg ?? id, kind: "K3", ref: id, now });
@@ -396,11 +396,11 @@ export async function payRoute(req: Request, env: PayEnv, now: number, spend: (n
     if (!row || !m.paytest) return json({ error: "Not found" }, 404);
     return row.status === "paid" ? json(JSON.parse(row.result)) : json({ confirming: true }, 202);
   }
-  if (req.method === "POST" && p === "/api/payments/paytest") { // Payment Testing: Rs 1 from India, US$ 1 from abroad; buys nothing; anyone, any number of times
+  if (req.method === "POST" && p === "/api/payments/paytest") { // Payment Testing: ₹1 from India, US$ 1 from abroad; buys nothing; anyone, any number of times
     if (!rzp || (await getMode(env)) === "TEST") return json({ error: "Online payments are not switched on." }, 503);
     const b = await body(req);
     if (!b || typeof b.email !== "string" || !EMAIL.test(b.email.trim())) return json({ error: "Enter a valid e-mail address." }, 400);
-    { const cm = consentMissing(b, "K3"); if (cm) return cm; } // K3: also before the Rs 1 test payment
+    { const cm = consentMissing(b, "K3"); if (cm) return cm; } // K3: also before the ₹1 test payment
     const nm = typeof b.name === "string" ? b.name.trim() : ""; if (nm.length < 2) return json({ error: "Enter your name." }, 400);
     const cty = typeof b.country === "string" && /^[A-Z]{2}$/.test(b.country) ? b.country : "IN", cur = cty === "IN" ? "INR" : "USD";
     if (cur === "USD" && env.RAZORPAY_INTERNATIONAL !== "1") return json({ error: "Payments in US dollars are not switched on yet. Please try again later." }, 400);

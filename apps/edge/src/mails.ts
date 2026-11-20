@@ -42,7 +42,8 @@ function shell(opts: { origin: string; warning: string; title: string; intro: st
 <tr><td style="padding:12px 22px 0;"><div style="font-size:12px;font-weight:700;letter-spacing:.06em;color:#8a4b00;margin-bottom:4px;">WHAT STAYS WITH YOU</div><div style="font-size:14px;line-height:1.5;">${esc(opts.stays)}</div></td></tr>
 <tr><td style="padding:12px 22px 0;"><div style="font-size:12px;font-weight:700;letter-spacing:.06em;color:#555;margin-bottom:4px;">LOST IT?</div><div style="font-size:14px;line-height:1.5;">${esc(opts.replace)}</div></td></tr>
 ${opts.footer ? `<tr><td style="padding:12px 22px 6px;font-size:12px;color:#666;line-height:1.5;">${esc(opts.footer)}</td></tr>` : ""}
-${warn("8px 22px 20px")}`, opts.origin);
+${warn("8px 22px 20px")}
+`, opts.origin);
   return { text, html };
 }
 
@@ -56,12 +57,12 @@ export function aiLinkMail(origin: string, key: string, why: "start" | "replace"
     title: why === "replace" ? "Your NEW personal AI work link" : why === "fresh" ? "Your fresh personal AI work link" : "Your personal AI work link",
     intro: why === "replace" ? "New link below. Every older link stopped at once." : "A free AI assistant can do the work for you.",
     expiry: `THIS LINK WORKS FOR 24 HOURS ONLY (until ${istStamp(expiresMs)}). ${FRESH}`,
-    button: { label: "Show my AI work link", url: `${origin}/ai-link.html`, note: "Sign in with your 6-digit code. It always gives a fresh link." },
+    button: { label: "Show your AI work link", url: `${origin}/ai-link.html`, note: "Sign in with your 6-digit code. It always gives a fresh link." },
     pasteLabel: "COPY THIS BOX",
     paste: aiPaste(origin, key),
     steps: ["Copy the box.", "Paste it into any AI chat: ChatGPT, Claude, Gemini, Grok, DeepSeek, z.ai.", "Answer its questions. It does the work."],
     can: AI_CAN, stays: AI_STAYS,
-    replace: "Press \"Replace my AI link\" in your console. Every AI link stops at once.",
+    replace: "Press \"Replace your AI link\" in your console. Every AI link stops at once.",
     footer: "",
   });
   return { subject: AI_SUBJECT, text, html };
@@ -74,7 +75,7 @@ export function coHostLinkMail(origin: string, key: string, owner: string, expir
     title: "A Host AI work link",
     intro: `For the Corporate Bingo engagements of ${owner}. Watch and announce only. Give it to your Host by pasting the box. Do not forward this email.`,
     expiry: `THIS HOST LINK WORKS FOR 24 HOURS ONLY (until ${istStamp(expiresMs)}).`,
-    button: { label: "Open my console", url: `${origin}/zc.html`, note: "Your lasting Host link is in your console." },
+    button: { label: "Open your console", url: `${origin}/zc.html`, note: "Your lasting Host link is in your console." },
     pasteLabel: "YOUR HOST PASTES THIS INTO AN AI CHAT",
     paste: aiPaste(origin, key).replace("MY OWN Corporate Bingo account. I am the owner,", `the Corporate Bingo account of ${owner}. I am their Host,`),
     steps: ["Copy the box. Give it only to your Host.", "They paste it into any AI chat.", "They ask how the game is going, or to message the guests."],
@@ -94,7 +95,7 @@ export function hostLinkMail(origin: string, key: string, name: string, eid = ""
   const text = [HOST_LINK_WARNING, "", hello, "You have been added as a Host of a Corporate Bingo game.", "As a Host you can look after the game, add Co-hosts and pay. Only the Organizer can change the account.", "", `OPEN MY CONSOLE: ${url}`, "", "This link is only for you. Keep it private. Do not forward it.", "", HOST_LINK_WARNING, "", footerText(origin), ""].join("\n");
   const warn = `<tr><td style="padding:16px 22px 0;"><div style="background:#fdecea;border:2px solid #c0392b;border-radius:8px;padding:12px 14px;color:#b71c1c;font-weight:700;font-size:14px;line-height:1.4;text-align:center;">${esc(HOST_LINK_WARNING)}</div></td></tr>`;
   const html = pageHtml("You are a Host", `${warn}<tr><td style="padding:18px 22px 4px;"><h1 style="margin:0;font-size:24px;line-height:1.25;color:#0B5D5B;">You are a Host</h1><p style="margin:10px 0 0;font-size:15px;line-height:1.5;">${esc(hello)} You have been added as a Host of a Corporate Bingo game. You can look after the game, add Co-hosts and pay. Only the Organizer can change the account.</p></td></tr>
-<tr><td align="center" style="padding:16px 22px 4px;"><a href="${esc(url)}" style="display:inline-block;background:#FFC93C;color:#0B5D5B;font-weight:700;font-size:16px;text-decoration:none;padding:13px 26px;border-radius:8px;">Open my console</a></td></tr>
+<tr><td align="center" style="padding:16px 22px 4px;"><a href="${esc(url)}" style="display:inline-block;background:#FFC93C;color:#0B5D5B;font-weight:700;font-size:16px;text-decoration:none;padding:13px 26px;border-radius:8px;">Open your console</a></td></tr>
 <tr><td style="padding:12px 22px 6px;font-size:13px;color:#666;line-height:1.5;">This link is only for you. Keep it private. Do not forward it.</td></tr>${warn.replace("16px 22px 0", "8px 22px 20px")}`, origin);
   return { subject: HOST_LINK_SUBJECT, text, html };
 }
@@ -108,7 +109,7 @@ export function helpDeskPublishedMail(origin: string, o: { eid: string; hostKey?
   const text = [HOST_LINK_WARNING, "", intro, "", ...(consoleUrl ? [`OPEN MY HOST CONSOLE: ${consoleUrl}`, once, ""] : ["Open your Host console by signing in with your e-mail code.", ""]), `HOST AI LINK FOR THIS GAME (works 24 hours, until ${istStamp(o.expiresMs)}): ${aiUrl}`, "", "These links are only for you. Keep them private. Do not forward them.", "", HOST_LINK_WARNING, "", footerText(origin), ""].join("\n");
   const warn = `<tr><td style="padding:16px 22px 0;"><div style="background:#fdecea;border:2px solid #c0392b;border-radius:8px;padding:12px 14px;color:#b71c1c;font-weight:700;font-size:14px;line-height:1.4;text-align:center;">${esc(HOST_LINK_WARNING)}</div></td></tr>`;
   const html = pageHtml(subject, `${warn}<tr><td style="padding:18px 22px 4px;"><h1 style="margin:0;font-size:24px;line-height:1.25;color:#0B5D5B;">Your game is published</h1><p style="margin:10px 0 0;font-size:15px;line-height:1.5;">${esc(intro)}</p></td></tr>
-${consoleUrl ? `<tr><td align="center" style="padding:16px 22px 4px;"><a href="${esc(consoleUrl)}" style="display:inline-block;background:#FFC93C;color:#0B5D5B;font-weight:700;font-size:16px;text-decoration:none;padding:13px 26px;border-radius:8px;">Open my Host console</a><div style="font-size:12px;color:#666;margin-top:6px;">${esc(once)}</div></td></tr>` : ""}
+${consoleUrl ? `<tr><td align="center" style="padding:16px 22px 4px;"><a href="${esc(consoleUrl)}" style="display:inline-block;background:#FFC93C;color:#0B5D5B;font-weight:700;font-size:16px;text-decoration:none;padding:13px 26px;border-radius:8px;">Open your Host console</a><div style="font-size:12px;color:#666;margin-top:6px;">${esc(once)}</div></td></tr>` : ""}
 <tr><td style="padding:14px 22px 6px;"><div style="font-size:12px;font-weight:700;letter-spacing:.06em;color:#8A5A00;margin-bottom:6px;">HOST AI LINK FOR THIS GAME (WORKS 24 HOURS)</div><div style="background:#FBF6EC;border:2px dashed #FFC93C;border-radius:8px;padding:14px;font-family:Consolas,'Courier New',monospace;font-size:13px;line-height:1.5;color:#111;overflow-wrap:anywhere;text-decoration:none;">${esc(aiUrl)}</div></td></tr>
 <tr><td style="padding:12px 22px 6px;font-size:13px;color:#666;line-height:1.5;">These links are only for you. Keep them private. Do not forward them.</td></tr>${warn.replace("16px 22px 0", "8px 22px 20px")}`, origin);
   return { subject, text, html };
@@ -119,9 +120,9 @@ export function newUseAlertMail(info: { when: string; country: string; program: 
   const text = [
     `Someone new used your ${info.kind} work link`, "",
     `When: ${info.when}`, `Country: ${info.country || "unknown"}`, `Program: ${info.program || "unknown"}`, "",
-    "Not you? Press \"Replace my AI link\" in your console.", "", footerText(info.origin), "",
+    "Not you? Press \"Replace your AI link\" in your console.", "", footerText(info.origin), "",
   ].join("\n");
-  const html = pageHtml("Someone new used your " + info.kind + " work link", `<tr><td style="padding:20px 22px 8px;"><h1 style="font-size:22px;color:#0B5D5B;margin:0 0 8px;">Someone new used your ${esc(info.kind)} work link</h1><p style="font-size:15px;line-height:1.5;margin:0 0 12px;">When: ${esc(info.when)}<br>Country: ${esc(info.country || "unknown")}<br>Program: ${esc(info.program || "unknown")}</p><p style="font-size:15px;line-height:1.5;margin:0;">Not you? Press <b>Replace my AI link</b> in your console.</p></td></tr>`, info.origin);
+  const html = pageHtml("Someone new used your " + info.kind + " work link", `<tr><td style="padding:20px 22px 8px;"><h1 style="font-size:22px;color:#0B5D5B;margin:0 0 8px;">Someone new used your ${esc(info.kind)} work link</h1><p style="font-size:15px;line-height:1.5;margin:0 0 12px;">When: ${esc(info.when)}<br>Country: ${esc(info.country || "unknown")}<br>Program: ${esc(info.program || "unknown")}</p><p style="font-size:15px;line-height:1.5;margin:0;">Not you? Press <b>Replace your AI link</b> in your console.</p></td></tr>`, info.origin);
   return { subject: `Someone new used your ${info.kind} work link`, text, html };
 }
 
@@ -141,7 +142,7 @@ export function signInMail(origin: string, code: string, token: string, linkOver
   const btn = (label: string, url: string) => `<a href="${esc(url)}" style="display:inline-block;background:#E0B872;color:#0B3D91;font-weight:700;font-size:16px;text-decoration:none;padding:12px 22px;border-radius:8px;">${esc(label)}</a>`;
   const html = pageHtml("Sign in to " + BRAND.name, `<tr><td style="padding:20px 22px 4px;"><h1 style="margin:0;font-size:26px;line-height:1.25;color:#0B3D91;">Sign in to Corporate Bingo</h1><p style="margin:10px 0 0;font-size:15px;line-height:1.5;">Do <b>one</b> of these two things. You do not need both.</p></td></tr>
 ${card("1", "Type the 6-digit code", `<p style="margin:0 0 8px;font-size:14px;line-height:1.5;">Go back to the sign-in page, type these 6 numbers in the six boxes and press <b>Submit</b>:</p><div style="font-family:Consolas,'Courier New',monospace;font-size:30px;letter-spacing:.3em;font-weight:700;color:#0B3D91;background:#fff;border:2px dashed #E0B872;border-radius:8px;padding:8px 14px;display:inline-block;">${esc(code)}</div><p style="margin:8px 0 0;font-size:13px;color:#555;">It works for 10 minutes.</p>`)}
-${card("2", "Tap the button", `<p style="margin:0 0 12px;font-size:14px;line-height:1.5;">Tap the button below. You are signed in at once.</p>${btn("Sign me in", link)}<p style="margin:8px 0 0;font-size:13px;color:#555;">It works once, for 10 minutes.</p>`)}
+${card("2", "Tap the button", `<p style="margin:0 0 12px;font-size:14px;line-height:1.5;">Tap the button below. You are signed in at once.</p>${btn("Sign in", link)}<p style="margin:8px 0 0;font-size:13px;color:#555;">It works once, for 10 minutes.</p>`)}
 <tr><td style="padding:14px 22px 20px;"><div style="background:#fdecea;border:1px solid #c0392b;border-radius:8px;padding:10px 12px;color:#b71c1c;font-weight:700;font-size:13px;text-align:center;">${esc(foot)}</div></td></tr>`, origin);
   return { subject: SIGNIN_SUBJECT, text, html };
 }

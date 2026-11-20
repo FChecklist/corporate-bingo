@@ -45,7 +45,7 @@ const timeLabel = (t: string) => { const h = Number(t.slice(0, 2)); return `${h 
 export const startMsOf = (d: string, t: string, tz: string = DEFAULT_TZ): number => { const [y, m, dd] = d.split("-").map(Number); return zoneLocalToUtc(y!, m!, dd!, Number(t.slice(0, 2)), Number(t.slice(2)), tz); };
 export const startRoundOf = (ms: number): number => roundAt(ms);
 const validDay = (d: string | null) => !!d && /^\d{4}-\d{2}-\d{2}$/.test(d), validTime = (t: string | null) => !!t && SLOTS.includes(t);
-const money = (n: number, inIndia = true) => inIndia ? `Rs ${price(n, "INR").total.toLocaleString("en-IN")} (about US$ ${price(n, "USD").total})` : `US$ ${price(n, "USD").total} (or Rs ${price(n, "INR").total.toLocaleString("en-IN")})`;
+const money = (n: number, inIndia = true) => inIndia ? `₹${price(n, "INR").total.toLocaleString("en-IN")} (about US$ ${price(n, "USD").total})` : `US$ ${price(n, "USD").total} (or Rs ${price(n, "INR").total.toLocaleString("en-IN")})`;
 const packFor = (cap: number) => PACKS.find((p) => p[0] >= cap)?.[0] ?? null;
 
 /** The params a step carries forward, in a stable short order. */

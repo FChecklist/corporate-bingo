@@ -45,18 +45,18 @@ describe("the dedicated mail builders", () => {
     expect(first).toBeGreaterThan(0); expect(last).toBeGreaterThan(first);
     expect(first).toBeLessThan(h.indexOf("<h1")); expect(last).toBeGreaterThan(h.indexOf("WHAT TO DO")); expect(h.split(AI_WARNING).length).toBe(3);
     expect(h).toMatch(/#b71c1c/); // red
-    const hrefs = [...h.matchAll(/href\s*=\s*"([^"]*)"/gi)].map((x) => x[1]).filter((h) => !/^mailto:|legal.html$/.test(h!)); expect(hrefs).toEqual([`${ORIGIN}/ai-link.html`]); expect(h).toContain("Show my AI work link"); // the only link is the button to the sign-in page, never the key; the paste box is not a link
+    const hrefs = [...h.matchAll(/href\s*=\s*"([^"]*)"/gi)].map((x) => x[1]).filter((h) => !/^mailto:|legal.html$/.test(h!)); expect(hrefs).toEqual([`${ORIGIN}/ai-link.html`]); expect(h).toContain("Show your AI work link"); // the only link is the button to the sign-in page, never the key; the paste box is not a link
     expect(h).toContain(`${ORIGIN}/ai/${KEY}`); // but the text is in the box, to copy
     for (const t of ["ChatGPT", "Claude", "Gemini", "Grok", "DeepSeek", "z.ai"]) { expect(m.text).toContain(t); expect(h).toContain(t); }
     expect(m.text).toMatch(/1\. Copy the box/); expect(m.text).toMatch(/2\. Paste it into any AI chat/); expect(m.text).toMatch(/3\. Answer its questions/); expect(m.text).toMatch(/does the work/);
-    for (const t of [/payment/, /publishing/, /erasing/, /pause or stop/, /Replace my AI link/, /stops at once/]) { expect(m.text).toMatch(t); expect(h).toMatch(t); }
+    for (const t of [/payment/, /publishing/, /erasing/, /pause or stop/, /Replace your AI link/, /stops at once/]) { expect(m.text).toMatch(t); expect(h).toMatch(t); }
     expect(m.text.split(KEY).length).toBe(2); expect(h.split(KEY).length).toBe(2); // the key appears once, inside the paste
     expect(m.text).toContain("MY OWN Corporate Bingo account");
   });
   test("a replacement mail says the old link has stopped", () => {
     const m = aiLinkMail(ORIGIN, KEY, "replace", T + 86_400_000);
     expect(m.text).toMatch(/NEW personal AI work link/i); expect(m.text).toMatch(/Every older link stopped at once/);
-    expect(m.text).toMatch(/WORKS FOR 24 HOURS ONLY/); expect(m.text).toMatch(/Show my AI work link/i); expect(m.html).toMatch(/WORKS FOR 24 HOURS ONLY/);
+    expect(m.text).toMatch(/WORKS FOR 24 HOURS ONLY/); expect(m.text).toMatch(/Show your AI work link/i); expect(m.html).toMatch(/WORKS FOR 24 HOURS ONLY/);
   });
   test("co-host mail: whose engagement, a watch and announce role, own warning top and bottom, plain-text part, no hyperlink", () => {
     const k = "cbh_" + "cd".repeat(24), m = coHostLinkMail(ORIGIN, k, "boss@acme.com", T + 86_400_000);
@@ -118,7 +118,7 @@ describe("the AI link is in the dedicated mails and nowhere else", () => {
   });
 });
 
-describe("Replace my AI link", () => {
+describe("Replace your AI link", () => {
   test("the signed-in organizer replaces it: the old link answers 404 at once, the new one works, the new link is e-mailed, and the call is audited", async () => {
     const o = await organizer();
     expect((await call("GET", `/ai/${o.ai}`)).status).toBe(200);

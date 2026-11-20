@@ -36,7 +36,9 @@ import { PAY_SCHEMA, payRoute, retryOutbox, sendMail, freeLaunch, payMode, FREE_
 import { PACKS, price } from "../../../packages/shared/src/pricing";
 import { PARTNER_SCHEMA, partnerRoute } from "./partners";
 import { HELPDESK_SCHEMA, HELPER_MANUAL_NOTE, helpdeskCloseStatements, helpdeskRoute, helpdeskSweep, isDeskKeyId, isHelperKey, noteHelperGame } from "./helpdesk";
-import { normEmp, empHashOf, verifyOf, keptPhone, phoneDigits, cleanName as cleanPersonName, PEOPLE_SCHEMA, COHOST_FROM, HOST_FROM, ORG_FROM, COHOST_LIMIT_DEFAULT, COHOST_LIMIT_MIN, COHOST_LIMIT_MAX, WAITING_MAX, addWaiting, chainOf, cleanPhone, fromCodeOf, inviterOf, joinLinkPage, limitOfInviter, listCount, parseFrom, peopleRoute, personByPhone, personByToken, srcOf, waitingWho, type PersonRow } from "./people";
+import { legacyEmpFor, badIdMessage } from "./empid";
+import { normEmp, empHashOf, verifyOf, keptPhone, phoneDigits, cleanName as cleanPersonName, PEOPLE_SCHEMA, COHOST_FROM, HOST_FROM, ORG_FROM, COHOST_LIMIT_DEFAULT, COHOST_LIMIT_MIN, COHOST_LIMIT_MAX, WAITING_MAX, addWaiting, chainOf, cleanPhone, fromCodeOf, inviterOf, joinLinkPage, limitOfInviter, listCount, parseFrom, peopleRoute, personByEmpId, personByPhone, personByToken, srcOf, waitingWho, type PersonRow } from "./people";
+import { consolePaidRoute, consoleOrigin, homeOrigin, legacyPayGate, loginGate, type ConsoleEnv } from "./console-pay";
 import { PAYLINK_SCHEMA, PAYLINK_TOKEN, createPayLink, packFor } from "./paylink";
 import { HOST_LINK_TTL_MS, HOST_SCHEMA, confirmHostEmail, emailHashOf, hostForEmail, hostKeyStatus, hostSetupRoute, hostStateRow, identityRow, maskEmail, maskMobile, mintDeviceKey, retireHost } from "./hostsetup";
 import { googleClientId, verifyGoogleCredential } from "./google";
@@ -269,7 +271,7 @@ async function body(req: Request, max = MAX_BODY): Promise<any | null> {
 
 /** Free-plan guard: refuse politely before the daily write cap is hit, so a busy day never turns into a surprise failure or a bill. */
 /**
- * The owner's own testing accounts (owner order 2026-10-25): a game made by one of these accounts, up to the size shown, is treated as already paid for (Rs 0), so the real site can be tested end to end
+ * The owner's own testing accounts (owner order 2026-10-25): a game made by one of these accounts, up to the size shown, is treated as already paid for (₹0), so the real site can be tested end to end
  * at 100, 250 or 1,000 people without anyone paying. Nothing about it is shown to the public: the size list is the same for everybody. An account is named by its e-mail address; `until` ends the permission.
  * At most 3 unused free packs exist for an account at a time. No payment, invoice or mail is made. Remove an entry (or let `until` pass) to stop it.
  */
@@ -277,9 +279,9 @@ export const OWNER_TEST_FREE: { email: string; maxCap: number; until: number }[]
   { email: "demo1@xyz.in", maxCap: 1000, until: Date.UTC(2026, 10, 8) }, // the test sign-in (code always 123456, no mail): used only by the test programs; ends on 8 Nov 2026. The owner's real addresses are NOT on this list: they see the real, unpaid first-time flow.
 ];
 /**
- * Demo passes (owner order 2026-10-26): a long secret link that gives the account that opens it ONE free game (Rs 0) of up to `cap` people, for a prospect the owner chose, one to one.
+ * Demo passes (owner order 2026-10-26): a long secret link that gives the account that opens it ONE free game (₹0) of up to `cap` people, for a prospect the owner chose, one to one.
  * Nothing is shown to the public and the size list and prices stay the same for everybody. Only the hashes of the links are here; the links themselves are given by hand and are not in this repository.
- * A link works once (the first account to use it keeps it), until `until`. Remove an entry (or let `until` pass) to switch it off. The free pack is the same kind of pack the Rs 0 test account gets.
+ * A link works once (the first account to use it keeps it), until `until`. Remove an entry (or let `until` pass) to switch it off. The free pack is the same kind of pack the ₹0 test account gets.
  */
 export const DEMO_PASSES: { hash: string; cap: number; label: string }[] = [
   // Corporate Bingo has no owner-chosen links yet: add { hash: sha256("dpass|" + secret), cap, label } here (or let the owner console create them) and the link /zc.html?pass=<secret> gives that account one free game.
@@ -500,6 +502,8 @@ export async function handle(req: Request, env: Env, now = Date.now(), waitUntil
 async function handleCore(req: Request, env: Env, now = Date.now(), waitUntil?: (p: Promise<unknown>) => void): Promise<Response> {
   if (keysMissing(env)) return new Response(JSON.stringify({ error: "The service is not configured. Please try again later." }), { status: 503, headers: { "content-type": "application/json", "cache-control": "no-store" } });
   const pn = new URL(req.url).pathname;
+  { const gate = legacyPayGate(req, env as ConsoleEnv) ?? loginGate(req, env as ConsoleEnv); if (gate) return gate; } // owner order 20 Nov 2026: payment and sign-in live in the console and at home; the old routes answer a short refusal while their flags are on (console-pay.ts), nothing is deleted
+  if (pn === "/api/console/paid") { const cr = await consolePaidRoute(req, env as ConsoleEnv, now); if (cr) return cr; } // the console's signed "paid" notice, once per order id (console-pay.ts); dark without CONSOLE_PUBKEYS
   if (pn === "/ai" || pn.startsWith("/ai/")) return aiLink(req, env, now, waitUntil);
   if (req.method === "GET" && pn.startsWith("/j/")) return joinLinkPage(env, decodeURIComponent(pn.slice(3)).replace(/\/$/, ""), (env as PayEnv).PUBLIC_ORIGIN ?? new URL(req.url).origin, (e) => cfgOf(e).name || e.id); // the short personal link (people.ts)
   return handle0(req, env, now, waitUntil);
@@ -712,7 +716,7 @@ export const AI_MANIFEST = {
     { do: "See the winners to hand rewards to, by card number (names and numbers stay in the console), and tick a reward as given", call: "GET /api/z/{id}/prizes ; POST /api/z/{id}/prizegiven {round, pattern, ordinal, seat, given}" },
     { do: "Change of phone: let one person move their card to a new phone", call: "POST /api/z/{id}/unbind {seat} (the card number; the console takes a mobile number, an AI never does)" },
     { do: "Flag a seat as Organizer, Host or Co-host", call: "POST /api/z/{id}/mark {seat, role: organizer|host|co-host|none} (the card number; an AI never names a mobile number)" },
-    { do: "Invitations: settle how many people each guest may invite and which kinds of guests, before the start", call: "PATCH /api/z/{id}/settings {invites: {on, per: 1-4, cats}}" },
+    { do: "Invitations: settle how many people each guest may invite and which kinds of guests, before the start", call: "PATCH /api/z/{id}/settings {invites: {on, per: 1-10, cats}}" },
     { do: "Create a Host key (up to 5 Hosts; through an AI link a Host may only watch, announce and tick prizes given)", call: "POST /api/org/host {label, email?, mobile?} (at least one of email or mobile) -> {hostKey, manualUrl, id, label}. The AI cannot call it (403). A Host must have an e-mail address or a mobile number (the owner gives it); their own one-time console link (7 days) is e-mailed to the Host, or sent by the owner on WhatsApp" },
     { do: "Co-hosts (unlimited; a Co-host has a name and a mobile number, no e-mail, belongs to one game, only invites people with an own link and pays) are added by the Organizer or a Host in the console, never through an AI link", call: "The people on the team: GET /api/org/team (or GET /api/org/team?e={game id}); remove one: POST /api/org/team/retire {id}" },
     { do: "Read the audit trail of AI calls, when the game ends, and whether the report is ready (the report address itself goes only to the organizer)", call: "GET /api/org/ai/audit ; GET /api/z/{id}/life ; GET /api/z/{id}/reportlink" },
@@ -873,7 +877,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     }
     return json({ ok: true, ...(devCode ? { devCode, devToken } : {}) });
   }
-  if (req.method === "GET" && p === "/api/auth/config") return json({ google: googleClientId(env) }); // the public Google client id, or null: the pages show "Continue with Google" only when it is there
+  if (req.method === "GET" && p === "/api/auth/config") return json({ google: googleClientId(env), ...(env as ConsoleEnv).LOGIN_VIA_CONSOLE === "1" ? { loginAt: { home: homeOrigin(env as ConsoleEnv) + "/", console: consoleOrigin(env as ConsoleEnv) + "/" } } : {} }); // the public Google client id, or null: the pages show "Continue with Google" only when it is there
   if (req.method === "POST" && p === "/api/auth/google") { // "Continue with Google": proves the e-mail with Google, then does exactly what the e-mail code does (google.ts, hostsetup.ts)
     if (!googleClientId(env)) return json({ error: "Not found" }, 404);
     const b = await body(req, 8192);
@@ -992,7 +996,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     await auditAi(env.DB, a.org, new Request(new URL(req.url).origin + "/api/org/ai/replace", { method: "POST", headers: req.headers }), (await sha("key|" + presented)).slice(0, 10), 200, now);
     return json({ ok: true, ...r });
   }
-  if (req.method === "GET" && p === "/api/org/ai/link") { // the signed-in organizer reads their lasting AI link again (the page "Show my AI work link"); never an AI key, never in a mail
+  if (req.method === "GET" && p === "/api/org/ai/link") { // the signed-in organizer reads their lasting AI link again (the page "Show your AI work link"); never an AI key, never in a mail
     if (a.kind !== "master" || !a.org) return deny(a);
     const sealed = await env.DB.prepare("SELECT v FROM kv WHERE k=?").bind(`aikey/${a.org}`).first<{ v: string }>();
     const key = await openText(env as any, sealed?.v);
@@ -1002,7 +1006,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
   if (req.method === "POST" && p === "/api/org/ai/fresh") { // "Get a fresh AI link": a new 24-hour key, e-mailed to the organizer; the lasting key and other links are untouched
     if (a.kind !== "master" || !a.org) return deny(a);
     const live = (await env.DB.prepare("SELECT COUNT(*) AS c FROM organizer_key WHERE org=? AND kind='ai' AND revoked=0 AND expires_ms>?").bind(a.org, now).first<{ c: number }>())?.c ?? 0;
-    if (live >= 5) return json({ error: "You already asked for several fresh links today. Use the latest e-mail, or press Replace my AI link." }, 429);
+    if (live >= 5) return json({ error: "You already asked for several fresh links today. Use the latest e-mail, or press Replace your AI link." }, 429);
     if (!(await spend(env, now, 3))) return BUSY();
     return json({ ok: true, ...(await mailTempLink(env, req, a.org, "ai", "fresh", now)) });
   }
@@ -1520,9 +1524,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     const b = await body(req), vf = verifyOf(e), id = normEmp(b?.empId);
     if (vf.mode === "mobile" || !id) return json({ known: false });
     const ck = consentMissing(b, "K4"); if (ck) return ck;
-    const eh = await empHashOf(env, id);
-    let hit = await personByPhone(env, eid!, eh);
-    if (!hit) { const al = await env.DB.prepare("SELECT v FROM kv WHERE k=?").bind(`idx/${eid}/${eh}`).first<{ v: string }>(); if (al) hit = await personByPhone(env, eid!, al.v); }
+    const hit = await personByEmpId(env, eid!, id, legacyEmpFor(b?.empId, e)); // the cleaned form first, then (an older game only) the form an older release stored
     if (!hit || hit.status === "removed") {
       try {
         const ipk = (await sha("jip|" + (req.headers.get("cf-connecting-ip") ?? "local"))).slice(0, 16), k = `idmiss/${eid}/${new Date(now).toISOString().slice(0, 15)}/${ipk}`;
@@ -1550,15 +1552,14 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     if (typedGiven && !typedPh) return json({ error: "Enter a valid mobile number." }, 400);
     // What the organizer asked people to give: a mobile number (default), an employee ID, or both. An outsider (a vendor, a customer, a family member) has no ID and gives what a guest gives.
     const vf = verifyOf(e), empNorm = normEmp(b?.empId);
-    if (empNorm === null) return json({ error: "An employee ID has letters and numbers only.", code: "bad-id" }, 400);
+    if (empNorm === null) return json({ error: badIdMessage(b?.empId), code: "bad-id" }, 400);
     const dev = typeof b?.device === "string" && /^[0-9a-f]{16,64}$/.test(b.device) ? (await sha(`dev|${eid}|${b.device}`)).slice(0, 32) : null; // one card, one device: the phone's own random id, only its hash is kept
-    if (vf.employeesOnly && vf.mode !== "mobile" && vf.mode !== "either" && !empNorm && !tok) return json({ error: vf.mode === "id" ? "Enter your employee ID." : "Enter your employee ID and your mobile number.", code: "need-id" }, 400);
+    if (vf.mode === "id" && !empNorm && !tok) return json({ error: "Please type your ID.", code: "need-id" }, 400); // owner rule 20 Nov 2026: an ID game asks for the ID and nothing else (no name, no mobile number)
+    if (vf.employeesOnly && vf.mode !== "mobile" && vf.mode !== "either" && !empNorm && !tok) return json({ error: vf.mode === "id" ? "Please type your ID." : "Enter your employee ID and your mobile number.", code: "need-id" }, 400);
     if (vf.employeesOnly && vf.mode === "either" && !empNorm && !typedGiven && !tok) return json({ error: "Enter your mobile number or your employee ID.", code: "need-id" }, 400);
     let extraDigits: string | null = null, idHit = false; // a mobile number given together with an employee ID that is on the list: kept as the person's contact, never a reason to refuse
     if ((vf.mode === "either" || vf.mode === "id") && empNorm && !tok) { // "mobile number or employee ID" (and ID alone): an ID on the list is as good as the listed mobile number (the person is then known by their listed number)
-      const eh = await empHashOf(env, empNorm);
-      let hit = await personByPhone(env, eid!, eh);
-      if (!hit) { const al = await env.DB.prepare("SELECT v FROM kv WHERE k=?").bind(`idx/${eid}/${eh}`).first<{ v: string }>(); if (al) hit = await personByPhone(env, eid!, al.v); }
+      const hit = await personByEmpId(env, eid!, empNorm, legacyEmpFor(b?.empId, e)); // the cleaned form first, then (an older game only) the form an older release stored
       if (hit) { tok = hit; tokPii = await openPii(env, hit.pii); extraDigits = typedDigits; idHit = true; typedPh = null; typedDigits = null; }
     }
     const idOnly = (vf.mode === "id" || vf.mode === "either") && !!empNorm && !typedGiven && !tok; // known by employee ID alone
@@ -1572,7 +1573,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
       if (!dev) return json({ error: "Please refresh this page and try again." }, 400);
       ph = await sha(`nm|${eid}|${dev}`); digits = ""; nameOnly = true;
     }
-    if (!ph || (!digits && !idOnly && !nameOnly && !((vf.mode === "id" || vf.mode === "either") && tokPii))) return json({ error: vf.mode === "id" ? "Enter your employee ID, or your mobile number if you have no employee ID." : vf.mode === "either" ? "Enter your mobile number or your employee ID." : "Enter a valid mobile number." }, 400);
+    if (!ph || (!digits && !idOnly && !nameOnly && !((vf.mode === "id" || vf.mode === "either") && tokPii))) return json({ error: vf.mode === "id" ? "Please type your ID." : vf.mode === "either" ? "Enter your mobile number or your employee ID." : "Enter a valid mobile number." }, 400);
     const ck = consentMissing(b, "K4"); // K4: both boxes, checked on the server before any name or number is kept
     const k4 = (subject: string) => recordConsent(env.DB, { subject, kind: "K4", ref: eid!, now });
     const otherNumber = !!(tok && typedPh && typedPh !== tok.ph); // somebody else opened this person's link
@@ -1823,7 +1824,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     if (cPhone.length < 10 || cPhone.length > 15 || !cleanPhone(pb?.phone).ok) return json({ error: "Please confirm a valid mobile number. " + (cleanPhone(pb?.phone) as any).why }, 400);
     if (roundMs(e.start_round) <= now || (await env.DB.prepare("SELECT 1 AS x FROM kv WHERE k=?").bind(`startpending/${eid}`).first())) return json({ error: "The start time has passed or has not been chosen. Please choose a new start time first.", code: "start-pending" }, 400);
     const ent = await env.DB.prepare("SELECT id, pack FROM entitlement WHERE org=? AND eid IS NULL AND pack>=? ORDER BY pack, created_ms LIMIT 1").bind(e.org, e.cap).first<{ id: string; pack: number }>();
-    const free = !ent && (e.cap <= DEMO_CAP || (freeLaunch(env as PayEnv) && e.cap <= FREE_CAP)); // a game for up to 10 people is Rs 0, always; the optional switch frees small engagements while the gateway is off
+    const free = !ent && (e.cap <= DEMO_CAP || (freeLaunch(env as PayEnv) && e.cap <= FREE_CAP)); // a game for up to 10 people is ₹0, always; the optional switch frees small engagements while the gateway is off
     if (!(await spend(env, now, 4))) return BUSY();
     await env.DB.batch([
       env.DB.prepare("INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v").bind(`contact/${eid}`, JSON.stringify({ email: cEmail, phone: cPhone.slice(-10) })),

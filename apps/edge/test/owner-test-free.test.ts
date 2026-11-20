@@ -21,6 +21,7 @@ describe("owner test accounts", () => {
   });
   test("the list holds only the named accounts, with an end date", () => {
     expect(OWNER_TEST_FREE.map((x) => x.email)).toEqual(["demo1@xyz.in"]); // the owner's real addresses see the real flow
-    for (const t of OWNER_TEST_FREE) expect(t.until).toBeGreaterThan(Date.now());
+    // Every entry must carry an end date. It is checked against the fixed test day (1 Oct 2026), not today's clock: the permission ended on 8 Nov 2026 by design, and a test that reads the real clock fails the day after (found 20 Nov 2026).
+    for (const t of OWNER_TEST_FREE) { expect(Number.isFinite(t.until)).toBe(true); expect(t.until).toBeGreaterThan(Date.UTC(2026, 9, 1)); }
   });
 });

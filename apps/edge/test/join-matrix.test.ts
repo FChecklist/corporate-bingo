@@ -78,11 +78,11 @@ describe("row 2: employee ID only, employees only", () => {
 });
 
 describe("row 3, 4, 5, 6: ID and mobile together", () => {
-  test("ID, others by mobile (not employees only): a listed ID and an outsider's mobile both get tickets; an unknown ID waits", async () => {
+  test("ID game (owner rule 20 Nov 2026: the ID is the only thing asked): a listed ID gets a ticket; a mobile number alone is not a way in; an unknown ID waits", async () => {
     const t = await setup({ verify: "id" }); await add(t.master, [{ name: "Asha", empId: "E101" }]);
     await card(await join({ empId: "E101", device: dev(1) }));
-    await card(await join({ phone: mob(22), device: dev(2) }));
-    await waits(await join({ phone: mob(23), empId: "E555", device: dev(3) })); // D4: today's behaviour in an open game
+    const phoneOnly = await join({ phone: mob(22), device: dev(2) }); expect(phoneOnly.status).toBe(400); expect((await j(phoneOnly)).code).toBe("need-id");
+    await waits(await join({ phone: mob(23), empId: "E555", device: dev(3) })); // an ID that is not on the list: the organizer decides
     expect((await join({ device: dev(4) })).status).toBe(400);
   });
   test("mobile always, ID if employee (both, not employees only): a non-employee needs only a mobile; a listed employee must give the matching ID", async () => {

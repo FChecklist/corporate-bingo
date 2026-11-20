@@ -76,7 +76,7 @@ describe("the guided path, followed like an outside AI", () => {
     t = await pick(t, /Start a new game/); expect(t).toMatch(/Which time zone/); t = await pick(t, /^India time/); expect(t).toMatch(/Which day/); expect(t).toMatch(/Tomorrow, Fri 2 Oct/);
     t = await pick(t, /^Tomorrow/); expect(t).toMatch(/At what time/);
     t = await pick(t, /^4 pm/); expect(t).toMatch(/What is the occasion/);
-    t = await pick(t, /Diwali party/); expect(t).toMatch(/How many people at most/); expect(t).toMatch(/Rs 2,399 \(about US\$/); // price from the software's own list
+    t = await pick(t, /Diwali party/); expect(t).toMatch(/How many people at most/); expect(t).toMatch(/₹2,399 \(about US\$/); // price from the software's own list
     t = await pick(t, /Up to 250/); expect(t).toMatch(/recommended choices/);
     t = await pick(t, /2 cards/); expect(t).toMatch(/2 cards per person/); // a toggle: same screen, changed
     t = await pick(t, /Looks good/); expect(t).toMatch(/Which prizes/);

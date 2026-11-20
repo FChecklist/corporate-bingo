@@ -9,7 +9,7 @@
     app.innerHTML = `<div class="zhead"><b>Corporate Bingo</b></div><div class="zcard zform"><h2>${t ? "Press the button to sign in" : "This sign-in page needs its link"}</h2>
       ${t ? `<p class="zsmall" style="margin-top:0">This is Option 2 from your e-mail. It works once, for 10 minutes.</p>` : ""}
       ${msg ? `<div class="zbanner bad" role="alert">${esc(msg)}</div>` : ""}
-      ${t ? `<button class="zbtn" id="go">Sign me in</button>` : `<div class="zbanner bad" role="alert">This page lost your sign-in link, which can happen when it is reloaded or opened in another app. Open your e-mail and tap the button again, or type the 6-digit code from the same e-mail on the sign-in page. Both still work for 10 minutes.</div>`}
+      ${t ? `<button class="zbtn" id="go">Sign in</button>` : `<div class="zbanner bad" role="alert">This page lost your sign-in link, which can happen when it is reloaded or opened in another app. Open your e-mail and tap the button again, or type the 6-digit code from the same e-mail on the sign-in page. Both still work for 10 minutes.</div>`}
       <p id="gOr" class="gor" hidden>or</p><div id="gWrap" class="gwrap" hidden></div>
       <p class="zsmall">Something wrong? <a href="/#login">Go back to the sign-in page</a> and ask for a new e-mail.</p></div>`;
     const gw = document.getElementById("gWrap"); // "Continue with Google" shows only when the server has a Google client id; it signs in exactly like the e-mail does

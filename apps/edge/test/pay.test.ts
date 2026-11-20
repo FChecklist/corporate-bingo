@@ -66,7 +66,7 @@ describe("checkout", () => {
   test("a valid checkout creates one Razorpay order for the right amount in paise and one unpaid payment row", async () => {
     const r = await (await buy()).json() as any;
     expect(r.mode).toBe("razorpay");
-    expect(r.razorpay.amount).toBe(469900); // 500 participants = Rs 4,699 (no GST)
+    expect(r.razorpay.amount).toBe(469900); // 500 participants = ₹4,699 (no GST)
     expect(r.razorpay.name).toBe("Corporate Bingo"); expect(r.razorpay.description).toBe("(closed-group bingo software) | owned and made by IT Services by Rajat Agarwal"); // the Razorpay window shows the product as the title and the seller under it
     expect(rz.orders).toHaveLength(1);
     expect(raw.query("SELECT status FROM payment").get()).toEqual({ status: "created" });
@@ -442,13 +442,13 @@ describe("invoice carries Razorpay's own record (owner list 2026-10-10)", () => 
   });
 });
 
-describe("Payment Testing page (Rs 1 / US$ 1, buys nothing)", () => {
+describe("Payment Testing page (₹1 / US$ 1, buys nothing)", () => {
   const start = (o: Record<string, unknown> = {}) => call("POST", "/api/payments/paytest", { name: "Asha Rao", email: "asha@acme.in", country: "IN", ...o });
   const payIt = async (r: any, payId = "pay_T1") => {
     rz.payments[payId] = { id: payId, order_id: r.razorpay.orderId, status: "captured", amount: r.razorpay.amount, currency: r.razorpay.currency, method: "upi", vpa: "asha@okicici", created_at: Math.floor(T / 1000) };
     return call("POST", "/api/payments/verify", { paymentId: r.paymentId, razorpay_order_id: r.razorpay.orderId, razorpay_payment_id: payId, razorpay_signature: hmac("sek", `${r.razorpay.orderId}|${payId}`) });
   };
-  test("India pays Rs 1 with UPI first; the order is for exactly 100 paise", async () => {
+  test("India pays ₹1 with UPI first; the order is for exactly 100 paise", async () => {
     const r = (await (await start()).json()) as any;
     expect(r.razorpay.amount).toBe(100); expect(r.razorpay.currency).toBe("INR"); expect(r.razorpay.config.display.sequence[0]).toBe("block.upi"); expect(rz.orders[0].amount).toBe(100);
   });

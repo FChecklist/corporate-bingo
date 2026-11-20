@@ -31,11 +31,11 @@
   const gameRow = (c, g) => `<div class="zsmall" style="display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:6px 0"><span><b>${esc(g.title || g.eid)}</b> <span style="color:#5b6577">${g.published ? "Published" : "Not published yet"}</span></span>
     ${g.published ? "" : `<button class="zbtn s" data-ask="${esc(g.eid)}" data-link="${esc(c.id)}">Ask the Organizer to publish</button>`}</div>`;
   const clientCard = (c) => `<div class="zcard" data-client="${esc(c.id)}"><div class="zsmall" style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap"><b>${esc(c.orgEmailMasked)}</b><span>${esc(STATE[c.state] || c.state)}</span></div>
-    ${c.state === "active" ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0"><a class="zbtn s" style="text-decoration:none;display:inline-flex;align-items:center" target="_blank" rel="noopener" href="${esc(c.consoleUrl)}">Open console</a><button class="zbtn s alt" data-copy="${esc(c.aiLink)}">Copy my AI link</button></div>
+    ${c.state === "active" ? `<div style="display:flex;flex-wrap:wrap;gap:8px;margin:10px 0"><a class="zbtn s" style="text-decoration:none;display:inline-flex;align-items:center" target="_blank" rel="noopener" href="${esc(c.consoleUrl)}">Open console</a><button class="zbtn s alt" data-copy="${esc(c.aiLink)}">Copy the AI link</button></div>
       ${c.games.length ? c.games.map((g) => gameRow(c, g)).join("") : `<p class="zsmall">No game yet. Open the console to create one.</p>`}
       ${HOST[c.hostLink] ? `<p class="zsmall">${esc(HOST[c.hostLink])}</p>` : ""}` : ""}
     ${c.state === "stopped" && c.games.length ? c.games.map((g) => `<p class="zsmall" style="margin:4px 0">${esc(g.title || g.eid)}: ${g.published ? "Published" : "Not published"}</p>`).join("") : ""}
-    ${c.state !== "stopped" ? `<p class="zsmall" style="margin:8px 0 0"><a href="#" class="hdl" data-stop="${esc(c.id)}">${c.state === "invited" ? "Cancel this invitation" : "End this for me"}</a></p>` : ""}</div>`;
+    ${c.state !== "stopped" ? `<p class="zsmall" style="margin:8px 0 0"><a href="#" class="hdl" data-stop="${esc(c.id)}">${c.state === "invited" ? "Cancel this invitation" : "End this"}</a></p>` : ""}</div>`;
   const dashView = () => {
     const m = S.me;
     return `<p class="zsmall" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin:0 0 6px"><b>Corporate Bingo · Help Desk</b><a href="#" class="hdl" id="out">Sign out</a></p>
@@ -45,7 +45,7 @@
         <label for="on">Their name (optional)</label><input id="on" maxlength="60" autocomplete="off">
         <button class="zbtn" id="inv">Send the invitation</button></div>
       ${m.clients.length ? m.clients.map(clientCard).join("") : `<div class="zcard"><p class="zsmall" style="margin:0">No clients yet. Add an Organizer above.</p></div>`}
-      <p class="zsmall"><a class="hdl" href="/partner.html">See my earnings</a></p>`;
+      <p class="zsmall"><a class="hdl" href="/partner.html">See your earnings</a></p>`;
   };
   function draw(v) { $app.innerHTML = v; bind(); }
   function bind() {

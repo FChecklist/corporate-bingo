@@ -1,4 +1,4 @@
-// "Show my AI work link": the page the e-mail's button opens. It works only for the signed-in organizer (the same sign-in as the console: a 6-digit code sent to
+// "Show your AI work link": the page the e-mail's button opens. It works only for the signed-in organizer (the same sign-in as the console: a 6-digit code sent to
 // their own e-mail address). A forwarded e-mail is useless to anyone else. It shows the lasting AI link, with Copy, Get a fresh 24-hour link (e-mailed) and Replace.
 (() => {
   const app = document.getElementById("app");
@@ -28,8 +28,8 @@
   function signIn(msg, email, codeStep) {
     shell(`<div class="zcard zform"><h2>Sign in as the organizer</h2><p class="zsmall" style="margin-top:0">Sign in to see your AI work link. We e-mail you a 6-digit code.</p>
       ${msg ? `<div class="zbanner bad">${esc(msg)}</div>` : ""}
-      ${codeStep ? `<label for="cd">6-digit passcode sent to ${esc(email)}</label><input id="cd" inputmode="numeric" autocomplete="one-time-code" maxlength="8"><button class="zbtn" id="go">Show my AI work link</button>`
-        : `<label for="em">Your e-mail</label><input id="em" type="email" autocomplete="email" value="${esc(email || "")}" placeholder="your e-mail"><button class="zbtn" id="go">E-mail me a code</button>`}</div>`);
+      ${codeStep ? `<label for="cd">6-digit passcode sent to ${esc(email)}</label><input id="cd" inputmode="numeric" autocomplete="one-time-code" maxlength="8"><button class="zbtn" id="go">Show your AI work link</button>`
+        : `<label for="em">Your e-mail</label><input id="em" type="email" autocomplete="email" value="${esc(email || "")}" placeholder="your e-mail"><button class="zbtn" id="go">E-mail a code</button>`}</div>`);
     const go = document.getElementById("go");
     go.onclick = async () => {
       go.disabled = true;
@@ -51,12 +51,12 @@
     try { r = await api("GET", "/api/org/ai/link"); } catch (e) { token = ""; ss.set("cbz-org", ""); return signIn(e.status === 403 ? "" : e.message, "", false); }
     shell(`${bannerNote()}<div class="zcard" style="border:2px solid #FFC93C;background:#FBFFFE"><div class="zsmall" style="font-weight:700;letter-spacing:.06em;color:#8a6a1a">YOUR AI WORK LINK</div>
       ${r.aiMessage
-        ? `<p style="margin:8px 0">Copy the box. Paste it into any AI chat. It does the work.</p><textarea class="zlink" id="msg" rows="5" readonly style="width:100%;box-sizing:border-box">${esc(r.aiMessage)}</textarea><button class="zbtn" id="cp" style="margin-top:8px">Copy my AI work link</button>${aiOptions(r.aiMessage)}`
-        : `<p style="margin:8px 0">You have no AI work link at the moment.</p><button class="zbtn" id="mk">Make my AI work link</button>`}
+        ? `<p style="margin:8px 0">Copy the box. Paste it into any AI chat. It does the work.</p><textarea class="zlink" id="msg" rows="5" readonly style="width:100%;box-sizing:border-box">${esc(r.aiMessage)}</textarea><button class="zbtn" id="cp" style="margin-top:8px">Copy your AI work link</button>${aiOptions(r.aiMessage)}`
+        : `<p style="margin:8px 0">You have no AI work link at the moment.</p><button class="zbtn" id="mk">Make your AI work link</button>`}
       <hr style="border:0;border-top:1px solid #D5E3E1;margin:16px 0">
       <p class="zsmall" style="margin:0 0 8px">Fresh link: we e-mail you one that works 24 hours.</p><button class="zbtn s alt" id="fr">Get a fresh AI link</button>
-      <p class="zsmall" style="margin:14px 0 8px">Lost it? Replace stops every AI link at once.</p><button class="zbtn s alt" id="rp">Replace my AI link</button></div>
-      <p class="zsmall"><a href="/zc.html">Open my console</a></p>`);
+      <p class="zsmall" style="margin:14px 0 8px">Lost it? Replace stops every AI link at once.</p><button class="zbtn s alt" id="rp">Replace your AI link</button></div>
+      <p class="zsmall"><a href="/zc.html">Open your console</a></p>`);
     if (r.aiMessage) wireAiOptions(app, r.aiMessage);
     const on = (id, f) => { const b = document.getElementById(id); if (b) b.onclick = f; };
     on("cp", () => { try { navigator.clipboard.writeText(r.aiMessage); document.getElementById("cp").textContent = "Copied. Now paste it into your AI chat"; } catch {} });

@@ -112,7 +112,7 @@ export const MAX_ROUNDS = 5;
 /** A Bingo game calls at most 75 numbers. */
 export const MAX_CALLS = 75;
 /** The game starts this many 3 s beacon rounds (2 minutes) after the time the organizer gave: the last 2 minutes are "setting up, waiting for everyone to join". */
-/** A game for at most this many people costs Rs 0: it is a real game in every other way. */
+/** A game for at most this many people costs ₹0: it is a real game in every other way. */
 export const DEMO_CAP = 10;
 export const GRACE_ROUNDS = 40;
 /** Someone who joins after the game began only sees numbers called from this many rounds (90 s) after joining, so every phone has heard about them before their first number counts. */
