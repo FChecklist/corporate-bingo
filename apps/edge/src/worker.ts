@@ -36,7 +36,8 @@ import { PAY_SCHEMA, payRoute, retryOutbox, sendMail, freeLaunch, payMode, FREE_
 import { PACKS, price } from "../../../packages/shared/src/pricing";
 import { PARTNER_SCHEMA, partnerRoute } from "./partners";
 import { HELPDESK_SCHEMA, HELPER_MANUAL_NOTE, helpdeskCloseStatements, helpdeskRoute, helpdeskSweep, isDeskKeyId, isHelperKey, noteHelperGame } from "./helpdesk";
-import { normEmp, empHashOf, verifyOf, keptPhone, phoneDigits, cleanName as cleanPersonName, PEOPLE_SCHEMA, COHOST_FROM, HOST_FROM, ORG_FROM, COHOST_LIMIT_DEFAULT, COHOST_LIMIT_MIN, COHOST_LIMIT_MAX, WAITING_MAX, addWaiting, chainOf, cleanPhone, fromCodeOf, inviterOf, joinLinkPage, limitOfInviter, listCount, parseFrom, peopleRoute, personByPhone, personByToken, srcOf, waitingWho, type PersonRow } from "./people";
+import { legacyEmpFor, badIdMessage } from "./empid";
+import { normEmp, empHashOf, verifyOf, keptPhone, phoneDigits, cleanName as cleanPersonName, PEOPLE_SCHEMA, COHOST_FROM, HOST_FROM, ORG_FROM, COHOST_LIMIT_DEFAULT, COHOST_LIMIT_MIN, COHOST_LIMIT_MAX, WAITING_MAX, addWaiting, chainOf, cleanPhone, fromCodeOf, inviterOf, joinLinkPage, limitOfInviter, listCount, parseFrom, peopleRoute, personByEmpId, personByPhone, personByToken, srcOf, waitingWho, type PersonRow } from "./people";
 import { consolePaidRoute, legacyPayGate, loginGate, type ConsoleEnv } from "./console-pay";
 import { PAYLINK_SCHEMA, PAYLINK_TOKEN, createPayLink, packFor } from "./paylink";
 import { HOST_LINK_TTL_MS, HOST_SCHEMA, confirmHostEmail, emailHashOf, hostForEmail, hostKeyStatus, hostSetupRoute, hostStateRow, identityRow, maskEmail, maskMobile, mintDeviceKey, retireHost } from "./hostsetup";
@@ -1523,9 +1524,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     const b = await body(req), vf = verifyOf(e), id = normEmp(b?.empId);
     if (vf.mode === "mobile" || !id) return json({ known: false });
     const ck = consentMissing(b, "K4"); if (ck) return ck;
-    const eh = await empHashOf(env, id);
-    let hit = await personByPhone(env, eid!, eh);
-    if (!hit) { const al = await env.DB.prepare("SELECT v FROM kv WHERE k=?").bind(`idx/${eid}/${eh}`).first<{ v: string }>(); if (al) hit = await personByPhone(env, eid!, al.v); }
+    const hit = await personByEmpId(env, eid!, id, legacyEmpFor(b?.empId, e)); // the cleaned form first, then (an older game only) the form an older release stored
     if (!hit || hit.status === "removed") {
       try {
         const ipk = (await sha("jip|" + (req.headers.get("cf-connecting-ip") ?? "local"))).slice(0, 16), k = `idmiss/${eid}/${new Date(now).toISOString().slice(0, 15)}/${ipk}`;
@@ -1553,15 +1552,14 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     if (typedGiven && !typedPh) return json({ error: "Enter a valid mobile number." }, 400);
     // What the organizer asked people to give: a mobile number (default), an employee ID, or both. An outsider (a vendor, a customer, a family member) has no ID and gives what a guest gives.
     const vf = verifyOf(e), empNorm = normEmp(b?.empId);
-    if (empNorm === null) return json({ error: "An employee ID has letters and numbers only.", code: "bad-id" }, 400);
+    if (empNorm === null) return json({ error: badIdMessage(b?.empId), code: "bad-id" }, 400);
     const dev = typeof b?.device === "string" && /^[0-9a-f]{16,64}$/.test(b.device) ? (await sha(`dev|${eid}|${b.device}`)).slice(0, 32) : null; // one card, one device: the phone's own random id, only its hash is kept
-    if (vf.employeesOnly && vf.mode !== "mobile" && vf.mode !== "either" && !empNorm && !tok) return json({ error: vf.mode === "id" ? "Enter your employee ID." : "Enter your employee ID and your mobile number.", code: "need-id" }, 400);
+    if (vf.mode === "id" && !empNorm && !tok) return json({ error: "Please type your ID.", code: "need-id" }, 400); // owner rule 20 Nov 2026: an ID game asks for the ID and nothing else (no name, no mobile number)
+    if (vf.employeesOnly && vf.mode !== "mobile" && vf.mode !== "either" && !empNorm && !tok) return json({ error: vf.mode === "id" ? "Please type your ID." : "Enter your employee ID and your mobile number.", code: "need-id" }, 400);
     if (vf.employeesOnly && vf.mode === "either" && !empNorm && !typedGiven && !tok) return json({ error: "Enter your mobile number or your employee ID.", code: "need-id" }, 400);
     let extraDigits: string | null = null, idHit = false; // a mobile number given together with an employee ID that is on the list: kept as the person's contact, never a reason to refuse
     if ((vf.mode === "either" || vf.mode === "id") && empNorm && !tok) { // "mobile number or employee ID" (and ID alone): an ID on the list is as good as the listed mobile number (the person is then known by their listed number)
-      const eh = await empHashOf(env, empNorm);
-      let hit = await personByPhone(env, eid!, eh);
-      if (!hit) { const al = await env.DB.prepare("SELECT v FROM kv WHERE k=?").bind(`idx/${eid}/${eh}`).first<{ v: string }>(); if (al) hit = await personByPhone(env, eid!, al.v); }
+      const hit = await personByEmpId(env, eid!, empNorm, legacyEmpFor(b?.empId, e)); // the cleaned form first, then (an older game only) the form an older release stored
       if (hit) { tok = hit; tokPii = await openPii(env, hit.pii); extraDigits = typedDigits; idHit = true; typedPh = null; typedDigits = null; }
     }
     const idOnly = (vf.mode === "id" || vf.mode === "either") && !!empNorm && !typedGiven && !tok; // known by employee ID alone
@@ -1575,7 +1573,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
       if (!dev) return json({ error: "Please refresh this page and try again." }, 400);
       ph = await sha(`nm|${eid}|${dev}`); digits = ""; nameOnly = true;
     }
-    if (!ph || (!digits && !idOnly && !nameOnly && !((vf.mode === "id" || vf.mode === "either") && tokPii))) return json({ error: vf.mode === "id" ? "Enter your employee ID, or your mobile number if you have no employee ID." : vf.mode === "either" ? "Enter your mobile number or your employee ID." : "Enter a valid mobile number." }, 400);
+    if (!ph || (!digits && !idOnly && !nameOnly && !((vf.mode === "id" || vf.mode === "either") && tokPii))) return json({ error: vf.mode === "id" ? "Please type your ID." : vf.mode === "either" ? "Enter your mobile number or your employee ID." : "Enter a valid mobile number." }, 400);
     const ck = consentMissing(b, "K4"); // K4: both boxes, checked on the server before any name or number is kept
     const k4 = (subject: string) => recordConsent(env.DB, { subject, kind: "K4", ref: eid!, now });
     const otherNumber = !!(tok && typedPh && typedPh !== tok.ph); // somebody else opened this person's link

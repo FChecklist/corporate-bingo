@@ -11,6 +11,7 @@ import { openPii, openText, sealPii, sealText } from "./pii";
 import { consentMissing, recordConsent } from "./consent";
 import { deviceMatches } from "./checkin";
 import type { D1, Env } from "./worker";
+import { normEmpFor, legacyEmpFor, badIdMessage } from "./empid";
 
 /** 0016_people.sql: who invited whom, the personal links, the waiting room, and the flag that stops a removed person's phone without touching the public seat list. */
 export const PEOPLE_SCHEMA: string[] = [
@@ -48,8 +49,10 @@ export const tokenHash = async (token: string) => (await sha("pj|" + token.toLow
 /** Same formula as the Worker's join (worker.ts `phoneHash`): +91 98765 43210, 098765 43210 and 9876543210 are one person; one hash in every game. */
 export const phoneHashOf = (env: { PHONE_SALT?: string; ORGANIZER_SECRET?: string }, digits: string) => sha(`${env.PHONE_SALT ?? env.ORGANIZER_SECRET ?? "unset"}|${digits.slice(-10)}`);
 
-/** An employee ID as typed: spaces dropped, upper case. "" = nothing typed, null = not a usable ID. */
-export const normEmp = (raw: unknown): string | null => { const s = String(raw ?? "").replace(/\s+/g, "").toUpperCase(); if (!s) return ""; return /^[A-Z0-9][A-Z0-9._\-/]{0,29}$/.test(s) ? s : null; };
+/** An ID as typed. "" = nothing typed, null = not a usable ID. */
+// OWNER RULE (20 Nov 2026): strip EVERY character that is not a letter or a number, then capitals (A-1101, A 1101, A/1101 = A1101). The same function at upload, join, approval and matching (empid.ts).
+// Why: people type IDs in many ways; the owner wants one ID to be one person, and no name or number is asked. Games made before the rule are also looked up in their old form (legacyEmpFor).
+export const normEmp = (raw: unknown): string | null => normEmpFor(raw);
 /** The identity of a person who is known by employee ID alone (no mobile number needed). One hash for the same ID in every game, like the phone hash. */
 export const empHashOf = (env: { PHONE_SALT?: string; ORGANIZER_SECRET?: string }, id: string) => sha(`${env.PHONE_SALT ?? env.ORGANIZER_SECRET ?? "unset"}|emp|${id}`);
 /** What the organizer asked people to give to get in, read from the game's stored settings. */
@@ -232,6 +235,7 @@ export async function peopleRoute(c: Ctx): Promise<Response> {
   if (parts.length === 1 && method === "GET") return listPeople(c, who);
   if (parts.length === 1 && method === "POST") return addPeople(c, who, bodyObj);
   if (parts.length === 2 && parts[1] === "export" && method === "GET") return exportPeople(c, who);
+  if (parts.length === 2 && parts[1] === "log" && method === "GET") return peopleLog(c, who);
   if (parts.length === 2 && parts[1] === "me" && (method === "GET" || method === "POST")) return myOwnSeat(c, who, bodyObj);
   if (parts.length === 3 && parts[2] === "remove" && method === "POST") return removePerson(c, who, parts[1]!, bodyObj);
   if (parts.length === 3 && parts[2] === "resend" && method === "POST") return resendPerson(c, who, parts[1]!, bodyObj);
@@ -262,12 +266,13 @@ async function addPeople(c: Ctx, who: Caller, b: any): Promise<Response> {
   if (b.people.length > MAX_ADD_BATCH) return c.json({ error: `Send up to ${MAX_ADD_BATCH} people at a time; the console sends a bigger list in several parts.`, code: "too-many" }, 413);
   if (c.now >= await c.endBound()) return c.json({ error: "The game has ended, so no one can be added." }, 409);
   const invalid: { raw: string; why: string }[] = []; let duplicates = 0;
-  const seen = new Set<string>(); const todo: { name: string; digits: string; ph: string; empId?: string; idHash?: string }[] = [];
+  const seen = new Set<string>(); const todo: { name: string; digits: string; ph: string; empId?: string; idHash?: string; lph?: string }[] = [];
   const vf = verifyOf(c.e);
   for (const x of b.people) {
-    const raw = `${cleanName(x?.name)} ${String(x?.phone ?? "")}`.trim().slice(0, 100);
+    const raw = (`${cleanName(x?.name)} ${String(x?.phone ?? "")}`.trim() || String(x?.empId ?? x?.employeeId ?? "")).slice(0, 100);
     const emp = normEmp(x?.empId ?? x?.employeeId);
-    if (emp === null) { invalid.push({ raw, why: "An employee ID has letters and numbers only (up to 30)." }); continue; }
+    if (emp === null) { invalid.push({ raw, why: badIdMessage(x?.empId ?? x?.employeeId) }); continue; }
+    if (vf.mode === "id" && !emp) { invalid.push({ raw, why: "The ID is missing." }); continue; } // an ID game is listed by ID alone (owner rule 20 Nov 2026): no name, no mobile number
     const phoneTyped = String(x?.phone ?? "").trim() !== "";
     if (vf.mode === "either" && !emp && !phoneTyped) { invalid.push({ raw, why: "Give a mobile number or an employee ID." }); continue; }
     if (vf.employeesOnly && vf.mode !== "mobile" && vf.mode !== "either" && !emp) { invalid.push({ raw, why: "This game is for employees: the employee ID is missing." }); continue; }
@@ -275,8 +280,9 @@ async function addPeople(c: Ctx, who: Caller, b: any): Promise<Response> {
       let digits = "";
       if (phoneTyped) { const cl = cleanPhone(x?.phone); if (!cl.ok) { invalid.push({ raw, why: cl.why }); continue; } digits = keptFromClean(cl.digits); }
       const ph = await empHashOf(c.env, emp);
-      if (seen.has(ph)) { duplicates++; continue; }
-      seen.add(ph); todo.push({ name: cleanName(x?.name), digits, ph, empId: emp }); continue;
+      if (seen.has(ph)) { duplicates++; continue; } // the same ID written another way (A-1101, A 1101, A/1101) is the same person
+      const lg = legacyEmpFor(x?.empId ?? x?.employeeId, c.e); // an older game may already hold this person under the form an older release stored
+      seen.add(ph); todo.push({ name: cleanName(x?.name), digits, ph, empId: emp, ...(lg ? { lph: await empHashOf(c.env, lg) } : {}) }); continue;
     }
     const cl = cleanPhone(x?.phone);
     if (!cl.ok) { invalid.push({ raw, why: cl.why }); continue; }
@@ -290,13 +296,14 @@ async function addPeople(c: Ctx, who: Caller, b: any): Promise<Response> {
     }
     seen.add(ph); todo.push({ name: cleanName(x?.name), digits: keptFromClean(cl.digits), ph, ...(emp && vf.mode !== "mobile" ? { empId: emp } : {}), ...(idHash ? { idHash } : {}) });
   }
-  const db = c.env.DB, hashes = todo.map((t) => t.ph);
+  const db = c.env.DB, hashes = todo.flatMap((t) => (t.lph ? [t.ph, t.lph] : [t.ph]));
   const persons = await existingBy(db, "person", c.eid, hashes, "ph, status, id, inviter, removed_by");
   const seats = await existingBy(db, "seat", c.eid, hashes, "ph, blocked");
   const waits = await existingBy(db, "waiting", c.eid, hashes, "ph, id, status");
   const fresh: typeof todo = [], revive: typeof todo = [];
   for (const t of todo) {
     const p = persons.get(t.ph);
+    if (!p && t.lph && persons.has(t.lph)) { duplicates++; continue; } // already listed under the older form of the same ID
     if (p) { if (p.status === "removed" && (who.all || (p.inviter === who.id && p.removed_by === who.id))) revive.push(t); /* an Organizer or Host puts anyone back; a Co-host or guest only takes back a person they removed themselves */ else if (p.status === "removed") invalid.push({ raw: `${t.name} ${t.digits ? "+" + phoneDigits(t.digits) : ""}`.trim(), why: "This person was removed. Ask the Organizer or a Host to put them back." }); else duplicates++; continue; }
     if (seats.has(t.ph)) { duplicates++; continue; } // a seat from an older flow (a loaded list): already in the game
     fresh.push(t);
@@ -484,9 +491,31 @@ async function listWaiting(c: Ctx, who: Caller): Promise<Response> {
   const label = await labelsOf(c), out = [];
   for (const r of await waitingRows(c, who, 200)) {
     const p = await openPii(c.env, r.pii), first = (p?.name ?? "").trim().split(/\s+/)[0] ?? "";
-    out.push({ id: r.id, firstName: first, last4: (p?.phone ?? "").slice(-4), via: r.via, at: r.at_ms, ...(who.all ? { inviter: label(r.inviter), overLimit: !!r.overlimit, ...(p?.empId ? { empId: p.empId } : {}) } : {}) }); // the Employee ID is shown to the Organizer and the Hosts only (they decide whether this person is an employee)
+    out.push({ id: r.id, firstName: first, last4: (p?.phone ?? "").slice(-4), via: r.via, at: r.at_ms, ...(who.all ? { inviter: label(r.inviter), overLimit: !!r.overlimit } : {}), ...(p?.empId && (who.all || (!first && !p.phone)) ? { empId: p.empId } : {}) }); // the ID is shown to the Organizer and the Hosts, and to whoever must say yes to a request that carries nothing but an ID (a family host)
   }
   return c.json({ waiting: out });
+}
+/** The invite and approval log (owner rule 20 Nov 2026): every ID that asked to come in, who it came through, and what was decided and by whom, newest first; also every ID that was listed and every ID that joined.
+ *  Only the ID is shown: never a name or a number. Only the Organizer and Hosts may read it (the full list and the invite chain are theirs). It is erased with the rest of the game's people (lifecycle.ts). */
+async function peopleLog(c: Ctx, who: Caller): Promise<Response> {
+  if (!who.all) return c.json({ error: "Only the organizer or a host can see the invite log.", code: "forbidden" }, 403);
+  const label = await labelsOf(c), rows: { ms: number; id: string; kind: string; through: string; by?: string }[] = [];
+  const wq = c.env.DB.prepare("SELECT pii, via, inviter, status, decided_by, decided_ms, at_ms FROM waiting WHERE eid=? ORDER BY at_ms DESC LIMIT 300").bind(c.eid);
+  for (const r of (await wq.all<any>()).results ?? []) {
+    const p = await openPii(c.env, r.pii), id = String(p?.empId ?? "").slice(0, 30), through = label(r.inviter) || "the game link";
+    rows.push({ ms: Number(r.at_ms), id, kind: "asked", through });
+    if (r.status === "admitted" || r.status === "declined") rows.push({ ms: Number(r.decided_ms) || Number(r.at_ms), id, kind: r.status === "admitted" ? "let in" : "declined", through, by: label(r.decided_by) || "someone" });
+    else if (r.status === "lapsed") rows.push({ ms: Number(r.decided_ms) || Number(r.at_ms), id, kind: "request ran out", through });
+  }
+  const pq = c.env.DB.prepare(`SELECT ${PERSON_COLS} FROM person WHERE eid=? AND role IS NULL ORDER BY added_ms DESC LIMIT 300`).bind(c.eid);
+  for (const r of (await pq.all<PersonRow>()).results ?? []) {
+    const p = await openPii(c.env, r.pii), id = String(p?.empId ?? "").slice(0, 30);
+    if (!id) continue; // a person listed by mobile number (an older game) has no ID to show, and a number is never shown here
+    if (!r.approved_by) rows.push({ ms: Number((r as any).added_ms) || 0, id, kind: "listed", through: label(r.inviter) || "the Organizer" });
+    if ((r as any).joined_ms) rows.push({ ms: Number((r as any).joined_ms), id, kind: "joined", through: label(r.inviter) || "the Organizer" });
+  }
+  rows.sort((x, y) => y.ms - x.ms);
+  return c.json({ log: rows.slice(0, 400) });
 }
 /** Puts an admitted person on a list, but only while the waiting request is still "waiting" (so a decline that won the race leaves nobody inside). */
 const admitInsert = (db: D1, eid: string, wid: string, id: string, ph: string, pii: string, inviter: string, tokHash: string, tokSealed: string, by: string, now: number) =>
@@ -615,6 +644,16 @@ export async function personByToken(env: Env, eid: string, token: string): Promi
 }
 export async function personByPhone(env: Env, eid: string, ph: string): Promise<PersonRow | null> {
   return (await env.DB.prepare(`SELECT ${PERSON_COLS} FROM person WHERE eid=? AND ph=?`).bind(eid, ph).first<PersonRow>()) ?? null;
+}
+/** A listed person by the ID typed: the cleaned form first, then (only when a game made before the one-ID rule is asked) the form an older release stored. Each form may also be an alias to another identity (the "idx" key of a person known by mobile number and ID). */
+export async function personByEmpId(env: Env, eid: string, id: string, legacyId: string | null): Promise<PersonRow | null> {
+  for (const k of legacyId ? [id, legacyId] : [id]) {
+    const eh = await empHashOf(env, k);
+    let hit = await personByPhone(env, eid, eh);
+    if (!hit) { const al = await env.DB.prepare("SELECT v FROM kv WHERE k=?").bind(`idx/${eid}/${eh}`).first<{ v: string }>(); if (al) hit = await personByPhone(env, eid, al.v); }
+    if (hit) return hit;
+  }
+  return null;
 }
 export type { PersonRow };
 
