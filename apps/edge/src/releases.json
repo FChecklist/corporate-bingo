@@ -1,5 +1,18 @@
 [
   {
+    "version": "1.4.1",
+    "date": "2026-11-22",
+    "commit": "this release",
+    "title": "Audit fixes: wrong-ID limit counts one network, honest ID help",
+    "changes": [
+      "The limit on wrong employee IDs now counts one network as one: a person who changes their IPv6 address inside the same network can no longer start again from zero",
+      "Wrong IDs are counted in one step, so many guesses sent at the same moment cannot slip past the limit",
+      "Your organizer screen now says plainly that an ID is matched to your list and does not prove who types it",
+      "The AI helper is no longer told it can make a pay link that anyone can open",
+      "The paid-notice address does nothing at all until it is switched on"
+    ]
+  },
+  {
     "version": "1.4.0",
     "date": "2026-11-22",
     "commit": "this release",

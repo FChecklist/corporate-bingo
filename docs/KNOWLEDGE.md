@@ -1,6 +1,6 @@
 # Knowledge file: Corporate Bingo (read this first)
 
-Version **1.4.0** (22 Nov 2026), branch `p1/owner-rules-v1-1`, pull request 9. Not deployed. Newest changes: `CHANGELOG.md`. Detailed state, tests and open items: `docs/STATE.md`. Payment design: `docs/CONSOLE_PAY.md`. Voice rules: `docs/CONSOLE_VOICE.md`. What the other repositories are for: `KNOWLEDGE-MAP.md`.
+Version **1.4.1** (22 Nov 2026), branch `p1/owner-rules-v1-1`, pull request 9. Not deployed. Newest changes: `CHANGELOG.md`. Detailed state, tests and open items: `docs/STATE.md`. Payment design: `docs/CONSOLE_PAY.md`. Voice rules: `docs/CONSOLE_VOICE.md`. What the other repositories are for: `KNOWLEDGE-MAP.md`.
 
 ## Owner rules v1.1 this game follows
 - Organizer and host screens say "you". Zero first-person strings, kept by `apps/web/test/console-voice.test.ts`.
@@ -14,7 +14,9 @@ Version **1.4.0** (22 Nov 2026), branch `p1/owner-rules-v1-1`, pull request 9. N
 ## Things to know before you change anything
 - `apps/edge/src/console-bridge/` is a byte-for-byte copy of the console repo's bridge (hashes in `MANIFEST.json`, checked by `bridge-copy.test.ts`). Do not edit it. A fix that belongs there goes to the console repo first.
 - The stuck-order recovery lives in this game's wrapper (`releaseStaleMarking` and an order that can safely run twice in `consoleMarkPaid`), because the copied bridge leaves an order in "marking" after a one-off error.
-- The server API still allows `whoCanJoin: "anyone"` when a caller says so on purpose (old tests and legacy callers). The console screen and the AI helper always send `list` + `id`.
+- The server API still allows `whoCanJoin: "anyone"` and opens a game when a create call says nothing (owner decision pending) when a caller says so on purpose (old tests and legacy callers). The console screen and the AI helper always send `list` + `id`.
+- **"ID matched, not proven" is the owner's decision (BOSS; written in the suite's `SUITE_RULES.md`, which is not in this repository).** Anyone who types a listed ID gets that person's seat. A right ID is never counted and never limited per address; only wrong IDs are (30 per network per game per 10 minutes, `idMissOver` in `worker.ts`). Do not add limits on right IDs. The help text says so (zc.js "Invite people with just an ID" box). Do not write "verified", "proven" or "secure" about an ID.
+- Any per-address key groups an IPv6 address by its /64 (`apps/edge/src/ipkey.ts`, `ipGroup`). Count in ONE statement (`INSERT ... ON CONFLICT DO UPDATE ... RETURNING`), never read-then-write.
 - Run every test file as its own process. `apps/web/test/pages.test.ts` takes over 4 minutes: run it alone.
 - Version number: change `version.json`, `package.json`, `apps/edge/package.json`, `apps/edge/src/releases.json` and `CHANGELOG.md` together (`apps/edge/test/version.test.ts` checks).
 

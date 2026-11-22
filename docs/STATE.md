@@ -1,6 +1,6 @@
 # State of the P1 owner-rules work (suite rules version 1.1, 20 Nov 2026)
 
-> **Update 22 Nov 2026 (version 1.4.0, after two audits of 8fd6643):** see "Audit fixes of 22 Nov" at the end. The "Exact commit" section below describes the first code-complete state.
+> **Update 22 Nov 2026 (version 1.4.1, after audits of 2262827):** see "Audit fixes of 22 Nov" at the end. The "Exact commit" section below describes the first code-complete state.
 
 Game: **Corporate Bingo**. Branch `p1/owner-rules-v1-1`. Draft pull request. **Nothing is deployed.** No live service, DNS, payment or secret was touched. Cloud container: code and unit tests only.
 
@@ -61,3 +61,10 @@ Fixed (each has a test that fails without the fix):
 4. **Audit 5, server default.** A caller that says `whoCanJoin: "anyone"` still gets an open game, and an API call that says nothing still gets one. Making the server default closed breaks about 38 test files that build open games on purpose; the owner should decide whether the API itself must refuse open games.
 5. **Audit 2, `_headers` / `PAYCSP`.** The old pay pages (and their Razorpay allowance) still exist behind `PAY_VIA_CONSOLE` (off). They go when that flag is retired.
 6. Audit 6, 7, 8, 10: unchanged (contract kit not run, no CI, consent words, test-file typing messages that are on master too).
+
+## Audit fixes of 22 Nov 2026 (version 1.4.1, after audits of 2262827)
+- Wrong-ID limit: one key per network (IPv6 grouped by /64, `apps/edge/src/ipkey.ts`) and one-statement counting (`idMissOver`). Tests: `apps/edge/test/audit-1-4-1.test.ts`.
+- The paid route does its stale-order cleanup only when `CONSOLE_PUBKEYS` is set (no database write on a dark route).
+- ID help text says "matched to your list, does not prove who is typing it" (owner decision "ID matched, not proven": no limits on right IDs).
+- AI helper text no longer offers "a pay link that anyone can open". Flaky "Host sees ten steps" page test now waits for the steps.
+- NOT fixed (cannot be done honestly here): host-start / host-call formats (Blocker), `payInfo` (High), legacy pay routes still open while `PAY_VIA_CONSOLE` is off and Razorpay in `PAYCSP` (High), server default for open games (Medium: owner decision), console repo's stuck-order bug (Medium), contract kit not run, no CI, consent words K4/K6, "we/our" in organizer text (owner to confirm), 71 old test typing messages.

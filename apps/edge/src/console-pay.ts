@@ -66,7 +66,7 @@ export async function consoleMarkPaid(env: Env, o: { eid: string; sub: string; i
 /** The adapter the bridge needs. Only `markPaid` is used (the route is /api/console/paid alone); every other method refuses, so nothing else of the bridge can be reached by mistake. */
 export function consoleAdapter(now: number): Adapter<ConsoleEnv> {
   return {
-    game: "bingo", gameName: "Corporate Bingo", gameVersion: "1.4.0",
+    game: "bingo", gameName: "Corporate Bingo", gameVersion: "1.4.1",
     nowMs: () => now,
     origin: (env) => (env.PUBLIC_ORIGIN || "").replace(/\/$/, ""),
     pubkeys: (env) => env.CONSOLE_PUBKEYS,
@@ -96,7 +96,7 @@ export async function consolePaidRoute(req: Request, env: ConsoleEnv, now: numbe
   if (path !== "/api/console/paid") return null;
   if (req.method !== "POST" && req.method !== "OPTIONS") return null;
   if (env.CONSOLE_PUBKEYS && !env.PUBLIC_ORIGIN) return new Response(JSON.stringify({ ok: false, code: "not_set_up", error: "This game's public address (PUBLIC_ORIGIN) is not set, so it cannot take the console's paid notice yet." }), { status: 503, headers: { "content-type": "application/json", "cache-control": "no-store" } }); // fails closed AND says why (an empty address would refuse every real notice as "wrong game")
-  if (req.method === "POST") await releaseStaleMarking(req.clone(), env, now);
+  if (req.method === "POST" && env.CONSOLE_PUBKEYS) await releaseStaleMarking(req.clone(), env, now); // never for a dark route: an unsigned request cannot cause a database write there
   return handleConsole(consoleAdapter(now), req, env);
 }
 

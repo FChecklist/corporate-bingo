@@ -2,6 +2,23 @@
 
 Plain words. Newest first. The version number lives in `version.json` and must be the same in `package.json`, `apps/edge/package.json` and `apps/edge/src/releases.json` (a test checks this).
 
+## 1.4.1 (22 Nov 2026) - Audit fixes, not deployed yet
+
+**What changed for you**
+- The limit on wrong employee IDs (30 in 10 minutes) now counts one network as one. Before, a person on an IPv6 network could change their address and start again from zero. Now every address in the same /64 network counts together.
+- Wrong IDs are now counted in a single step, so many guesses sent at the same moment cannot slip past the limit.
+- Your organizer screen now says plainly: an ID is matched to your list, it does not prove who is typing it, and anyone who knows a listed ID can use it. This is the owner's decision ("ID matched, not proven"). We do not limit right IDs per address, and a right ID is never counted.
+- The AI helper is no longer told it can "make a pay link that anyone can open". Only the organizer pays, in the console.
+- The console's paid-notice address does nothing at all (no database write) until it is switched on.
+- One page test that failed now and then under load waits for the ten steps to be drawn.
+
+**Still missing (unchanged, see `docs/STATE.md`, "Not done")**
+- "You start the game" and "You call the numbers" are not built. (Blocker in the audit.)
+- The console cannot yet ask this game what a payment step needs before it takes the money (`payInfo`; its contract is not in this repository). (High in the audit.)
+- The game's own old pay routes close only when the flag `PAY_VIA_CONSOLE` is on (OFF by default); the Razorpay allowance on the old pay pages stays until the owner decides. (High in the audit.)
+- The server still opens a game to anyone when an API call asks for that or says nothing. The console screen and the AI helper always make closed, ID-only games. The owner must decide whether the API itself must refuse open games. (Medium in the audit.)
+- The console repository's own copy of the stuck-order bug is not fixed here. This game is covered by a wrapper.
+
 ## 1.4.0 (22 Nov 2026) - Owner rules v1.1, not deployed yet
 
 **What changed for you**

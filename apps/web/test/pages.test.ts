@@ -226,6 +226,7 @@ describe("console (organizer page)", () => {
     const hk = await hostKey(o, "Anita");
     const p = await consolePage(o, "UI-HOSTV", hk);
     await p.waitFor((x) => /Last step|Your game/i.test(x));
+    await p.waitFor(() => sections(p).length === TEN.length); // "Your game" can show before the ten steps are drawn: wait for them (was a timing flake)
     expect(sections(p)).toEqual(TEN);
     await p.waitFor(() => p.$("#rolepill")!.textContent === "Signed in as Host 1 of 5");
     expect(p.$("#aistrip")).toBeNull(); expect(p.text()).not.toMatch(/Your account|Close your account/);
