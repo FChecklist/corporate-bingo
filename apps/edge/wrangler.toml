@@ -18,7 +18,7 @@ crons = ["17 3 * * *"]   # daily 03:17 UTC: deletes engagements older than 365 d
 DAILY_WRITE_BUDGET = "80000"
 MAIL_FROM = "Corporate Bingo <hello@corporatetambola.com>"   # own sender: set when the Resend domain exists
 # MAIL_REPLY_TO = "the address organizers should reply to"
-# PUBLIC_ORIGIN = "https://bingo.corporatetambola.com"
+# PUBLIC_ORIGIN = "https://bingo.corporatetambola.com"   # REQUIRED before CONSOLE_PUBKEYS is set: the console's paid notice names this address; with it empty the paid route answers 503 "not set up"
 COMPANY_JSON = '{"email":"hello@corporatetambola.com","phone":"(+91) 96503 97480","sacDescription":"Software solutions and products"}'
 
 # Route the API on the same domain as the Pages site so phones never make a cross-origin call (set when the domain is bought):

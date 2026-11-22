@@ -77,7 +77,7 @@ export default [
       const org = await t.org("o"); const g = await t.game(org);
       const c = await openConsole(t, org, g.id, { device: "laptop" }); await openStep(c.page, 8);
       await c.page.context().grantPermissions(["clipboard-read", "clipboard-write"]).catch(() => {});
-      await c.page.click("#copypaylink"); await c.page.waitForTimeout(1200);
+      // the console page no longer has a "Copy payment link" button (owner rule 20 Nov 2026); the old pay link is still made by the API behind the PAY_VIA_CONSOLE flag, so this scenario takes it from there
       const txt = await t.text(c.page, "#sec8");
       const linkInPage = /https?:\/\/[^\s]+paylink\.html\?t=[0-9a-f]{48}/.exec(txt)?.[0];
       let link = linkInPage;

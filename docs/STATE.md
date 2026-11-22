@@ -1,5 +1,7 @@
 # State of the P1 owner-rules work (suite rules version 1.1, 20 Nov 2026)
 
+> **Update 22 Nov 2026 (version 1.4.0, after two audits of 8fd6643):** see "Audit fixes of 22 Nov" at the end. The "Exact commit" section below describes the first code-complete state.
+
 Game: **Corporate Bingo**. Branch `p1/owner-rules-v1-1`. Draft pull request. **Nothing is deployed.** No live service, DNS, payment or secret was touched. Cloud container: code and unit tests only.
 
 Code commit this file describes: see "Exact commit" at the end.
@@ -18,7 +20,7 @@ Code commit this file describes: see "Exact commit" at the end.
 ## Tested
 
 - Every test file is run as its own process (the way this repo's CI does). Baseline before any change: two files failed, both only because of the calendar: `owner-test-free.test.ts` and `apps/web/test/pages.test.ts` (five console tests built dates from the real clock). After the work: **every test file passes** (about 110 files), `tsc` shows no error in production code and the same 71 test-file typing messages as before.
-- **`pages.test.ts` (131 tests, the console pages) does not finish as one process in this container** (before or after the work: it ran over 25 minutes with no output). It was therefore run in groups by `-t`, covering every group of tests: all pass (66 + 40 + 31 tests across the groups; some tests sit in two groups). Run it on a normal machine as one file to confirm.
+- **`pages.test.ts` (127 tests, the console pages) is long (about 3 to 4 minutes as one process; the first writer could not finish it in its container)**. It was therefore run in groups by `-t`, covering every group of tests: all pass (66 + 40 + 31 tests across the groups; some tests sit in two groups). Run it on a normal machine as one file to confirm.
 - New tests: `console-paid.test.ts` (11), `bridge-copy.test.ts`, `id-invite.test.ts` (15), `id-invite-pages.test.ts` (6), `console-voice.test.ts` (26), `owner-text.test.ts` (6), `login-at-home.test.ts` (2), `packages/beacon/test/fairness.test.ts` (6).
 - **Three falsifiability checks** (logic broken, test seen to fail, logic restored, tests green again): (1) ID cleaning made to keep dashes -> 8 ID tests failed; (2) the paid notice stopped checking whose game it is -> the "game decides from its own tables" test failed; (3) "Download your list" put back to "my list" -> the console voice test failed.
 - Tests that were already failing or fragile and are fixed (not hidden): `owner-test-free` compared an end date (8 Nov 2026) with today's clock; five console tests built dates from the real clock while the page runs on a fixed test clock (they pass only within 30 days of 1 Oct 2026); `usecases` UC-32 assumed which of 40 simultaneous joins is served first. The owner's test-account permission itself was **not** extended.
@@ -41,3 +43,21 @@ Code commit this file describes: see "Exact commit" at the end.
 ## Exact commit
 
 Code is complete at commit `b460bd102320178e48b1a109dd919c18a38271cd` on branch `p1/owner-rules-v1-1` (draft PR https://github.com/FChecklist/corporate-bingo/pull/9). Any later commit only changes this file.
+
+## Audit fixes of 22 Nov 2026 (version 1.4.0)
+
+Fixed (each has a test that fails without the fix):
+- **Audit 4, a paid order stuck for ever.** `consoleMarkPaid` can now run twice for the same order id (its entitlement is written first, every step is safe to repeat), and `releaseStaleMarking` clears an order left in "marking" for over 30 seconds before the copied bridge runs, so the console's retry goes through every check again. Tests: `console-paid-recovery.test.ts` (blip before and after the pack is set; a retry within 30 seconds still says "in progress"; another order id is still refused; a paid order is never touched).
+- **Audit 2, payment screens.** The console page has no payment link and no "Copy payment link"; Pay goes to the console naming the game (`?game=bingo&eid=`). The old pay pages (flag on) redirect to the same place. Tests: `pages.test.ts` (no `/pay.html`, `/paylink` or `copypaylink` in `zc.js`), `console-paid-recovery.test.ts`.
+- **Audit 5, closed ID-only.** The AI helper now saves `whoCanJoin: "list", verify: "id"` and no longer offers "anyone with the link" (and its speed default is 12). Test: `ai-enablement.test.ts`, `owner-fixes-1-4-0.test.ts`.
+- **Audit 9, `PUBLIC_ORIGIN`.** With `CONSOLE_PUBKEYS` set and no `PUBLIC_ORIGIN`, the paid route answers 503 "not set up". Written in `wrangler.toml` and `config/SECRETS_NAMES.md`. Test: `owner-fixes-1-4-0.test.ts`.
+- **Audit 11, claims test** widened (`owner-fixes-1-4-0.test.ts`). **Audit 12**, the count of console page tests is 127 (two "Copy payment link" tests became one "no payment link" test).
+- Version 1.4.0 written in `version.json`, the package files, `releases.json` and `CHANGELOG.md`; `docs/KNOWLEDGE.md` added; `apps/edge/test/version.test.ts` keeps them equal.
+
+**Not fixed in this push (open, needs a decision or another repository):**
+1. **Audit 1 (Blocker), "you start the game" and "you call the numbers".** Not built. The reference is Tambola's `go` and `next` messages, which is in another repository this work could not open. It is a port of about 700 lines, host screens and new fairness tests: a separate piece of work.
+2. **Audit 3 (High), `payInfo`.** The contract for "what does a pay step need" is not in this repository (`grep` finds none, and the copied contract kit has no such call). Without it any endpoint here would be a guess. The size check still runs only when the notice arrives.
+3. **Audit 4, the same fix in the console repo.** This game is covered by the wrapper; the console's own bridge still has the bug.
+4. **Audit 5, server default.** A caller that says `whoCanJoin: "anyone"` still gets an open game, and an API call that says nothing still gets one. Making the server default closed breaks about 38 test files that build open games on purpose; the owner should decide whether the API itself must refuse open games.
+5. **Audit 2, `_headers` / `PAYCSP`.** The old pay pages (and their Razorpay allowance) still exist behind `PAY_VIA_CONSOLE` (off). They go when that flag is retired.
+6. Audit 6, 7, 8, 10: unchanged (contract kit not run, no CI, consent words, test-file typing messages that are on master too).

@@ -1,5 +1,21 @@
 [
   {
+    "version": "1.4.0",
+    "date": "2026-11-22",
+    "commit": "this release",
+    "title": "Owner rules v1.1: ID-only invites, payment only through the console",
+    "changes": [
+      "Every organizer and host screen speaks to you; the game starts by itself and numbers come by themselves",
+      "People are invited by employee ID only: A-1101, A 1101 and A/1101 are the same person; an ID that is not on the list waits for your yes or no",
+      "The game takes payment only from the console's signed notice, once per order id; the Pay button on your console page now opens your game in the console, and there is no payment link to copy",
+      "A paid order that hit a one-off database error can now be tried again by the console and finishes once, instead of staying stuck",
+      "The old payment page sends you to your own game in the console",
+      "The AI helper now makes invite-only (ID) games, with a number every 12 seconds",
+      "Rupee sign everywhere, one privacy line, the fairness sentence proved by a test",
+      "Still not built: 'you start the game' and 'you call the numbers' (see docs/STATE.md)"
+    ]
+  },
+  {
     "version": "1.3.2",
     "date": "2026-10-27",
     "commit": "this release",

@@ -43,12 +43,18 @@ export async function consoleMarkPaid(env: Env, o: { eid: string; sub: string; i
   const who = await db.prepare("SELECT org FROM organizer_email WHERE email_hash=?").bind(o.sub).first<{ org: string }>();
   if (!who || !e.org || who.org !== e.org) throw refuse(MARK_PAID_WORDS.notYours);
   if (e.cancelled_ms || e.unplayed_ms) throw refuse(MARK_PAID_WORDS.closed);
-  if (Number(e.pack) > 0) throw refuse(MARK_PAID_WORDS.already);
-  const pack = packFor(Number(e.cap));
-  if (!pack || String(pack) !== o.item) throw refuse(MARK_PAID_WORDS.wrongSize);
-  const up = await db.prepare("UPDATE engagement SET pack=? WHERE id=? AND org=? AND pack=0 AND cancelled_ms IS NULL AND unplayed_ms IS NULL").bind(pack, o.eid, e.org).run();
-  if ((up.meta?.changes ?? 0) === 0) throw refuse(MARK_PAID_WORDS.already); // another call won the race: nothing was changed by this one
-  await db.prepare("INSERT OR IGNORE INTO entitlement(id,org,pack,payment_id,eid,created_ms) VALUES(?,?,?,?,?,?)").bind("ent_console_" + o.orderRef, e.org, pack, "console:" + o.orderRef, o.eid, o.nowMs).run();
+  const pack = packFor(Number(e.cap)), entId = "ent_console_" + o.orderRef;
+  // A retry of an order that failed half way (a one-off database error): THIS order's entitlement is written FIRST, so its presence says "this order started the job" and the retry finishes the
+  // missing steps instead of answering "already paid". Every step below is safe to repeat.
+  const mine = await db.prepare("SELECT id FROM entitlement WHERE id=? AND eid=?").bind(entId, o.eid).first<{ id: string }>();
+  if (!mine && Number(e.pack) > 0) throw refuse(MARK_PAID_WORDS.already);
+  if (Number(e.pack) === 0 && (!pack || String(pack) !== o.item)) throw refuse(MARK_PAID_WORDS.wrongSize);
+  const finalPack = Number(e.pack) > 0 ? Number(e.pack) : pack!;
+  await db.prepare("INSERT OR IGNORE INTO entitlement(id,org,pack,payment_id,eid,created_ms) VALUES(?,?,?,?,?,?)").bind(entId, e.org, finalPack, "console:" + o.orderRef, o.eid, o.nowMs).run();
+  if (Number(e.pack) === 0) {
+    const up = await db.prepare("UPDATE engagement SET pack=? WHERE id=? AND org=? AND pack=0 AND cancelled_ms IS NULL AND unplayed_ms IS NULL").bind(pack, o.eid, e.org).run();
+    if ((up.meta?.changes ?? 0) === 0) { if (!mine) await db.prepare("DELETE FROM entitlement WHERE id=?").bind(entId).run(); throw refuse(MARK_PAID_WORDS.already); } // another call won the race: nothing stays from this one
+  }
   await db.prepare("INSERT OR IGNORE INTO kv(k,v) VALUES(?,?)").bind(`pub/${o.eid}`, String(o.nowMs)).run(); // paying also publishes, as a payment made here does
   await db.prepare("INSERT OR IGNORE INTO kv(k,v) VALUES(?,?)").bind(`paidby/${o.eid}`, JSON.stringify({ by: "organizer", ms: o.nowMs, via: "console" })).run();
   if ((1692803367 + (Number(e.start_round) - 1) * 3) * 1000 <= o.nowMs) { // it was held because it was not paid at its start time: the first number now comes 2 minutes after the payment was confirmed
@@ -89,7 +95,26 @@ export async function consolePaidRoute(req: Request, env: ConsoleEnv, now: numbe
   const path = new URL(req.url).pathname.replace(/\/+$/, "");
   if (path !== "/api/console/paid") return null;
   if (req.method !== "POST" && req.method !== "OPTIONS") return null;
+  if (env.CONSOLE_PUBKEYS && !env.PUBLIC_ORIGIN) return new Response(JSON.stringify({ ok: false, code: "not_set_up", error: "This game's public address (PUBLIC_ORIGIN) is not set, so it cannot take the console's paid notice yet." }), { status: 503, headers: { "content-type": "application/json", "cache-control": "no-store" } }); // fails closed AND says why (an empty address would refuse every real notice as "wrong game")
+  if (req.method === "POST") await releaseStaleMarking(req.clone(), env, now);
   return handleConsole(consoleAdapter(now), req, env);
+}
+
+/** How long an order may sit in the bridge's "marking" state before it is treated as stuck. A live call finishes in well under a second. */
+export const MARKING_STUCK_MS = 30_000;
+/**
+ * The bridge (copied, not edited) leaves an order row in "marking" when `markPaid` fails with a one-off error, and then answers every retry of that order id with 409 "in progress", for ever.
+ * Here, before the bridge runs, a row that has been "marking" for over 30 seconds is cleared. The retry then goes through the bridge's full checks again (signature, audience, purpose, age, one use)
+ * and runs `markPaid` again, which is safe to repeat (see `consoleMarkPaid`). A row that is "paid" is never touched, so once per order id still holds. Nothing here trusts the request: it only
+ * removes a stale marker that the bridge would put back.
+ */
+export async function releaseStaleMarking(req: Request, env: ConsoleEnv, now: number): Promise<void> {
+  try {
+    const body: any = await req.json();
+    const ref = body && typeof body.orderRef === "string" && /^[A-Za-z0-9_-]{4,100}$/.test(body.orderRef) ? body.orderRef : "";
+    if (!ref) return;
+    await env.DB.prepare("DELETE FROM console_paid WHERE order_ref=? AND state='marking' AND at_ms<?").bind(ref, now - MARKING_STUCK_MS).run();
+  } catch { /* not JSON, or the table is not there: the bridge answers as it always did */ }
 }
 
 /** The old pay routes of THIS game, besides the ones the bridge already knows (its LEGACY_PAY_ROUTES). Razorpay's webhook is NOT here on purpose. */
@@ -99,8 +124,10 @@ export const BINGO_PAY_ROUTES: RegExp[] = [/^\/api\/(checkout|proforma)$/, /^\/a
 export function legacyPayGate(req: Request, env: ConsoleEnv): Response | null {
   const r = legacyPayRedirect(req, { flag: env.PAY_VIA_CONSOLE, consoleOrigin: consoleOrigin(env), extra: BINGO_PAY_ROUTES });
   if (!r) return null;
-  if (!new URL(req.url).pathname.startsWith("/api/")) return r;
-  return new Response(JSON.stringify({ error: "Payment is made in your console now. Please open your console and press Pay.", code: "pay-in-console", console: consoleOrigin(env) + "/" }), { status: 409, headers: { "content-type": "application/json", "cache-control": "no-store" } });
+  const u = new URL(req.url), e = u.searchParams.get("e") || (u.pathname.match(/^\/api\/z\/([^/]+)\//) || [])[1] || "";
+  const to = consoleOrigin(env) + "/" + (/^[A-Za-z0-9_-]{1,64}$/.test(e) ? "?game=bingo&eid=" + encodeURIComponent(e) : ""); // a page sends the person to THEIR game's payment in the console, not to the console's front door
+  if (!u.pathname.startsWith("/api/")) return new Response(null, { status: 302, headers: { location: to, "cache-control": "no-store" } });
+  return new Response(JSON.stringify({ error: "Payment is made in your console now. Please open your console and press Pay.", code: "pay-in-console", console: to }), { status: 409, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 }
 
 /** The pages (and routes) where this game used to have its own sign-in. With LOGIN_VIA_CONSOLE=1 they send the person to the one sign-in (home) and the console. */

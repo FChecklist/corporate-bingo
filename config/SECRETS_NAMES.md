@@ -31,7 +31,7 @@ Where things are set:
 | `PAY_SERVICE_URL` | Address of the central payment ledger service | Optional Pages variable | setting |
 | `PAY_SITE` | The name this site goes by in the central ledger | Optional Pages variable | setting |
 | `PAY_HOP_URL` | The payment page on the website registered with Razorpay | wrangler var | setting |
-| `PUBLIC_ORIGIN` | The public web address of this site (links in mails, payment return) | wrangler var | setting |
+| `PUBLIC_ORIGIN` | The public web address of this site (links in mails, payment return). **Required before `CONSOLE_PUBKEYS` is set**: the console's signed paid notice names this address; without it the paid route answers 503 "not set up". | wrangler var | setting |
 | `MAIL_FROM` | The sender name and address of every mail | wrangler var | setting |
 | `MAIL_REPLY_TO` | Reply-to address of mails (optional) | Optional Pages variable | setting |
 | `OWNER_EMAIL` | The owner's address on the TEST-mode allow-list | wrangler var | setting |

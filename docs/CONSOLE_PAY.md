@@ -24,3 +24,8 @@ The notice carries the hash of the payer's e-mail, the game id, the pack size an
 ## Not done here (see `docs/STATE.md`, "Needs")
 - The rest of the bridge adapter (session, games, billing, invited cards, hand-off, roles) and the contract kit run.
 - No invoice is issued by this game for a console payment: Moneypenny and IT Services keep the payment record and the invoice. The owner should confirm this is the intended rule.
+
+## Added in 1.4.0 (audit fixes)
+- **A stuck order recovers.** The bridge copy leaves an order in "marking" after a one-off database error. `releaseStaleMarking` (console-pay.ts) clears a row that has been "marking" for over 30 seconds (`MARKING_STUCK_MS`) before the bridge runs; the retry then goes through all the bridge's checks, and `consoleMarkPaid` finishes the job once (this order's entitlement is written first; every step is safe to repeat). A "paid" row is never cleared, and a different order id for an already-paid game is still refused.
+- **The old pay pages name the game.** With `PAY_VIA_CONSOLE=1` a page such as `/pay.html?e=<game>` redirects to `console/?game=bingo&eid=<game>`.
+- **`PUBLIC_ORIGIN`** must be set before `CONSOLE_PUBKEYS`: with it empty the paid route answers 503 "not set up".

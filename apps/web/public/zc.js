@@ -342,11 +342,11 @@
     }
     throw new Error("big");
   }
-  // ---------- a payment link anyone can open ----------
-  function payLinkBlock() {
-    if (S.draft || isCancelled() || didNotStart() || payState().paid || payState().confirming) return "";
-    return `<div class="zc-chips zc-gap"><button type="button" class="zc-btn zc-btn-s zc-btn-alt" id="copypaylink">${S.payUrl ? "Copy payment link again" : "Copy payment link"}</button></div>${S.payLinkNote ? `<p class="zc-small" id="paylinknote" role="status">${esc(S.payLinkNote)}</p>` : ""}${S.payUrl && !S.payCopied ? `<div class="zlink" id="paylinkurl">${esc(S.payUrl)}</div>` : ""}`;
-  }
+  // ---------- payment is made in the console only (owner rule, 20 Nov 2026) ----------
+  // The game has no payment screen and no payment link of its own: Pay goes to the console, naming this game. There is no "anyone with this link can pay".
+  const CONSOLE_PAY_URL = "https://console.corporatetambola.com/";
+  const payHref = (id) => CONSOLE_PAY_URL + "?game=bingo&eid=" + encodeURIComponent(id);
+  function payLinkBlock() { return ""; }
   // ---------- step 4: brand moments ----------
   const ytC = (u) => /(?:youtu\.be\/|youtube\.com\/(?:watch\?(?:[^#]*&)?v=|shorts\/|embed\/|live\/))([A-Za-z0-9_-]{11})/.test(u);
   function linkInfo(u) {
@@ -661,8 +661,8 @@
     const waiting = S.people.length;
     const fmtLeft = (s) => (s >= 86400 ? Math.floor(s / 86400) + " d " + Math.floor((s % 86400) / 3600) + " h" : s >= 3600 ? Math.floor(s / 3600) + " h " + Math.floor((s % 3600) / 60) + " min" : Math.max(0, Math.floor(s / 60)) + " min");
     const people = waiting ? `<b>${waiting} ${waiting === 1 ? "person has" : "people have"} already joined your link.</b> ` : "Your link is live. ";
-    if (S.locked || left <= 0) return `<div class="zc-alert zc-alert-bad"><h3>Your game could not begin: payment is due</h3><p>${people}They are waiting, and nothing will start until it is paid. <b>Pay now and the game starts 2 minutes after your payment, for everyone already waiting.</b> One payment is enough, from the Organizer, a Host or a Co-host.</p><a class="zc-btn zc-btn-bad" href="/pay.html?e=${encodeURIComponent(eid)}">Pay now and start</a></div>`;
-    return `<div class="zc-alert"><h3>Last step: pay before the start</h3><p>${people}Your game starts <b>${esc(whenS)}</b> (in ${fmtLeft(left)}).</p><p><b>If payment is not made before then, the game will not begin</b> and everyone you invited will be left waiting. It takes about 2 minutes.</p><a class="zc-btn" href="/pay.html?e=${encodeURIComponent(eid)}">Pay now</a></div>`;
+    if (S.locked || left <= 0) return `<div class="zc-alert zc-alert-bad"><h3>Your game could not begin: payment is due</h3><p>${people}They are waiting, and nothing will start until it is paid. <b>Pay now and the game starts 2 minutes after your payment, for everyone already waiting.</b> One payment is enough, from the Organizer, a Host or a Co-host.</p><a class="zc-btn zc-btn-bad" href="${payHref(eid)}" data-pay="console">Pay now and start</a></div>`;
+    return `<div class="zc-alert"><h3>Last step: pay before the start</h3><p>${people}Your game starts <b>${esc(whenS)}</b> (in ${fmtLeft(left)}).</p><p><b>If payment is not made before then, the game will not begin</b> and everyone you invited will be left waiting. It takes about 2 minutes.</p><a class="zc-btn" href="${payHref(eid)}" data-pay="console">Pay now</a></div>`;
   }
   const paidRow = () => { const p = payState(); return `<div class="zc-rowl zc-paid"><span><b>Paid</b><br><span class="zc-small zc-nomargin">${p.paidBy ? "Paid by the " + esc(WHO[p.paidBy] || p.paidBy) : "Paid"}${p.paidMs ? " on " + esc(dmy(p.paidMs)) : ""}. The game is on.</span></span><span aria-hidden="true">&#10003;</span></div>`; };
   // ---------- cancel the game (Organizer and Host): three taps, each more serious; the server wants confirmations: 3 ----------
@@ -754,7 +754,7 @@
     if (isFree10() && payState().paid) return rowl(`<b>₹0 \u00b7 up to ${DEMO_CAP} people</b><br><span class="zc-small zc-nomargin">Nothing to pay for this game.</span>`, `<span aria-hidden="true">&#10003;</span>`) + `<div class="zc-block" id="needmore"><h3>Need more than ${DEMO_CAP} people?</h3>${small("Make a new game like this one for the size you need. The settings, prizes and brand are copied; you pick the date and time, then publish and pay.")}${cloneButton()}</div>` + erasureLine();
     const st = payState();
     const cr = creditOffer();
-    const body = st.paid ? paidRow() : st.confirming ? rowl(`<b>Confirming your payment...</b><br><span class="zc-small zc-nomargin">The game starts only after the bank says yes. Nothing more to do.</span>`, "") : (payDueCard() || rowl("<b>Pay</b><br>Waiting for the payment.", `<a class="zc-btn zc-btn-s" href="/pay.html?e=${encodeURIComponent(eid)}">Pay</a>`));
+    const body = st.paid ? paidRow() : st.confirming ? rowl(`<b>Confirming your payment...</b><br><span class="zc-small zc-nomargin">The game starts only after the bank says yes. Nothing more to do.</span>`, "") : (payDueCard() || rowl("<b>Pay</b><br>Waiting for the payment.", `<a class="zc-btn zc-btn-s" href="${payHref(eid)}" data-pay="console">Pay</a>`));
     return price + cr + body + payLinkBlock() + erasureLine() + small("Paid late? The game starts 2 minutes after your payment is confirmed.");
   }
 
@@ -841,7 +841,7 @@
       ${rowl("People you brought", `<b>${Number(c.brought) || 0}</b>`)}${small("You can invite as many people as you like.")}
       ${peopleBlock()}${small("Want your guests to invite their own friends? Ask the Organizer or a Host to switch it on. You cannot switch it on yourself.")}${cont(2)}`;
     const p = payState();
-    return `<p class="zc-small">Status: <b>${payLabel(p)}</b></p>` + (p.paid ? paidRow() : p.confirming ? rowl(`<b>Confirming your payment...</b><br><span class="zc-small zc-nomargin">The game starts only after the bank says yes.</span>`, "") : rowl(`<b>Pay</b>${c.startMs ? " before " + esc(when(c.startMs)) : ""}<br><span class="zc-small zc-nomargin">${c.price ? esc(typeof c.price === "number" ? money(c.price) : String(c.price)) + ". " : ""}Pay once, from any one of you.</span>`, `<a class="zc-btn zc-btn-s" href="/pay.html?e=${encodeURIComponent(eid)}">Pay</a>`)) + payLinkBlock() + cont(3, "All done");
+    return `<p class="zc-small">Status: <b>${payLabel(p)}</b></p>` + (p.paid ? paidRow() : p.confirming ? rowl(`<b>Confirming your payment...</b><br><span class="zc-small zc-nomargin">The game starts only after the bank says yes.</span>`, "") : rowl(`<b>Pay</b>${c.startMs ? " before " + esc(when(c.startMs)) : ""}<br><span class="zc-small zc-nomargin">${c.price ? esc(typeof c.price === "number" ? money(c.price) : String(c.price)) + ". " : ""}Pay once, from any one of you.</span>`, `<a class="zc-btn zc-btn-s" href="${payHref(eid)}" data-pay="console">Pay</a>`)) + payLinkBlock() + cont(3, "All done");
   }
 
   // ---------- the page: top bar, strips, progress, steps, help ----------
@@ -920,11 +920,11 @@
     5: ["A Host runs the game with you. A Host needs a name, a mobile number and an e-mail.", "A Co-host invites people and can pay. A Co-host needs a name and a mobile number only.", "Guests need a name only (a mobile number too if you chose that).", "Send each private link to one person only.", "Each Co-host can add up to 100 people unless you change it below."],
     6: ["Add your people here, one by one, from your phone contacts (where your phone allows it), by pasting from Excel or by uploading a CSV.", "Each person gets their own link to send by WhatsApp or e-mail. Or share the one common link in Slack, Teams, Zoom chat or any group.", "With \"Only people on a list\", people who are not on your list wait under \"Waiting to come in\". You can let them in one by one or press \"Approve all\".", "The big screen link is for the laptop connected to the room screen or shared in your video call. It shows the call board and winners only."],
     7: ["Look through your game and change what you need.", "Publishing is free. Guests can join after you publish.", "You can cancel before the start time. We do not give refunds: a paid game becomes credit for your next game for 365 days. Or change the date instead.", "Press \"See what guests see\" to look at a sample card."],
-    8: ["Pay once, before the start time. You see the price here.", "The Organizer, a Host or a Co-host can pay. A game for 10 people or fewer has nothing to pay.", "Paid late? The game starts 2 minutes after your payment is confirmed.", "A paid game cannot be cancelled after the start time. Before it, your payment stays as credit for 365 days.", "\"Copy payment link\" makes a link anyone can open to pay for this game."],
+    8: ["Pay once, before the start time. You see the price here.", "The Organizer, a Host or a Co-host can pay. A game for 10 people or fewer has nothing to pay.", "Paid late? The game starts 2 minutes after your payment is confirmed.", "A paid game cannot be cancelled after the start time. Before it, your payment stays as credit for 365 days.", "Pay opens this game in your console, where the payment is made."],
     9: ["Run the game from here. Pause, resume or end it.", "Send a message to every phone.", "Tick a prize when you hand it over.", "Only the Organizer and Host can remove a person during the game."],
     10: ["A few minutes after the game, a report link is e-mailed to the Organizer.", "Guest names and numbers are erased within 24 hours.", "We keep the winners and the Organizer's and Hosts' details for 365 days.", "You can erase guest data earlier."],
   };
-  const ABOUT_COH = { 1: ["You can see the game and what you may do."], 2: ["Add your people. Each gets their own WhatsApp link. You can bring up to your limit."], 3: ["One payment is enough. If someone has paid, you will see Paid.", "\"Copy payment link\" makes a link anyone can open to pay for this game."] };
+  const ABOUT_COH = { 1: ["You can see the game and what you may do."], 2: ["Add your people. Each gets their own WhatsApp link. You can bring up to your limit."], 3: ["One payment is enough. If someone has paid, you will see Paid.", "Pay opens this game in your console, where the payment is made."] };
   const aboutBox = (n) => { const L = (role() === "cohost" ? ABOUT_COH : ABOUT)[n]; return L ? `<div class="zc-about" id="about${n}"><b>About this step</b>${L.map((x) => `<span>${esc(x)}</span>`).join("")}</div>` : ""; };
   const badge = (s) => `<span class="zc-num" style="background:var(--text-tint-${s[2]})">${s[0]}</span>`;
   function synHtml() {
@@ -1566,11 +1566,6 @@
       redraw();
     };
     if ($("logorm")) $("logorm").onclick = () => { S.f.brand.logo = ""; S.logoNote = ""; redraw(); };
-    if ($("copypaylink")) $("copypaylink").onclick = async () => {
-      try { const r = await call("POST", `/api/z/${eid}/paylink`, {}); S.payUrl = r.url || ""; S.payLinkNote = "Anyone with this link can pay for this game. It works until the game is paid or for 7 days."; S.payCopied = S.payUrl ? await copyText(S.payUrl) : false; }
-      catch (e) { S.payUrl = ""; S.payLinkNote = friendly(e); }
-      redraw();
-    };
     if ($("admitall")) $("admitall").onclick = () => { S.pp.bulk = "admit"; redraw(); };
     if ($("declineall")) $("declineall").onclick = () => { S.pp.bulk = "decline"; redraw(); };
     if ($("bulkno")) $("bulkno").onclick = () => { S.pp.bulk = ""; redraw(); };
