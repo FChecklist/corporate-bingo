@@ -2,7 +2,19 @@
 
 Plain words. Newest first. The version number lives in `version.json` and must be the same in `package.json`, `apps/edge/package.json` and `apps/edge/src/releases.json` (a test checks this).
 
-## 1.4.1 (22 Nov 2026) - Audit fixes, not deployed yet
+## 1.5.0 (22 Nov 2026) - Owner rules v1.1 joined to the live code
+
+**What changed for you**
+- This release joins two lines of work that had drifted apart: the code that is live on the website (commit `f17d1906d8a7`, deployed 5 Nov 2026) and the owner rules v1.1 work. The version that was about to go out was missing 110 live commits. Now it has every one of them: all live fixes, all live pages, and all database migrations up to number 31.
+- Nothing you could do yesterday on the live site was taken away. Where the live code and the owner rules said different things, the owner rules win on the console and the join page (ID-only invite, "you" voice, payment only through the console, Rupee sign, the fairness sentence, honest help text). Where they did not clash, both are kept.
+- The ID-only switch of the live code (name, location and ID, `ID_ONLY=1`) is still there and still off unless it is switched on. Email-ID games made on the live site keep working.
+- A game made before 20 Nov 2026 keeps matching IDs the old way as well as the new way, so nobody who is already on a list is locked out.
+- The wrong-ID limit counts one IPv6 network as one network, in one step.
+
+**Still missing (unchanged, see `docs/STATE.md`, "Not done")**
+- The same open items as 1.4.1 below. This merge adds no new feature and no payment switch is turned on.
+
+## 1.4.1 (22 Nov 2026) - Audit fixes (never deployed on its own; now part of 1.5.0)
 
 **What changed for you**
 - The limit on wrong employee IDs (30 in 10 minutes) now counts one network as one. Before, a person on an IPv6 network could change their address and start again from zero. Now every address in the same /64 network counts together.
@@ -19,7 +31,7 @@ Plain words. Newest first. The version number lives in `version.json` and must b
 - The server still opens a game to anyone when an API call asks for that or says nothing. The console screen and the AI helper always make closed, ID-only games. The owner must decide whether the API itself must refuse open games. (Medium in the audit.)
 - The console repository's own copy of the stuck-order bug is not fixed here. This game is covered by a wrapper.
 
-## 1.4.0 (22 Nov 2026) - Owner rules v1.1, not deployed yet
+## 1.4.0 (22 Nov 2026) - Owner rules v1.1 (never deployed on its own; now part of 1.5.0)
 
 **What changed for you**
 - Every organizer and host screen speaks to you ("you", "your"). A test keeps it that way.

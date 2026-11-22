@@ -266,10 +266,10 @@ describe("a media file kept on our own site", () => {
   });
 });
 
-describe("guest invitations: each guest may invite 1 to 10 people (default 4)", () => {
-  test("10 is the most; 0 and 11 are refused; the default stays 4", () => {
-    expect(validateCfg({ invites: { on: true, per: 10, cats: ["family"] } }).ok).toBe(true);
-    for (const per of [0, 11, 2.5]) expect(validateCfg({ invites: { on: true, per, cats: ["family"] } }).ok).toBe(false);
+describe("guest invitations: a guest and up to 4 family members (default 4)", () => {
+  test("4 is the most; 0 and 5 are refused; the default stays 4", () => {
+    expect(validateCfg({ invites: { on: true, per: 4, cats: ["family"] } }).ok).toBe(true);
+    for (const per of [0, 5, 11, 2.5]) expect(validateCfg({ invites: { on: true, per, cats: ["family"] } }).ok).toBe(false);
     expect(defaultCfg().invites!.per).toBe(4);
   });
 });

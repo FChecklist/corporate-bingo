@@ -1,37 +1,36 @@
 [
   {
-    "version": "1.4.1",
+    "version": "1.5.0",
     "date": "2026-11-22",
     "commit": "this release",
-    "title": "Audit fixes: wrong-ID limit counts one network, honest ID help",
+    "title": "Owner rules v1.1 joined to the live production code (f17d1906d8a7)",
     "changes": [
-      "The limit on wrong employee IDs now counts one network as one: a person who changes their IPv6 address inside the same network can no longer start again from zero",
-      "Wrong IDs are counted in one step, so many guesses sent at the same moment cannot slip past the limit",
-      "Your organizer screen now says plainly that an ID is matched to your list and does not prove who types it",
-      "The AI helper is no longer told it can make a pay link that anyone can open",
-      "The paid-notice address does nothing at all until it is switched on"
+      "This release joins two lines of work that had drifted apart: the code that is live on the website (commit f17d1906d8a7, deployed 5 Nov 2026) and the owner rules v1.1 work. Nothing live was dropped: every live fix and every database migration is here",
+      "Invite people with just an ID: A-1101, A 1101 and A/1101 are the same person; an ID that is not on the list waits for your yes or no. The ID-only switch with name, location and ID (ID_ONLY) is still there and still off unless it is turned on",
+      "Payment is made in the console only: the game takes the console's signed paid notice once per order id, and the old pay and sign-in pages are behind switches that are off",
+      "The console speaks to you as 'you' and the Rupee sign is used on every screen and mail; one privacy line; the fairness sentence is proved by a test",
+      "Wrong employee IDs are counted per network (one IPv6 /64 counts as one) in one step, and the help text now says an ID is matched to a list and does not prove who types it",
+      "An older game that already holds IDs written the old way still matches them, so nobody on a list is locked out"
     ]
   },
   {
     "version": "1.4.0",
-    "date": "2026-11-22",
+    "date": "2026-10-30",
     "commit": "this release",
-    "title": "Owner rules v1.1: ID-only invites, payment only through the console",
+    "title": "The Corporate Games look: new website, one logo, six-item menu",
     "changes": [
-      "Every organizer and host screen speaks to you; the game starts by itself and numbers come by themselves",
-      "People are invited by employee ID only: A-1101, A 1101 and A/1101 are the same person; an ID that is not on the list waits for your yes or no",
-      "The game takes payment only from the console's signed notice, once per order id; the Pay button on your console page now opens your game in the console, and there is no payment link to copy",
-      "A paid order that hit a one-off database error can now be tried again by the console and finishes once, instead of staying stuck",
-      "The old payment page sends you to your own game in the console",
-      "The AI helper now makes invite-only (ID) games, with a number every 12 seconds",
-      "Rupee sign everywhere, one privacy line, the fairness sentence proved by a test",
-      "Still not built: 'you start the game' and 'you call the numbers' (see docs/STATE.md)"
+      "Every public page now looks and feels like the Corporate Tambola website: warm colours, the Corporate Bingo badge with CORPORATE above the name, the same header, footer, buttons and fonts",
+      "The header menu has six items: How it works, Free demo game, Guide, Brochure, Refer & earn, Log in",
+      "New pages: How it works and Guide (the organizer guide); the Brochure is a web page with the one-page PDF to download",
+      "One Corporate Games bar at the top of every public page; new app icons, share picture and e-mail header in the same brand",
+      "The organizer console and the phone pages wear the same colours, fonts and header bar. Nothing in how the console works has changed",
+      "Wording: close group everywhere, shorter plain sentences; the old organizer-guide address points to the Guide"
     ]
   },
   {
     "version": "1.3.2",
     "date": "2026-10-27",
-    "commit": "this release",
+    "commit": "bd66d3c",
     "title": "A game waiting for payment never blocks a new game",
     "changes": [
       "Only drafts that were never published count toward the limit of ten drafts; a game that is published but not yet paid for no longer stops an Organizer or Host from making a new game",
@@ -55,7 +54,7 @@
     "changes": [
       "Joining: an employee ID or mobile number is checked against the organizer's list, a stranger waits for the organizer's yes, one phone cannot play as another (device proof on every card action), the same person joining twice gets the same card",
       "A join that gets no answer (slow link, busy moment) is asked again by itself, safe because the same person always gets the same card",
-      "Permissions: a Co-host who has not accepted the terms cannot pay, an erase is refused while the game is being played, a Host's narrow link cannot change controls",
+      "Permissions: a Co-host who has not accepted the terms cannot pay, a delete is refused while the game is being played, a Host's narrow link cannot change controls",
       "Simpler console: the rarely used 'How many rounds' choice is hidden, never disabled; one game is one round",
       "A demo link (zc.html?pass=) is used once, also when the console opens straight into a game",
       "Players' data is deleted 20 hours after the end (the promise stays 24 hours) and a lazy tick runs the housekeeping when the scheduled job is late",

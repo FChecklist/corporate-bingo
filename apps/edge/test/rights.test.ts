@@ -31,7 +31,7 @@ const leave = (id: string, pid: string, device: string) => call("POST", `/api/z/
 const ask = (id: string, pid: string, device: string, kind: string, extra: Record<string, unknown> = {}, now = T) => call("POST", `/api/z/${id}/datareq`, { pid, device, kind, ...extra }, {}, now);
 const count = (sql: string, ...a: any[]) => (raw.prepare(sql).get(...a) as any).c as number;
 
-beforeEach(() => { const d = makeD1(); raw = d.raw; env = { DB: d.db, ORGANIZER_SECRET: "plat", DAILY_WRITE_BUDGET: "1000000", PUBLIC_ORIGIN: "https://bingo.test", PHONE_SALT: "salt", DATA_KEY: "k" } as Env; n = 0; });
+beforeEach(() => { const d = makeD1(); raw = d.raw; env = { DB: d.db, ORGANIZER_SECRET: "plat", RUNNER_KEY: "test-runner-key-test-runner-key-test0000", DAILY_WRITE_BUDGET: "1000000", PUBLIC_ORIGIN: "https://bingo.test", PHONE_SALT: "salt", DATA_KEY: "k" } as Env; n = 0; });
 
 describe("U5: a player can leave at any time", () => {
   test("before the game starts the seat, the name and the consent record are deleted, and the answer says so in plain words", async () => {
@@ -115,7 +115,7 @@ describe("U6 / D7: what do you hold about me, correct it, delete me", () => {
     const m = mails().find((x) => x.to_addr === orgMail && /data request/i.test(x.subject))!; expect(m.body).toContain("Maya Lopez"); expect(m.body).toContain("correct");
     expect((raw.query("SELECT note FROM data_request").get() as any).note).toBe("My name is spelled Maya Lopez");
   });
-  test("erasure removes the player at once with the same code as leaving, the request is closed, and both mails say so", async () => {
+  test("auto-deletion removes the player at once with the same code as leaving, the request is closed, and both mails say so", async () => {
     await game("RQ-4"); const a = await joinAs("RQ-4", 1, "Maya Lopez"); await joinAs("RQ-4", 2);
     const r = await ask("RQ-4", a, dev(1), "erasure"); expect(r.status).toBe(200);
     const b = await j(r); expect(b.erased).toBe(true); expect(b.status).toBe("done"); expect(b.message).toMatch(/deleted/i);
@@ -184,7 +184,7 @@ describe("the answer time the pages promise is the one constant", () => {
     for (const f of ["apps/web/public/legal.html", "apps/web/public/privacy.html"]) {
       const file = Bun.file(new URL(f, root)); if (!(await file.exists())) continue;
       const t = plain(await file.text()); if (!/A player can leave/.test(t)) continue; // the page that carries the player's rights sentence
-      expect([f, t.includes(`We answer within ${PROMISE_DAYS} days.`)]).toEqual([f, true]);
+      expect([f, t.includes(`An answer comes within ${PROMISE_DAYS} days.`)]).toEqual([f, true]);
     }
     const doc = await Bun.file(new URL("docs/PRIVACY_AND_LIFECYCLE.md", root)).text();
     expect(doc).toContain(`(\`PROMISE_DAYS = ${PROMISE_DAYS}\``);

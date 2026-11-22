@@ -1,6 +1,6 @@
 // E8 / O11: the contact page is a mail address and a phone number. It must not promise an automatic reply or acknowledgement that does not exist.
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const pub = (f: string) => readFileSync(join(import.meta.dir, "../public", f), "utf8");
@@ -19,5 +19,17 @@ describe("E8 / O11: the contact page keeps no promise of an automatic acknowledg
     const html = pub("contact.html");
     expect(html).not.toMatch(/<form\b/i);
     expect(html).not.toMatch(/\/api\/contact/);
+  });
+});
+
+describe("the owner's mobile number opens WhatsApp", () => {
+  test("every page that shows the number links it to wa.me/919650397480 with the ready first line", () => {
+    const dir = join(import.meta.dir, "../public");
+    for (const f of readdirSync(dir).filter((n) => n.endsWith(".html"))) {
+      const html = pub(f);
+      if (!html.includes("96503 97480")) continue;
+      expect([f, html.includes('<a href="https://wa.me/919650397480?text=Hi%2C%20I%20am%20interested%20in%20corporate%20games" target="_blank" rel="noopener" aria-label="WhatsApp (+91) 96503 97480 (opens WhatsApp)">(+91) 96503 97480</a>')]).toEqual([f, true]);
+      expect(html).not.toContain("tel:+919650397480");
+    }
   });
 });

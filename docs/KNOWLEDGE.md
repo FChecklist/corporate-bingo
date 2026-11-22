@@ -1,6 +1,6 @@
 # Knowledge file: Corporate Bingo (read this first)
 
-Version **1.4.1** (22 Nov 2026), branch `p1/owner-rules-v1-1`, pull request 9. Not deployed. Newest changes: `CHANGELOG.md`. Detailed state, tests and open items: `docs/STATE.md`. Payment design: `docs/CONSOLE_PAY.md`. Voice rules: `docs/CONSOLE_VOICE.md`. What the other repositories are for: `KNOWLEDGE-MAP.md`.
+Version **1.5.0** (22 Nov 2026), branch `p1/owner-rules-v1-1`, pull request 9. Not deployed. This version contains the live production commit `f17d1906d8a7` (merged in; the PR had been 110 commits behind it) and the owner rules v1.1 work. Before any deploy, check that the audited head contains the live commit: `git merge-base --is-ancestor f17d1906d8a7 HEAD`. Newest changes: `CHANGELOG.md`. Detailed state, tests and open items: `docs/STATE.md`. Payment design: `docs/CONSOLE_PAY.md`. Voice rules: `docs/CONSOLE_VOICE.md`. What the other repositories are for: `KNOWLEDGE-MAP.md`.
 
 ## Owner rules v1.1 this game follows
 - Organizer and host screens say "you". Zero first-person strings, kept by `apps/web/test/console-voice.test.ts`.

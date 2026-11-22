@@ -119,11 +119,11 @@ describe("the invite and approval log", () => {
   });
 });
 
-describe("family invite: each listed person may invite 1 to 10, the default is 4", () => {
-  test("4 is the default; 10 is allowed; 11 is refused", async () => {
+describe("family invite: each listed person may invite 1 to 4 (owner decision 1 Nov 2026), the default is 4", () => {
+  test("4 is the default and the most; 5 is refused", async () => {
     const g = await idGame();
     const set = async (per: number) => (await call("PATCH", `/api/z/${g.id}/settings`, { invites: { on: true, per, cats: ["family", "colleagues"] } }, kh(g.key))).status;
-    expect(await set(4)).toBe(200); expect(await set(10)).toBe(200); expect(await set(11)).toBeGreaterThanOrEqual(400);
+    expect(await set(4)).toBe(200); expect(await set(1)).toBe(200); expect(await set(5)).toBeGreaterThanOrEqual(400);
     const fresh = await idGame(); const s = await j(await call("PATCH", `/api/z/${fresh.id}/settings`, { invites: { on: true } }, kh(fresh.key)));
     expect((s.invites ?? s.cfg?.invites)?.per ?? 4).toBe(4);
   });

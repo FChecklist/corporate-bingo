@@ -20,7 +20,7 @@ const rows = (chain: string) => raw.prepare("SELECT * FROM audit_log WHERE chain
 
 beforeEach(() => {
   const d = makeD1(); raw = d.raw;
-  env = { DB: d.db, ORGANIZER_SECRET: "plat", DAILY_WRITE_BUDGET: "1000000", PUBLIC_ORIGIN: "https://bingo.test", DATA_KEY: "test-data-key" };
+  env = { DB: d.db, ORGANIZER_SECRET: "plat", RUNNER_KEY: "test-runner-key-test-runner-key-test0000", DAILY_WRITE_BUDGET: "1000000", PUBLIC_ORIGIN: "https://bingo.test", DATA_KEY: "test-data-key" };
 });
 async function organizer() {
   const x = await j(await call("POST", "/api/start", { email: "boss@acme.com" }, { "cf-connecting-ip": "1.1.1.1" }));
@@ -183,9 +183,9 @@ describe("analysis sees only masked data", () => {
     await call("GET", `/ai/${o.ai}/z/EVT1/summary?ai_model=gpt-5&ai_session=SECRET-SESSION&ai_machine=SECRET-MACHINE`, undefined, { "user-agent": "ChatGPT-User/1.0", "cf-connecting-ip": "20.171.0.9" });
     await call("POST", `/ai/${o.ai}/z/EVT1/erase`, {}, { "user-agent": "curl/8", "cf-connecting-ip": "20.171.0.9" });
     let sent = "";
-    const fake = (async (_u: any, init: any) => { sent = String(init.body); return new Response(JSON.stringify({ choices: [{ message: { content: "One denied erase attempt." } }] })); }) as unknown as typeof fetch;
+    const fake = (async (_u: any, init: any) => { sent = String(init.body); return new Response(JSON.stringify({ choices: [{ message: { content: "One denied delete attempt." } }] })); }) as unknown as typeof fetch;
     const out = await analyzeChain({ ...env, ANALYZE_AI_URL: "https://ai.test/v1/chat", ANALYZE_AI_KEY: "k" } as any, "EVT1", fake);
-    expect(out.summary).toBe("One denied erase attempt."); expect(out.summarizedBy).toBe("ai");
+    expect(out.summary).toBe("One denied delete attempt."); expect(out.summarizedBy).toBe("ai");
     for (const bad of [IP, "20.171.0.9", "20.171", "Chrome/120", "ChatGPT-User", "SECRET-SESSION", "SECRET-MACHINE", "ab".repeat(16)]) expect(sent).not.toContain(bad);
     expect(sent).toContain("deniedAiAttempts"); expect(out.aggregate.deniedAiAttempts).toBe(1); expect(out.findings.join(" ")).toMatch(/refused/);
     // and with no AI configured the built-in rules answer

@@ -20,7 +20,7 @@ describe("P12: the version stamp", () => {
     const v = versionStamp({ root: ROOT, game: "g", run: () => { throw new Error("not a git repository"); } });
     expect(v.commit).toBe("unknown");
   });
-  test("the real build writes version.json with this checkout's commit, the package name and a valid UTC time, and serves it uncached", () => {
+  test("the real build writes version.json with this checkout's commit, the package name and a valid UTC time, and serves it uncached", () => { 
     const r = Bun.spawnSync([process.execPath, "pages/build.mjs"], { cwd: ROOT, stdout: "pipe", stderr: "pipe" });
     expect(r.exitCode).toBe(0);
     const v = JSON.parse(readFileSync(join(ROOT, "pages/public/version.json"), "utf8"));
@@ -32,7 +32,7 @@ describe("P12: the version stamp", () => {
     if (head.exitCode === 0) expect(v.commit).toBe(new TextDecoder().decode(head.stdout).trim());
     expect(readFileSync(join(ROOT, "pages/public/_headers"), "utf8")).toMatch(/\/version\.json\n\s+Cache-Control: no-store/);
     expect(JSON.stringify(v)).not.toMatch(/key|secret|token|password/i);
-  });
+  }, 180000); // pages/build.mjs runs the whole site build: 5 to 45 seconds depending on the machine, far past the 5 second default
   test("docs/DEPLOYS.md exists and names the deploys by commit; the README no longer says nothing is deployed", () => {
     expect(existsSync(join(ROOT, "docs/DEPLOYS.md"))).toBe(true);
     const d = readFileSync(join(ROOT, "docs/DEPLOYS.md"), "utf8");

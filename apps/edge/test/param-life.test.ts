@@ -88,7 +88,7 @@ describe("report mail and the report link", () => {
   test("the organizer gets a reminder before the link closes and a mail when the data is deleted, once each", async () => {
     const g = await played(3); let guard = 0; while (!sentReports.length && guard++ < 20) await tick(g.end + 5 * MIN);
     await tick(g.end + 14 * HOUR); await tick(g.end + 14 * HOUR + 10 * MIN); await tick(g.end + 21 * HOUR); await tick(g.end + 21 * HOUR + 10 * MIN);
-    const m = mails("boss@acme.com"); expect(m.filter((x) => /deleted|erased/i.test(x.subject)).length).toBe(1);
+    const m = mails("boss@acme.com"); expect(m.filter((x) => /deleted|auto-deleted/i.test(x.subject)).length).toBe(1);
     expect(m.filter((x) => /closes|reminder|save/i.test(x.subject)).length).toBeLessThanOrEqual(1);
   });
   test("with no organizer e-mail on record the data is still deleted on time", async () => {
@@ -104,7 +104,7 @@ describe("retention timestamps the organizer can read", () => {
     const l = await j(await call("GET", `/api/z/${g.id}/life`, undefined, g.h));
     expect(l.personalDeleteAtMs - l.endMs).toBe(PURGE_AFTER_MS); expect(l.fullDeleteAtMs).toBe(fullDeleteAt(l.endMs));
   });
-  test("the public info answer carries the erasure time for guests, equal to end + 20 hours", async () => {
+  test("the public info answer carries the auto-deletion time for guests, equal to end + 20 hours", async () => {
     const g = await paidGame({ cap: 100 }); const info = await j(await call("GET", `/api/z/${g.id}/info`));
     const end = await endBoundMs(W.env as any, one("SELECT * FROM engagement WHERE id=?", g.id)); expect(info.erasureMs).toBe(end + PURGE_AFTER_MS);
   });
@@ -169,12 +169,12 @@ describe("the lifecycle tick can be repeated safely", () => {
   test("the same tick ten times sends one report, one deletion mail, and changes nothing after the first", async () => {
     const g = await played(3);
     for (let i = 0; i < 10; i++) { await tick(g.end + 10 * MIN); await tick(g.end + 21 * HOUR); }
-    expect(sentReports.length).toBe(1); expect(mails("boss@acme.com").filter((m) => /deleted|erased/i.test(m.subject)).length).toBe(1);
+    expect(sentReports.length).toBe(1); expect(mails("boss@acme.com").filter((m) => /deleted|auto-deleted/i.test(m.subject)).length).toBe(1);
     expect(one("SELECT COUNT(*) c FROM life WHERE eid=?", g.id).c).toBe(1); expect(left(g.id).participant).toBe(0);
   });
   test("a tick run twice at the same instant by two callers is harmless", async () => {
     const g = await played(3); await tick(g.end + 10 * MIN); await Promise.all([tick(g.end + 21 * HOUR), tick(g.end + 21 * HOUR)]);
-    expect(left(g.id).participant).toBe(0); expect(mails("boss@acme.com").filter((m) => /deleted|erased/i.test(m.subject)).length).toBeLessThanOrEqual(2);
+    expect(left(g.id).participant).toBe(0); expect(mails("boss@acme.com").filter((m) => /deleted|auto-deleted/i.test(m.subject)).length).toBeLessThanOrEqual(2);
   });
   test("the tick route with the cron key works, with a wrong or short key it is refused", async () => {
     reset({ CRON_KEY: "cron-key-0123456789" } as any);
@@ -203,7 +203,7 @@ describe("a player's own requests (access, correction, erasure, nomination) and 
     const s = await seat(); expect(await (await ask(s.g.id, s.pid, dev(33), "erasure")).status).toBeGreaterThanOrEqual(400);
     expect(one("SELECT COUNT(*) c FROM participant WHERE eid=?", s.g.id).c).toBe(1);
   });
-  test("erasure removes the name and number at once, keeps an anonymous seat, and tells the organizer and the owner", async () => {
+  test("auto-deletion removes the name and number at once, keeps an anonymous seat, and tells the organizer and the owner", async () => {
     const s = await seat(); expect((await ask(s.g.id, s.pid, s.device, "erasure")).status).toBe(200);
     expect(JSON.stringify(q("SELECT * FROM participant"))).not.toContain("Maya");
     expect(mails("boss@acme.com").length + mails().length).toBeGreaterThan(0);

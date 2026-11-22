@@ -28,7 +28,7 @@ export type Phase = "boot" | "missing" | "join" | "play" | "ended";
 export interface RuntimeView {
   phase: Phase; error: string | null; pid: string | null; ticket: Ticket | null; log: number[]; nowRound: number | null;
   locked: boolean;
-  startRound: number; scheduledRound: number; callSeconds: number; mode: "live" | "hold" | "blind" | "none"; paused: boolean; stopped: boolean;
+  startRound: number; scheduledRound: number; callSeconds: number; mode: "live" | "hold" | "blind" | "none"; /** A claim is being checked: the game waits for everyone (gentle words: "Claim being checked"). */ claimHold: boolean; /** In the last 5 seconds of a pause that ends by itself: the seconds left, so the phone can say "Restarts in N seconds". */ restartsInSec: number | null; paused: boolean; /** B08: the round at which the pause that is on right now began (null when nothing is paused); the page turns it into a clock time */ pausedFromRound: number | null; /** Who signed the pause that is on: the Host or the Organizer (null when nothing is paused). */ pausedBy: "host" | "organizer" | null; stopped: boolean;
   claimed: PatternKey[]; unsent: number; results: { pattern: PatternKey | "lucky"; ordinal: number; idx: number; count: number; winners?: string[]; tied?: number; round?: number }[]; pendingChecks: number; discarded: number;
   nextCallInSec: number | null;
   tickets: Ticket[]; cfg: EngagementCfg;
@@ -40,6 +40,8 @@ export interface RuntimeView {
   lucky: { ordinal: number; title: string; winners: number; published: boolean; won: boolean; style: "draw" | "scratch" }[];
   /** The organizer's latest message to everyone (shown and spoken on phones), or null. */
   announcement: { id: string; text: string } | null;
+  /** The Organizer's switch for the corner reactions, or null when never set. */
+  rxMode: "off" | "reduced" | "full" | null;
   /** The round being played (or just finished) and how many there are. */
   round: number; rounds: number;
   /** Between two rounds: which round comes next and how long until its first number. */
@@ -74,6 +76,7 @@ export class PhoneRuntime {
   /** The engagement was not paid for by its start time: nothing is shown until it is. */
   locked = false;
   announcement: { id: string; text: string } | null = null;
+  rxMode: "off" | "reduced" | "full" | null = null;
   store: RoundStore;
   tracker: ControlTracker | null = null;
   results: RuntimeView["results"] = [];
@@ -164,9 +167,9 @@ export class PhoneRuntime {
   }
 
   /** Joins with a mobile number. The same number again returns the same participant (and the same ticket). */
-  async join(phone: string, name?: string, invite?: { from?: number; cat?: string }, empId?: string): Promise<boolean> {
+  async join(phone: string, name?: string, invite?: { from?: number; cat?: string }, empId?: string, location?: string): Promise<boolean> {
     try {
-      const r = await this.deps.api("POST", `/api/z/${this.eid}/join`, { phone, name, ...(empId ? { empId } : {}), device: this.device(), ...(invite && Number.isInteger(invite.from) ? { from: invite.from, cat: invite.cat } : {}) });
+      const r = await this.deps.api("POST", `/api/z/${this.eid}/join`, { phone, name, ...(empId ? { empId } : {}), ...(location ? { location } : {}), device: this.device(), ...(invite && Number.isInteger(invite.from) ? { from: invite.from, cat: invite.cat } : {}) });
       this.scheduledRound = r.startRound; this.startRound = r.startRound + GRACE_ROUNDS; this.callSeconds = r.callSeconds; this.trackClaims = r.trackClaims !== false;
       if (r.tickets !== undefined || r.rewards !== undefined || r.breaks !== undefined || r.rounds !== undefined || r.opening !== undefined || r.closing !== undefined) this.readCfg(r);
       this.deps.store.set(this.key("pid"), r.pid);
@@ -174,7 +177,7 @@ export class PhoneRuntime {
       this.adopt(r.pid); this.error = null;
       return true;
     } catch (e: any) {
-      this.error = e?.status === 423 || e?.code === "invite-full" ? String(e.message || "This ticket is already on another phone.") : e?.status === 409 ? "This engagement is full." : e?.status === 400 ? "Enter a valid mobile number." : e?.status === 503 ? "It is a busy day. Please try again in a few minutes." : "Could not join. Check your connection and try again.";
+      this.error = e?.status === 423 || e?.code === "invite-full" ? String(e.message || "This ticket is already on another phone.") : e?.status === 409 ? "This engagement is full." : e?.status === 400 ? (/^need-(id|name|location)$/.test(e.code || e.body?.code || "") ? String(e.message) : "Enter a valid mobile number.") : e?.status === 503 ? "It is a busy day. Please try again in a few minutes." : "Could not join. Check your connection and try again.";
       return false;
     }
   }
@@ -195,11 +198,12 @@ export class PhoneRuntime {
       this.tracker?.failed(now); return;
     }
     this.announcement = body && body.ann && typeof body.ann.id === "string" && typeof body.ann.text === "string" ? { id: body.ann.id, text: body.ann.text.slice(0, 200) } : null;
+    this.rxMode = body && (body.rx === "off" || body.rx === "reduced" || body.rx === "full") ? body.rx : null;
     const wasLocked = this.locked; this.locked = !!body?.locked;
     if (wasLocked && !this.locked) await this.reloadSchedule(); // paid at last: the start time has moved, read it again
     if (!body?.pubKey) { this.tracker?.failed(now); return; }
     if (!this.tracker) {
-      const cfg: ControlConfig = { pubKey: body.pubKey, maxPauseRounds: body.maxPauseRounds, leadRounds: body.leadRounds };
+      const cfg: ControlConfig = { pubKey: body.pubKey, ...(typeof body.hostKey === "string" ? { hostKey: body.hostKey } : {}), maxPauseRounds: body.maxPauseRounds, leadRounds: body.leadRounds };
       this.controlFast = body.leadRounds === SAFETY_FAST.leadRounds;
       const safety = ALL_SAFETIES.find((s) => s.leadRounds === body.leadRounds) ?? SAFETY_STANDARD;
       if (safety !== SAFETY_FAST && safety !== SAFETY_STANDARD) { this.pollBaseMs = Math.round(safety.pollMaxSec * 750); this.pollJitterMs = Math.round(safety.pollMaxSec * 250); }
@@ -277,7 +281,7 @@ export class PhoneRuntime {
   private builtMsgs = 0;
   /** Extends a round's call log with newly available rounds instead of recomputing all 75 calls every second. Rebuilds from scratch only if a provisional round was thrown away or an organizer message arrived. */
   private buildLog(now: number, round: number): number[] {
-    const msgs = this.tracker?.log.length ?? 0;
+    const msgs = (this.tracker?.log.length ?? 0) + (this.tracker?.holdsVer ?? 0) * 100_000;
     if (this.store.discarded !== this.builtDiscards || msgs !== this.builtMsgs) { this.logs = this.logs.map(() => []); this.logResets++; this.builtDiscards = this.store.discarded; this.builtMsgs = msgs; } // a new organizer message can move later calls: re-derive
     while (this.logs.length < round) this.logs.push([]);
     const out = this.logs[round - 1]!;
@@ -320,6 +324,8 @@ export class PhoneRuntime {
   private logResets = 0;
   private serverResults: NonNullable<RuntimeView["results"]> = [];
   private claimLens: number[] = [];
+  /** The golden Claim button: a visible mirror. Sends the claims and asks for the result now; it changes no result (auto-claim still runs on its own). */
+  claimNow(): void { this.claimLens = []; this.wantSeats = true; this.lastResultPoll = -Infinity; void this.autoClaim(); }
   private async autoClaim() {
     if (!this.pid) return;
     const lens = this.logs.map((l) => l.length);
@@ -540,8 +546,8 @@ export class PhoneRuntime {
     const claimedNow = keysInPlay(this.cfg.rewards).filter((k) => this.claimedAll.has(`${this.cur}:${k}`));
     return {
       phase: this.phase, error: this.error, pid: this.pid, ticket: this.ticket, log: this.visibleLog(), nowRound: now, startRound: this.startRound, scheduledRound: this.scheduledRound, callSeconds: this.callSeconds,
-      locked: this.locked, announcement: this.announcement,
-      mode: now === null ? (this.controlState === "none" ? "none" : "hold") : this.modeAt(now), paused: !!st && now !== null && pausedAt(st, now), stopped: !!st && now !== null && st.stopRound !== null && now >= st.stopRound,
+      locked: this.locked, announcement: this.announcement, rxMode: this.rxMode,
+      mode: now === null ? (this.controlState === "none" ? "none" : "hold") : this.modeAt(now), paused: !!st && now !== null && pausedAt(st, now), claimHold: !!this.tracker && now !== null && this.tracker.holds.some((h) => now >= h.start && now < h.end), restartsInSec: (() => { const iv = st && now !== null ? st.intervals.find((i) => now >= i.start && now < i.end) : undefined; const sec = iv && Number.isFinite(iv.end) ? secsTo(iv.end) : null; return sec !== null && sec >= 1 && sec <= 5 ? sec : null; })(), pausedBy: st && now !== null && pausedAt(st, now) ? (((this.tracker?.log ?? []).filter((m) => m.action === "pause" && m.atBeaconRound <= now).sort((x, y) => y.atBeaconRound - x.atBeaconRound || y.seq - x.seq)[0] as { by?: string } | undefined)?.by === "host" ? "host" : "organizer") : null, pausedFromRound: st && now !== null ? (st.intervals.find((i) => now >= i.start && now < i.end)?.start ?? null) : null, stopped: !!st && now !== null && st.stopRound !== null && now >= st.stopRound,
       claimed: claimedNow, unsent: this.unsent, results: this.allResults.filter((x) => (x.round ?? 1) === this.cur), pendingChecks: this.store.pending(), discarded: this.store.discarded,
       nextCallInSec: nextRound !== null && now !== null ? secsTo(nextRound) : null,
       tickets: this.tickets, cfg: this.cfg, brk: this.currentBreak(now), myIdx: this.myIdx(), lucky: this.luckyView(),

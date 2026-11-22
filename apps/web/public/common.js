@@ -32,6 +32,7 @@
     if (window.TBV && !window.TBV.gpc) { headers["x-cb-vs"] = window.TBV.sid; if (window.TBV.vid) headers["x-cb-vid"] = window.TBV.vid; } // visit tracking on the public pages (v.js): lets the server tie an account to the visit that led to it
     const tok = opt.org ? TB.orgToken() : null;
     if (tok) headers.authorization = "Bearer " + tok;
+    if (opt.key) headers["x-organizer"] = opt.key; // a key typed on the page and kept in its memory only (the owner pages)
     let res;
     try { res = await fetch(path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }); }
     catch (e) { const err = new Error("We could not reach the service. Please check your internet and try again."); err.status = 0; if (window.CTG) CTG.wrap(err, { what: method + " " + path.split("?")[0] }); throw err; }
@@ -152,7 +153,7 @@
     window.addEventListener("message", onMsg); document.body.appendChild(wrap);
   });
   // The payment screens always show who owns the software and who is paid: big brand, small descriptor, owner line.
-  TB.payBrand = () => `<div class="pbrand"><div class="pb-name">CORPORATE BINGO</div><div class="pb-sub">(closed-group bingo software)</div><div class="pb-pay"><b>&#128274; Safe and secure payment through RAZORPAY</b><span>An RBI-regulated payment gateway trusted by businesses across the world.<br>Your card, UPI or bank details go to Razorpay payment gateway only: we never see or store them.<br>All data handled as required by India's DPDP Act, US Privacy Laws, EU GDPR.</span></div><div class="pb-own"><i>Software owned and made by</i><b>IT SERVICES BY RAJAT AGARWAL</b><em>Your payment is made to IT Services by Rajat Agarwal</em></div></div>`;
+  TB.payBrand = () => `<div class="pbrand"><div class="pb-name">CORPORATE BINGO</div><div class="pb-sub">(closed-group bingo software)</div><div class="pb-pay"><b>&#128274; Safe and secure payment through RAZORPAY</b><span>An RBI-regulated payment gateway trusted by businesses across the world.<br>Your card, UPI or bank details go to Razorpay payment gateway only, and are never seen or stored by Corporate Bingo.<br>All data handled as required by India's DPDP Act, US Privacy Laws, EU GDPR.</span></div><div class="pb-own"><i>Software owned and made by</i><b>IT SERVICES BY RAJAT AGARWAL</b><em>Your payment is made to IT Services by Rajat Agarwal</em></div></div>`;
   // After a payment: which game, who was paid, and the two reference numbers the organizer can quote.
   TB.payReceipt = (d, gameId) => { const e = TB.esc, g = gameId || d.eid; return `<div class="prcpt"><b>Payment confirmed</b><p>${g ? `For game ID <b class="mono">${e(g)}</b>, you` : "You"} have made the payment to <b>IT Services by Rajat Agarwal</b> through Razorpay.</p><p>Your Razorpay transaction ID is <b class="mono">${e(d.razorpayPaymentId || "being confirmed, see your e-mail")}</b>.<br>Your Corporate Bingo payment confirmation ID is <b class="mono">${e(d.orderId || "")}</b>.</p></div>`; };
   // The invoice on the payment-done screen: shown in full (inside a shadow root, so its own styles cannot clash with the page), with PDF download, print, WhatsApp, copy link and e-mail.
@@ -173,7 +174,7 @@
   // Payer details are remembered in this browser only (never sent anywhere until they pay). They show in grey and can be edited in place; typing turns the text normal.
   TB.payer = {
     load() { try { const v = JSON.parse(localStorage.getItem("cb-payer") || "{}"); return v && typeof v === "object" ? v : {}; } catch { return {}; } },
-    save(o) { try { const keep = {}; for (const k of ["name", "email", "phone", "pcode", "org", "tax"]) if (typeof o[k] === "string" && o[k].trim()) keep[k] = o[k].trim().slice(0, 120); localStorage.setItem("cb-payer", JSON.stringify(keep)); } catch { /* private mode: fine */ } },
+    save(o) { try { const keep = {}; for (const k of ["name", "email", "phone", "pcode", "org", "tax"]) if (typeof o[k] === "string" && o[k].trim()) keep[k] = o[k].trim().slice(0, 120); localStorage.setItem("cb-payer", JSON.stringify(keep)); } catch { /* storage blocked: fine */ } },
     mark(root) { const v = TB.payer.load(); for (const [id, k] of [["nm", "name"], ["em", "email"], ["ph", "phone"], ["org", "org"], ["tax", "tax"]]) { const e = root.querySelector("#" + id); if (!e || !v[k] || e.value !== v[k]) continue; e.classList.add("pfill"); e.addEventListener("input", () => e.classList.remove("pfill"), { once: true }); } },
   };
   TB.pay = (rz, paymentId, hop) => hop ? payViaHop(rz, paymentId, hop) : new Promise((resolve, reject) => {    const open = () => {
