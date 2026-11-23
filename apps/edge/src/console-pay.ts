@@ -125,15 +125,15 @@ export async function consolePayInfoRoute(req: Request, env: ConsoleEnv, now: nu
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: H });
   if (!env.PUBLIC_ORIGIN) return out(503, { ok: false, code: "not_set_up", error: "This game's public address (PUBLIC_ORIGIN) is not set, so it cannot answer the console yet." });
   const body: any = await req.json().catch(() => null);
-  if (!body || typeof body.assertion !== "string" || typeof body.eid !== "string" || !/^[A-Za-z0-9_-]{3,40}$/.test(body.eid)) return out(400, { ok: false, error: "invalid", message: "The request is not complete." });
+  if (!body || typeof body.assertion !== "string" || typeof body.eid !== "string" || !/^[A-Za-z0-9_-]{3,40}$/.test(body.eid)) return out(400, { ok: false, code: "invalid", message: "The request is not complete." });
   const db = env.DB as unknown as BridgeD1; await ensureBridgeSchema(db);
   const nowS = Math.floor(now / 1000), v = await verifyAssertion(body.assertion, { keys, aud: env.PUBLIC_ORIGIN.replace(/\/$/, ""), nowS, act: "games" });
-  if (!v.ok) return out(401, { ok: false, error: v.error, message: "This sign-in could not be checked. Please sign in again." });
+  if (!v.ok) return out(401, { ok: false, code: v.error, message: "This sign-in could not be checked. Please sign in again." });
   const used = await db.prepare("INSERT OR IGNORE INTO console_jti(jti, exp_s) VALUES(?,?)").bind(v.payload.jti, v.payload.exp).run();
-  if (used.meta.changes !== 1) return out(401, { ok: false, error: "replayed", message: "This sign-in was already used. Please try again." });
+  if (used.meta.changes !== 1) return out(401, { ok: false, code: "replayed", message: "This sign-in was already used. Please try again." });
   const e = await env.DB.prepare("SELECT id, org, cap, pack, start_round, config, cancelled_ms, unplayed_ms FROM engagement WHERE id=?").bind(body.eid).first<any>();
   const who = await env.DB.prepare("SELECT org FROM organizer_email WHERE email_hash=?").bind(v.payload.sub).first<{ org: string }>();
-  if (!e || !who || !e.org || who.org !== e.org) return out(404, { ok: false, error: "not_found", message: "That game could not be found." });
+  if (!e || !who || !e.org || who.org !== e.org) return out(404, { ok: false, code: "not_found", message: "That game could not be found." });
   const pack = packFor(Number(e.cap)), paid = Number(e.pack) > 0, closed = !!(e.cancelled_ms || e.unplayed_ms);
   const reason = closed ? "closed" : paid ? "already_paid" : !pack ? "too_big" : null; // too_big: more people than the biggest pack; it needs a custom arrangement, not a console payment
   let name = body.eid; try { name = JSON.parse(e.config || "{}").name || name; } catch { /* keep the id */ }

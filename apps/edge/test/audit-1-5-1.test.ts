@@ -71,9 +71,9 @@ describe("payInfo: what must be paid for this game, asked before any money is ta
     const s = await ask({ assertion: await sign(stranger.email), eid: g.id }), none = await ask({ assertion: await sign(stranger.email), eid: "NOT-THERE-1" });
     expect([s.status, none.status]).toEqual([404, 404]); expect(await j(s)).toEqual(await j(none));
     const cases: [string, Parameters<typeof sign>[1], string][] = [["forged", { key: (await makeKeyPair()).privateKey }, "bad_assertion"], ["other address", { aud: "https://tambola.test" }, "wrong_audience"], ["other purpose", { act: "paid" }, "wrong_act"], ["expired", { iatOffsetS: -3600 }, "expired"]];
-    for (const [why, o, code] of cases) { const r = await ask({ assertion: await sign(g.email, o), eid: g.id }); expect([why, r.status, (await j(r)).error]).toEqual([why, 401, code]); }
+    for (const [why, o, code] of cases) { const r = await ask({ assertion: await sign(g.email, o), eid: g.id }); expect([why, r.status, (await j(r)).code]).toEqual([why, 401, code]); }
     const a = await sign(g.email); expect((await ask({ assertion: a, eid: g.id })).status).toBe(200);
-    const again = await ask({ assertion: a, eid: g.id }); expect([again.status, (await j(again)).error]).toEqual([401, "replayed"]);
+    const again = await ask({ assertion: a, eid: g.id }); expect([again.status, (await j(again)).code]).toEqual([401, "replayed"]);
     expect((await ask({ eid: g.id })).status).toBe(400);
   });
 });
