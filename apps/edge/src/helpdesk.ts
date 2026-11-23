@@ -288,7 +288,7 @@ export async function helpdeskRoute(req: Request, env: PayEnv, now: number, spen
     if (auth.kind !== "master" || !auth.org) return json({ error: "Please sign in first.", code: "sign-in" }, 403);
     const b = await body(req); const l = await linkByToken(b?.t); if (!l) return json({ error: "Not found" }, 404);
     if (l.state !== "invited" || now - l.created_ms > INVITE_DAYS * 86_400_000) return gone(l.state);
-    if (b?.consent !== true) return json({ error: "Please tap Allow to agree.", code: "consent-required" }, 400);
+    if (b?.consent !== true) return json({ error: "Please press Allow to go on.", code: "consent-required" }, 400);
     const mine = await db.prepare("SELECT 1 AS x FROM organizer_email WHERE email_hash=? AND org=?").bind(l.org_email_hash, auth.org).first();
     if (!mine) return json({ error: "This invitation was sent to a different e-mail address. Sign in with the address it was sent to.", code: "wrong-account" }, 403);
     if (!(await spend(6))) return busy();

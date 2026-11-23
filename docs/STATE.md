@@ -1,6 +1,12 @@
-# State of Corporate Bingo, version 1.5.1 (owner rules v1.1, 20 to 23 Nov 2026)
+# State of Corporate Bingo, version 1.5.2 (owner rules v1.1, 20 to 23 Nov 2026)
 
 Branch `p1/owner-rules-v1-1`, draft PR https://github.com/FChecklist/corporate-bingo/pull/9. **Nothing is deployed.** No live service, DNS, payment or secret was touched. The money flags are OFF. The exact commit is the head of the branch; the "ready for audits" comment on the PR names it. (Older history of this file is in git.)
+
+## 1.5.2 audit fixes (security audit of 23 Nov on 4a2b818)
+- **High 1 fixed.** The audit log no longer keeps a player's or a Co-host's name or mobile number in any row that lasts 365 days (field-name deny-list, number and e-mail scan of text, field names only for the person routes, Co-host rows in the 23-hour shreddable part). Test: `apps/edge/test/audit-1-5-2.test.ts`.
+- **Medium 1 fixed.** No audit row for a game that does not exist or an address that does not exist; 20 rows a minute per network for a caller with no key (300 for an existing game). The count is in memory per Worker copy, so it is a brake, not an exact meter.
+- **Left open on purpose (not asked for in this fix):** Medium 2 ("Is this you?" shows a first name and last initial for any guessed ID; the owner's rule is that a right ID is never limited, so this needs the owner), Medium 3 (the wrong-ID limit and honest people who wait), Lows L1 to L7 of that audit. The Low notes of the correctness audit (AI manual text for `closed`, wording of item 4 below) are unchanged.
+- Wording: no tick-box text and no "Accept" button on the agreement screens (the Co-host button says "Start as Co-host").
 
 ## What this release is
 Corporate Bingo with the owner rules v1.1 (20 Nov 2026) on top of the code that is live now (`f17d1906d8a7`, 5 Nov 2026; the branch is 16 commits ahead of it and behind by 0, nothing live was dropped, migrations 0029 to 0031 are in).

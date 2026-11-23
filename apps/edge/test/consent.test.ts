@@ -34,7 +34,7 @@ async function published(id: string) { const key = await organizer(); await draf
 const refusal = async (r: Response, kind: ConsentKind) => {
   expect(r.status).toBe(400);
   const b = await j(r);
-  expect(b).toEqual({ error: "Please tick the box to continue.", code: "consent-required", kind, version: TERMS_VERSION });
+  expect(b).toEqual({ error: "Please press the button again to go on.", code: "consent-required", kind, version: TERMS_VERSION });
 };
 
 describe("1. refused without the tick (and with a missing box or an old version)", () => {

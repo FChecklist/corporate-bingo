@@ -1,5 +1,18 @@
 [
   {
+    "version": "1.5.2",
+    "date": "2026-11-23",
+    "commit": "this release",
+    "title": "Security audit fixes: nothing about a player or a Co-host stays in the audit log; strangers cannot fill it",
+    "changes": [
+      "A player's name and mobile number, and a Co-host's name and mobile number, no longer stay in the audit log for a year after you press Delete or Forget. Rows kept for 365 days now hold no names, numbers, e-mail addresses, IDs or places, whatever the field is called (a number or e-mail inside any text is removed too)",
+      "The calls that name a person (look up, mark, unbind, delete, add a Co-host, waiting list, invites) keep only the field names in the log, never the values",
+      "A Co-host's own calls are kept in the part of the log that is deleted 23 hours after the game, like a player's",
+      "A visitor with no key can no longer fill the audit log: a call to a game that does not exist, or to an address that does not exist, leaves no row, and one network can add only a few rows a minute",
+      "Gentler wording: no tick-boxes and no Accept button anywhere on the agreement screens; going ahead is the agreement and the Terms stay one link away"
+    ]
+  },
+  {
     "version": "1.5.1",
     "date": "2026-11-23",
     "commit": "this release",

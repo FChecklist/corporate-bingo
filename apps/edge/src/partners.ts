@@ -110,7 +110,7 @@ export async function partnerRoute(req: Request, env: PayEnv, now: number, spend
     const digits = partnerCode(b?.phone), email = validEmail(b?.email);
     if (!b || !digits) return json({ error: "Enter a valid mobile number." }, 400);
     if (!email) return json({ error: "Enter a valid e-mail address. We send you a code." }, 400);
-    if (b.consent !== true) return json({ error: "Please agree to join Refer & earn." }, 400);
+    if (b.consent !== true) return json({ error: "Please press the button again to join Refer & earn." }, 400);
     if (await overLimit("enroll", 10)) return json({ error: "Too many tries from this network today. Please try again tomorrow." }, 429);
     const name = typeof b.name === "string" ? b.name.replace(/[<>`]/g, "").trim().slice(0, 60) : "";
     const ph = await phoneHashFor(env, digits), eh = await sha("pemail|" + email);

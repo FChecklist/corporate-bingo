@@ -128,14 +128,14 @@
       <button class="btn block big" style="margin-top:14px" type="submit" id="frGo" disabled aria-disabled="true">Create my game ${ic("arrow")}</button></form>
       <p class="trust">${ic("shield")}Free to build and publish. No password.</p>
       <p class="proto">Your console opens at once. We use your email for your invoice and to sign you in later.</p><p class="proto"><a href="/demo.html">Want to see it first? Try the free 70-second demo.</a></p>
-      <p class="spriv accept">Read the <a href="/terms.html" target="_blank" rel="noopener">Terms</a> and the <a href="/legal.html#privacy" target="_blank" rel="noopener">Privacy &amp; Data Policy</a> before you tick the box.</p></div>`);
+      <p class="spriv accept">Please read the <a href="/terms.html" target="_blank" rel="noopener">Terms</a> and the <a href="/legal.html#privacy" target="_blank" rel="noopener">Privacy &amp; Data Policy</a> whenever you like.</p></div>`);
     const k2 = $("k2wrap"), gw = $("gWrap");
     const refresh = CBConsent.gate(k2, "K2", $("frGo")), sync = () => { const ok = refresh(); if (gw) { gw.style.opacity = ok ? "" : ".45"; gw.style.pointerEvents = ok ? "" : "none"; } };
     k2.addEventListener("change", sync); sync();
     $("frForm").addEventListener("submit", async (e) => {
       e.preventDefault(); const m = $("fMail").value.trim().toLowerCase();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(m)) return setErr("Please enter a valid e-mail address.");
-      if (!CBConsent.all(k2, "K2")) return setErr("Please tick the box to continue.");
+      if (!CBConsent.all(k2, "K2")) return setErr("Please press the button again to go on.");
       const b = $("frGo"); b.disabled = true; setErr("");
       try {
         const r = await TB.api("POST", "/api/start", { email: m, consent: CBConsent.payload(k2, "K2"), ...(passTok() ? { pass: passTok() } : {}) });
@@ -185,7 +185,7 @@
     $("lgForm").addEventListener("submit", async (e) => {
       e.preventDefault(); const m = $("lMail").value.trim().toLowerCase();
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(m)) return setErr("Please enter a valid e-mail address.");
-      const k2 = $("k2slot"); if (termsShown && !CBConsent.all(k2, "K2")) return setErr("Please tick the box to continue.");
+      const k2 = $("k2slot"); if (termsShown && !CBConsent.all(k2, "K2")) return setErr("Please press the button again to go on.");
       const b = $("lgGo"); b.disabled = true; setErr("");
       try { // one door for everyone: an address that already has an account is sent a code; a new address gets an account (after the Terms box) and goes straight in
         const r = await TB.api("POST", "/api/start", termsShown ? { email: m, consent: CBConsent.payload(k2, "K2") } : { email: m });
@@ -195,7 +195,7 @@
       } catch (x) {
         b.disabled = false;
         if (termsShown && x.code === "consent-required") { setErr(x.message); return; }
-        if (!termsShown && x.status === 400 && x.code === "consent-required") { termsShown = true; const k = $("k2slot"); k.innerHTML = `<p class="small muted" style="margin:12px 0 4px"><b>New here?</b> Tick the box below and we create your organizer account at once. It is free to build and publish.</p>` + CBConsent.html("K2"); setErr(""); const refresh = CBConsent.gate(k, "K2", $("lgGo")); k.addEventListener("change", refresh); refresh(); const f = k.querySelector("input"); if (f) f.focus(); return; }
+        if (!termsShown && x.status === 400 && x.code === "consent-required") { termsShown = true; const k = $("k2slot"); k.innerHTML = `<p class="small muted" style="margin:12px 0 4px"><b>New here?</b> Press the button and we create your organizer account at once. It is free to build and publish.</p>` + CBConsent.html("K2"); setErr(""); const refresh = CBConsent.gate(k, "K2", $("lgGo")); k.addEventListener("change", refresh); refresh(); const f = k.querySelector("input"); if (f) f.focus(); return; }
         setErr(x.message);
       }
     });

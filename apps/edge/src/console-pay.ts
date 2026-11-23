@@ -73,7 +73,7 @@ export async function consoleMarkPaid(env: Env, o: { eid: string; sub: string; i
 /** The adapter the bridge needs. Only `markPaid` is used (the route is /api/console/paid alone); every other method refuses, so nothing else of the bridge can be reached by mistake. */
 export function consoleAdapter(now: number): Adapter<ConsoleEnv> {
   return {
-    game: "bingo", gameName: "Corporate Bingo", gameVersion: "1.5.1",
+    game: "bingo", gameName: "Corporate Bingo", gameVersion: "1.5.2",
     nowMs: () => now,
     origin: (env) => (env.PUBLIC_ORIGIN || "").replace(/\/$/, ""),
     pubkeys: (env) => env.CONSOLE_PUBKEYS,

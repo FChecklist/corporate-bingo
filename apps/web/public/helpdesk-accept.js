@@ -56,7 +56,7 @@
   }
   function allow() {
     shell(`<div class="zcard zform"><h2>${esc(info.helperName)} asks to prepare games for you</h2>${promise()}
-      <p class="zsmall">By tapping Allow you agree to the five points above.</p>${bad(state.msg)}
+      <p class="zsmall">Pressing Allow lets it prepare games for you, as promised above. You can stop it at any time.</p>${bad(state.msg)}
       <button class="zbtn" id="ok">Allow</button> <button class="zbtn alt" id="no">Not now</button>
       <p class="zsmall"><a href="#" class="hdl" id="out">Use a different e-mail</a></p></div>`);
     document.getElementById("ok").onclick = async (ev) => {

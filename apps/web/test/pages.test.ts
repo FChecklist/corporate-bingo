@@ -745,7 +745,7 @@ describe("Refer & Earn page", () => {
     expect(p.win.document.querySelector(".sheet .sbrand")!.getAttribute("aria-label")).toBe("Corporate Bingo"); expect(p.win.document.querySelector(".sheethead .rolepill")).toBeTruthy();
     expect((p.$("#frGo") as any).textContent).toMatch(/^s*Create my game/);
     p.win.document.dispatchEvent(new p.win.KeyboardEvent("keydown", { key: "Escape" })); await new Promise((r) => setTimeout(r, 50));
-    { const sh = p.win.document.getElementById("sheet")!; const l = [...sh.querySelectorAll(".spriv a")] as any[]; expect(l.map((x) => x.getAttribute("href"))).toEqual(["/terms.html", "/legal.html#privacy"]); expect(sh.querySelector(".spriv")!.textContent).toBe("Read the Terms and the Privacy & Data Policy before you tick the box."); for (const x of l) { expect(x.getAttribute("target")).toBe("_blank"); expect(x.getAttribute("rel")).toBe("noopener"); } expect(sh.querySelectorAll('input[type="checkbox"]').length).toBe(0); /* no tick-boxes */ }
+    { const sh = p.win.document.getElementById("sheet")!; const l = [...sh.querySelectorAll(".spriv a")] as any[]; expect(l.map((x) => x.getAttribute("href"))).toEqual(["/terms.html", "/legal.html#privacy"]); expect(sh.querySelector(".spriv")!.textContent).toBe("Please read the Terms and the Privacy & Data Policy whenever you like."); for (const x of l) { expect(x.getAttribute("target")).toBe("_blank"); expect(x.getAttribute("rel")).toBe("noopener"); } expect(sh.querySelectorAll('input[type="checkbox"]').length).toBe(0); /* no tick-boxes */ }
     expect(p.win.document.getElementById("modal").classList.contains("hidden")).toBe(true);
     expect(p.errors).toEqual([]);
   });

@@ -553,7 +553,7 @@
     if (add) CBConsent.wire(document, "K6", MI.k6); // the person who adds a name and number ticks that they may use them
     if (add) add.onclick = () => {
       const name = (nm.value || "").trim(), phone = ph ? (ph.value || "").trim() : "";
-      if (!CBConsent.all(document, "K6")) { MI.bad = true; MI.note = "Please tick the box to continue."; return paint(); }
+      if (!CBConsent.all(document, "K6")) { MI.bad = true; MI.note = "Please press the button again to go on."; return paint(); }
       const consent = CBConsent.payload(document, "K6");
       if (name.length < 2) { MI.bad = true; MI.note = "Please type their name."; return paint(); }
       if (!INFO.idOnly && phone.replace(/\D/g, "").length < 10) { MI.bad = true; MI.note = "Please type their mobile number."; return paint(); }

@@ -2,6 +2,21 @@
 
 Plain words. Newest first. The version number lives in `version.json` and must be the same in `package.json`, `apps/edge/package.json` and `apps/edge/src/releases.json` (a test checks this).
 
+## 1.5.2 (23 Nov 2026) - Security audit fixes: a deleted player stays deleted in the audit log (never deployed on its own)
+
+**What changed for you**
+- When a player presses "Delete my name and number" (or you do it for them), their mobile number and name are now gone from the audit log too. Before this, the number stayed in the log for up to a year. (Audit of 23 Nov, High 1.)
+- The same for a Co-host: their name and mobile number are not kept in the log. A Co-host's own calls are kept in the part of the log that is deleted 23 hours after the game, like a player's.
+- The log now keeps only what happened and when (who did what, from where), never the details of a person. This covers names, mobile numbers, e-mail addresses, IDs, places and labels under any field name, and any number or e-mail written inside other text. The calls that name a person keep only the names of the fields, never the values.
+- A visitor with no key can no longer fill the audit log. A call to a game that does not exist, or to an address that does not exist, leaves no row; and one network can add only 20 rows a minute (300 for a game that exists, because a whole office can join through one address). The count is kept in memory, so it writes nothing to the database. (Audit, Medium 1.)
+- Wording: the sign-in and Co-host screens no longer say "tick the box" and the Co-host screen no longer has an "Accept" button (it says "Start as Co-host"). Going ahead is the agreement and the Terms link stays on the page. Messages say "Please press the button again to go on".
+
+**Not changed**
+- Money flags `PAY_VIA_CONSOLE` and `LOGIN_VIA_CONSOLE` stay OFF. Nothing is deployed.
+- Still open from the audit, not changed here (they are Medium or Low and not part of this fix): the "Is this you?" name hint and the wrong-ID limit (Medium 2 and 3), the IPv6 join counter, security headers, constant-time secret compares, winners' IP detail, family-queue spam. BOSS to decide.
+- Some checkboxes remain that are not agreement boxes: "Prize given", the house on/off switches, "also bring the people list" when cloning, "hide guest names from my AI" and the three-step cancel confirmation. They are switches for the organizer, not consent.
+- "You start the game" and "You call the numbers" are still coming in 1.6.0 (BOSS waiver of 22 Nov 2026; whether it carries to 1.5.2 is BOSS's call).
+
 ## 1.5.1 (23 Nov 2026) - Security audit fixes (never deployed on its own)
 
 **What changed for you**

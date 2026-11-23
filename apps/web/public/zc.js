@@ -562,7 +562,7 @@
   async function addPeople(raw, keep) {
     const P = S.pp;
     if (!raw.length) { P.sum = idGame() ? "Add at least one ID first." : "Add a name and a number first."; return redraw(); }
-    if (!CBConsent.all($app, "K6")) { P.sum = "Please tick the box to continue."; return redraw(); }
+    if (!CBConsent.all($app, "K6")) { P.sum = "Please press the button again to go on."; return redraw(); }
     const consent = CBConsent.payload($app, "K6");
     const { good, dups, wrong, same } = cleanBatch(raw); let added = good.length, serverDup = 0, sameId = same.slice(), dupNames = [], got = 0, counted = false; const bad = wrong.slice();
     try {
@@ -1060,7 +1060,7 @@
     const side = `<aside class="zc-side"><div class="zc-me"><span class="zc-num zc-num-dark">${esc(ROLE_LABEL[r].charAt(0))}</span><span><span class="zc-muted">Signed in as</span><br><b>${esc(rolePill().replace(/^Signed in as /, ""))}</b></span></div><div class="zc-small zc-nomargin">Your game at a glance</div>${synHtml()}<div class="zc-small">Payment: <b>${payState().paid ? "Paid" : payState().confirming ? "Confirming..." : "Pending"}</b></div></aside>`;
     return frame(`<div class="zc-body">${side}<div class="zc-main">${mainHtml()}</div></div>`, true);
   }
-  const roleAcceptView = () => frame(`<div class="zc-body"><div class="zc-main"><div class="zc-block" id="roleaccept"><h3>Before you start</h3>${small("Tick the box to take the Co-host role. You can then invite people and pay.")}${CBConsent.html("K5")}${S.roleErr ? `<p class="zc-small zc-warnt" role="alert">${esc(S.roleErr)}</p>` : ""}<div class="zc-foot"><button class="zc-btn" type="button" id="roleacceptgo" data-needs="K5" disabled aria-disabled="true">Accept the Co-host role</button></div></div></div></div>`, false);
+  const roleAcceptView = () => frame(`<div class="zc-body"><div class="zc-main"><div class="zc-block" id="roleaccept"><h3>Before you start</h3>${small("Press the button to take the Co-host role. You can then invite people and pay.")}${CBConsent.html("K5")}${S.roleErr ? `<p class="zc-small zc-warnt" role="alert">${esc(S.roleErr)}</p>` : ""}<div class="zc-foot"><button class="zc-btn" type="button" id="roleacceptgo" data-needs="K5" disabled aria-disabled="true">Start as Co-host</button></div></div></div></div>`, false);
   function cohostView() {
     if (S.coh && S.coh.roleAccepted === false) return roleAcceptView();
     const side = `<aside class="zc-side"><div class="zc-me"><span class="zc-num zc-num-dark">C</span><span><span class="zc-muted">You are</span><br><b>Co-host</b></span></div><div class="zc-small zc-nomargin">Your game at a glance</div>${synHtml()}</aside>`;
@@ -1142,7 +1142,7 @@
   async function googleDone(resp, intent) {
     try {
       let consent = null; // a Host accepting the role ticks the K5 box first
-      if (intent === "host") { if (!CBConsent.all($app, "K5")) { S.setupMsg = "Please tick the box to continue."; return redraw(); } consent = CBConsent.payload($app, "K5"); }
+      if (intent === "host") { if (!CBConsent.all($app, "K5")) { S.setupMsg = "Please press the button again to go on."; return redraw(); } consent = CBConsent.payload($app, "K5"); }
       const r = await call("POST", "/api/auth/google", { credential: resp && resp.credential, intent, ...(intent === "host" ? { hostKey: secret, consent } : {}) });
       const k = r.token || r.key || r.organizerKey || r.hostKey; if (k) { secret = k; ss.set("cbz-org", k); }
       S.loginMsg = ""; S.setupMsg = ""; S.setup = null; bootstrap();
@@ -1469,7 +1469,7 @@
     if ($("hostall")) $("hostall").onclick = () => { leaveGame(); bootstrap(); };
     if ($("hostswitchorg")) $("hostswitchorg").onclick = () => { const a = altRole(); if (a) takeKey(a.token, "You are now in your Organizer view."); };
     if ($("hostbecome")) $("hostbecome").onclick = async () => {
-      if (!CBConsent.all($app, "K2")) { S.becomeErr = "Please tick the box to continue."; return redraw(); }
+      if (!CBConsent.all($app, "K2")) { S.becomeErr = "Please press the button again to go on."; return redraw(); }
       try { const r = await call("POST", "/api/host/become-organizer", { consent: CBConsent.payload($app, "K2") }); S.becomeErr = ""; takeKey(r.token, "Your Organizer account is ready. Start your new game below."); }
       catch (e) { S.becomeErr = friendly(e); redraw(); }
     };
@@ -1511,7 +1511,7 @@
     if ($("pubPhone")) $("pubPhone").oninput = (e) => { S.contact.phone = e.target.value; };
     if ($("pubgo")) $("pubgo").onclick = async () => {
       if (!blankOk()) { S.pubOpen = false; S.blankAsk = true; return redraw(); } // never publish silently with a blank prize
-      if (!CBConsent.all($app, "K1")) { S.pubNote = "Please tick the box to continue."; return redraw(); }
+      if (!CBConsent.all($app, "K1")) { S.pubNote = "Please press the button again to go on."; return redraw(); }
       const consent = CBConsent.payload($app, "K1");
       $("pubgo").disabled = true;
       try { const pr = await call("POST", `/api/z/${eid}/publish`, { email: S.contact.email.trim(), phone: S.contact.phone, consent }); ss.set("cbz-email", S.contact.email.trim()); ss.set("cbz-phone", S.contact.phone); S.pubOpen = false; S.note = pr && pr.needsOrganizer ? "Not published. Only the Organizer publishes, with one tap. If you are a Help Desk helper, ask the Organizer from the Help Desk page." : "Published. Send the link in step 6 to your participants. Then pay in step 8 before the start time, or the game will not begin."; }
@@ -1772,9 +1772,9 @@
       S.f.dayo = istDateStr(t); S.f.timeo = pad2(t.getUTCHours()) + ":" + pad2(t.getUTCMinutes());
       if ($("qk-date")) $("qk-date").value = S.f.dayo; if ($("qk-time")) $("qk-time").value = S.f.timeo; quickSummary();
     };
-    if ($("setupsend")) $("setupsend").onclick = () => { const v = $("setupemail").value.trim(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { S.setupMsg = "Please type your e-mail."; return redraw(); } if (!CBConsent.all($app, "K5")) { S.setupMsg = "Please tick the box to continue."; return redraw(); } setupStep("/api/host/setup/email", { email: v, consent: CBConsent.payload($app, "K5") }, true); };
+    if ($("setupsend")) $("setupsend").onclick = () => { const v = $("setupemail").value.trim(); if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) { S.setupMsg = "Please type your e-mail."; return redraw(); } if (!CBConsent.all($app, "K5")) { S.setupMsg = "Please press the button again to go on."; return redraw(); } setupStep("/api/host/setup/email", { email: v, consent: CBConsent.payload($app, "K5") }, true); };
     if ($("roleacceptgo")) $("roleacceptgo").onclick = async () => {
-      if (!CBConsent.all($app, "K5")) { S.roleErr = "Please tick the box to continue."; return redraw(); }
+      if (!CBConsent.all($app, "K5")) { S.roleErr = "Please press the button again to go on."; return redraw(); }
       try { await call("POST", "/api/org/role/accept", { consent: CBConsent.payload($app, "K5") }); S.roleErr = ""; await refreshCohost(); } catch (e) { S.roleErr = friendly(e); redraw(); }
     };
     for (const fid of ["setupemail", "setupcode", "setupmobile"]) { const el = $(fid); if (el) el.oninput = () => { (S.sv = S.sv || {})[fid] = el.value; }; } // what a Host has typed survives any redraw of the page

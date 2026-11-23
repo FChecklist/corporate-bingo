@@ -38,7 +38,7 @@ export function consentMissing(b: any, kind: ConsentKind): Response | null {
   const c = b?.consent, need = boxesOf(kind);
   const given: unknown[] = Array.isArray(c?.boxes) ? c.boxes : [];
   if (c && typeof c === "object" && c.v === CONSENT_VERSION && need.length > 0 && need.every((id) => given.includes(id))) return null;
-  return json({ error: "Please tick the box to continue.", code: "consent-required", kind, version: CONSENT_VERSION }, 400);
+  return json({ error: "Please press the button again to go on.", code: "consent-required", kind, version: CONSENT_VERSION }, 400);
 }
 
 const newId = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), (x) => x.toString(16).padStart(2, "0")).join("");
