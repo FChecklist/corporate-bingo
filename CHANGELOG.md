@@ -2,6 +2,18 @@
 
 Plain words. Newest first. The version number lives in `version.json` and must be the same in `package.json`, `apps/edge/package.json` and `apps/edge/src/releases.json` (a test checks this).
 
+## 1.5.1 (23 Nov 2026) - Security audit fixes (never deployed on its own)
+
+**What changed for you**
+- A closed game can no longer be opened to anyone with the link by a settings save that sends `closed` as `null` or as empty text. On a save, `closed` is now accepted only when it is left out or is `true`. `false`, `0`, `null`, `""` and anything else get the same plain refusal as before (`list-only`). (Audit of 23 Nov, Medium 1.)
+- The console's `payInfo` call now reads at most 4096 bytes of the request (a real request is a few hundred). A bigger one is refused with 413 before it is read in full. (Audit, Low 2.)
+- The same call now tells a network to wait (429) after 20 requests in one minute that could not be checked (bad request, bad signature, or a repeat). The count is kept in memory, so a flood of bad calls writes nothing to the database. (Audit, Low 3.)
+- A mangled code comment on the paid and payInfo routes is fixed (no change in behaviour).
+
+**Not changed**
+- Money flags `PAY_VIA_CONSOLE` and `LOGIN_VIA_CONSOLE` stay OFF. Nothing is deployed.
+- "You start the game" and "You call the numbers" are still coming in 1.6.0. BOSS waived them in writing for 1.5.0 (22 Nov 2026). This patch changes nothing about them; whether the waiver carries to 1.5.1 is BOSS's call.
+
 ## 1.5.0 (22 Nov 2026) - Owner rules v1.1 joined to the live code
 
 **What changed for you**

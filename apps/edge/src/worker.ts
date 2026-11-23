@@ -604,8 +604,8 @@ async function handleCore(req: Request, env: Env, now = Date.now(), waitUntil?: 
   if (keysMissing(env)) return new Response(JSON.stringify({ error: "The service is not configured. Please try again later." }), { status: 503, headers: { "content-type": "application/json", "cache-control": "no-store" } });
   const pn = new URL(req.url).pathname;
   { const gate = legacyPayGate(req, env as ConsoleEnv) ?? loginGate(req, env as ConsoleEnv); if (gate) return gate; } // owner order 20 Nov 2026: payment and sign-in live in the console and at home; the old routes answer a short refusal while their flags are on (console-pay.ts), nothing is deleted
-  if (pn === "/api/console/paid") { const cr = await consolePaidRoute(req, env as ConsoleEnv, now); if (cr) return cr; }
-  if (pn === "/api/console/payinfo") { const pr = await consolePayInfoRoute(req, env as ConsoleEnv, now); if (pr) return pr; } // what must be paid for this game, asked before any money is taken (console-pay.ts) // the console's signed "paid" notice, once per order id (console-pay.ts); dark without CONSOLE_PUBKEYS
+  if (pn === "/api/console/paid") { const cr = await consolePaidRoute(req, env as ConsoleEnv, now); if (cr) return cr; } // the console's signed "paid" notice, once per order id (console-pay.ts); dark without CONSOLE_PUBKEYS
+  if (pn === "/api/console/payinfo") { const pr = await consolePayInfoRoute(req, env as ConsoleEnv, now); if (pr) return pr; } // what must be paid for this game, asked before any money is taken (console-pay.ts); dark without CONSOLE_PUBKEYS
   if (pn === "/ai" || pn.startsWith("/ai/")) return aiLink(req, env, now, waitUntil);
   if (req.method === "GET" && pn.startsWith("/j/")) return joinLinkPage(env, decodeURIComponent(pn.slice(3)).replace(/\/$/, ""), (env as PayEnv).PUBLIC_ORIGIN ?? new URL(req.url).origin, (e) => cfgOf(e).name || e.id); // the short personal link (people.ts)
   return handle0(req, env, now, waitUntil);
@@ -2155,7 +2155,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     const b = await body(req, BRAND_BODY_MAX);
     if (!b) return json({ error: "Check the details." }, 400);
     if (b.whoCanJoin !== undefined && b.whoCanJoin !== "list" && b.whoCanJoin !== "anyone") return json({ error: "Who can join: choose \"list\" (only people on a list) or \"anyone\" (anyone with the link)." }, 400);
-    if (!openGamesAllowed(env as ConsoleEnv) && (b.whoCanJoin === "anyone" || b.closed === false || b.closed === 0)) return json({ error: LIST_ONLY_MSG, code: "list-only" }, 400); // the server itself refuses an open game
+    if (!openGamesAllowed(env as ConsoleEnv) && (b.whoCanJoin === "anyone" || (b.closed !== undefined && b.closed !== true))) return json({ error: LIST_ONLY_MSG, code: "list-only" }, 400); // the server itself refuses an open game: `closed` is accepted only when absent or true; false, 0, null, "" and anything else count as "open" and are refused (audit 23 Nov 2026, Medium 1)
     if (b.coHostLimit !== undefined && (!Number.isInteger(b.coHostLimit) || b.coHostLimit < COHOST_LIMIT_MIN || b.coHostLimit > COHOST_LIMIT_MAX)) return json({ error: `A Co-host can list ${COHOST_LIMIT_MIN} to ${COHOST_LIMIT_MAX} people.` }, 400);
     const vc = validateCfg({ tickets: b.tickets, rewards: b.rewards, breaks: b.breaks, rounds: b.rounds, invites: b.invites !== undefined ? b.invites : b.guestInvites, opening: b.opening, closing: b.closing, name: b.name, brand: b.brand, mark: b.mark, join: b.join, tz: b.tz, verify: b.verify, employeesOnly: b.employeesOnly, idKind: b.idKind, roomMode: b.roomMode }, cfgOf(e)); // guestInvites is the console's name for invites
     if (!vc.ok) return json({ error: vc.error }, 400);

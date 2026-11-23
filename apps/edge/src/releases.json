@@ -1,5 +1,16 @@
 [
   {
+    "version": "1.5.1",
+    "date": "2026-11-23",
+    "commit": "this release",
+    "title": "Security audit fixes: a closed game stays closed on a settings save",
+    "changes": [
+      "A closed game can no longer be opened to anyone with the link by a settings save that sends closed as null or as empty text: closed is accepted only when it is left out or is true",
+      "The console's payInfo call reads at most 4096 bytes of the request and refuses a bigger one",
+      "The payInfo call tells a network to wait after 20 requests in a minute that could not be checked; the count is kept in memory and writes nothing to the database"
+    ]
+  },
+  {
     "version": "1.5.0",
     "date": "2026-11-22",
     "commit": "this release",

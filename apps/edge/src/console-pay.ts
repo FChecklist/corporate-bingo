@@ -11,6 +11,7 @@ import { ensureBridgeSchema } from "./console-bridge/schema";
 import type { D1 as BridgeD1 } from "./console-bridge/d1";
 import { GRACE_ROUNDS } from "../../../packages/beacon/src/config";
 import { packFor } from "./paylink";
+import { ipGroup } from "./ipkey";
 import { LATE_PAY_LEAD_ROUNDS } from "./pay";
 import type { Env } from "./worker";
 
@@ -72,7 +73,7 @@ export async function consoleMarkPaid(env: Env, o: { eid: string; sub: string; i
 /** The adapter the bridge needs. Only `markPaid` is used (the route is /api/console/paid alone); every other method refuses, so nothing else of the bridge can be reached by mistake. */
 export function consoleAdapter(now: number): Adapter<ConsoleEnv> {
   return {
-    game: "bingo", gameName: "Corporate Bingo", gameVersion: "1.5.0",
+    game: "bingo", gameName: "Corporate Bingo", gameVersion: "1.5.1",
     nowMs: () => now,
     origin: (env) => (env.PUBLIC_ORIGIN || "").replace(/\/$/, ""),
     pubkeys: (env) => env.CONSOLE_PUBKEYS,
@@ -124,13 +125,16 @@ export async function consolePayInfoRoute(req: Request, env: ConsoleEnv, now: nu
   const out = (status: number, o: Record<string, unknown>) => new Response(JSON.stringify(o), { status, headers: H });
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: H });
   if (!env.PUBLIC_ORIGIN) return out(503, { ok: false, code: "not_set_up", error: "This game's public address (PUBLIC_ORIGIN) is not set, so it cannot answer the console yet." });
-  const body: any = await req.json().catch(() => null);
-  if (!body || typeof body.assertion !== "string" || typeof body.eid !== "string" || !/^[A-Za-z0-9_-]{3,40}$/.test(body.eid)) return out(400, { ok: false, code: "invalid", message: "The request is not complete." });
+  const netKey = ipGroup(req.headers.get("cf-connecting-ip")); // one network is one key (an IPv6 /64 counts as one, see ipkey.ts)
+  if (payInfoOver(netKey, now)) return new Response(JSON.stringify({ ok: false, code: "rate_limited", message: "Too many requests that could not be checked. Please wait a minute." }), { status: 429, headers: { ...H, "retry-after": "60" } });
+  const body: any = await readJsonLimited(req, PAYINFO_BODY_MAX); // a real request is a few hundred bytes (one assertion and one game id): a big body is refused before it is parsed
+  if (body === TOO_BIG) { payInfoMiss(netKey, now); return out(413, { ok: false, code: "too_big", message: "The request is too large." }); }
+  if (!body || typeof body.assertion !== "string" || typeof body.eid !== "string" || !/^[A-Za-z0-9_-]{3,40}$/.test(body.eid)) { payInfoMiss(netKey, now); return out(400, { ok: false, code: "invalid", message: "The request is not complete." }); }
   const db = env.DB as unknown as BridgeD1; await ensureBridgeSchema(db);
   const nowS = Math.floor(now / 1000), v = await verifyAssertion(body.assertion, { keys, aud: env.PUBLIC_ORIGIN.replace(/\/$/, ""), nowS, act: "games" });
-  if (!v.ok) return out(401, { ok: false, code: v.error, message: "This sign-in could not be checked. Please sign in again." });
+  if (!v.ok) { payInfoMiss(netKey, now); return out(401, { ok: false, code: v.error, message: "This sign-in could not be checked. Please sign in again." }); }
   const used = await db.prepare("INSERT OR IGNORE INTO console_jti(jti, exp_s) VALUES(?,?)").bind(v.payload.jti, v.payload.exp).run();
-  if (used.meta.changes !== 1) return out(401, { ok: false, code: "replayed", message: "This sign-in was already used. Please try again." });
+  if (used.meta.changes !== 1) { payInfoMiss(netKey, now); return out(401, { ok: false, code: "replayed", message: "This sign-in was already used. Please try again." }); }
   const e = await env.DB.prepare("SELECT id, org, cap, pack, start_round, config, cancelled_ms, unplayed_ms FROM engagement WHERE id=?").bind(body.eid).first<any>();
   const who = await env.DB.prepare("SELECT org FROM organizer_email WHERE email_hash=?").bind(v.payload.sub).first<{ org: string }>();
   if (!e || !who || !e.org || who.org !== e.org) return out(404, { ok: false, code: "not_found", message: "That game could not be found." });
@@ -138,6 +142,38 @@ export async function consolePayInfoRoute(req: Request, env: ConsoleEnv, now: nu
   const reason = closed ? "closed" : paid ? "already_paid" : !pack ? "too_big" : null; // too_big: more people than the biggest pack; it needs a custom arrangement, not a console payment
   let name = body.eid; try { name = JSON.parse(e.config || "{}").name || name; } catch { /* keep the id */ }
   return out(200, { ok: true, eid: body.eid, name, startMs: (1692803367 + (Number(e.start_round) - 1) * 3) * 1000, cap: Number(e.cap), paid, payable: reason === null, item: pack ? String(pack) : null, reason });
+}
+
+/** payInfo: the biggest body the route reads (bytes). The assertion plus the game id are a few hundred bytes. */
+export const PAYINFO_BODY_MAX = 4096;
+/** payInfo: how many requests that could not be checked (no valid signature, bad body, a repeat) one network may send in a minute before it is told to wait. */
+export const PAYINFO_MISSES_PER_MINUTE = 20;
+const TOO_BIG = Symbol("too-big");
+/** Reads a JSON object from the request but never more than `max` bytes: it stops reading at the limit instead of loading the whole body. Null = not JSON (or not an object). */
+async function readJsonLimited(req: Request, max: number): Promise<any | null | typeof TOO_BIG> {
+  if (Number(req.headers.get("content-length") ?? 0) > max) return TOO_BIG;
+  let text = "";
+  if (req.body) {
+    const reader = req.body.getReader(), dec = new TextDecoder(); let got = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      got += value.byteLength;
+      if (got > max) { try { await reader.cancel(); } catch { /* already closed */ } return TOO_BIG; }
+      text += dec.decode(value, { stream: true });
+    }
+    text += dec.decode();
+  }
+  try { const v = JSON.parse(text); return v && typeof v === "object" ? v : null; } catch { return null; }
+}
+/** A small count per Worker instance (no database write, so a flood of bad calls cannot burn the game's daily write budget): bad requests per network per minute. */
+const payInfoMisses = new Map<string, { w: number; n: number }>();
+export const resetPayInfoMisses = () => payInfoMisses.clear();
+const payInfoOver = (k: string, now: number): boolean => { const r = payInfoMisses.get(k); return !!r && r.w === Math.floor(now / 60_000) && r.n >= PAYINFO_MISSES_PER_MINUTE; };
+function payInfoMiss(k: string, now: number): void {
+  const w = Math.floor(now / 60_000), r = payInfoMisses.get(k);
+  if (payInfoMisses.size > 5000) payInfoMisses.clear();
+  if (!r || r.w !== w) payInfoMisses.set(k, { w, n: 1 }); else r.n++;
 }
 
 /** How long an order may sit in the bridge's "marking" state before it is treated as stuck. A live call finishes in well under a second. */
