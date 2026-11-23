@@ -11,8 +11,17 @@ Plain words. Newest first. The version number lives in `version.json` and must b
 - A game made before 20 Nov 2026 keeps matching IDs the old way as well as the new way, so nobody who is already on a list is locked out.
 - The wrong-ID limit counts one IPv6 network as one network, in one step.
 
-**Still missing (unchanged, see `docs/STATE.md`, "Not done")**
-- The same open items as 1.4.1 below. This merge adds no new feature and no payment switch is turned on.
+**Audit fixes added to this release (23 Nov 2026)**
+- The server itself now refuses an open game. A create or a save that says "anyone with the link" is refused with a plain sentence, and a game that says nothing is a game for the people on its list. (`LEGACY_OPEN_GAMES=1` brings the old behaviour back for old tests only; it is never set on the live site.)
+- The console can now ask this game, before it takes any money, what must be paid for a game and whether it can be paid (`POST /api/console/payinfo`, called `payInfo` in the audit). The game answers with the pack size to charge (never a price) and a reason when it cannot be paid. Only the game's owner gets an answer. It is switched on only with the console's keys. The console's own contract does not have this call yet, so the console must adopt it.
+- The flag that closes the game's old pay routes is `PAY_VIA_CONSOLE` (this game's name). `PAY_VIA_MONEYPENNY` belongs to the console's own repository and does nothing here.
+
+**Coming in 1.6.0 (waived in writing by BOSS for 1.5.0, 22 Nov 2026)**
+- "You start the game" (press Start) and "You call the numbers" (press Next). Live Bingo does not have them either, so this is not a step back.
+
+**Still missing (see `docs/STATE.md`, "Not done")**
+- The old pay routes still work while `PAY_VIA_CONSOLE` is off (it is off until the owner says go).
+- The rest of the console link (session, games list, billing, hand-off, roles) and running the contract kit.
 
 ## 1.4.1 (22 Nov 2026) - Audit fixes (never deployed on its own; now part of 1.5.0)
 

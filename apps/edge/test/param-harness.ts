@@ -4,7 +4,7 @@
 import { createHmac } from "node:crypto";
 import { expect } from "bun:test";
 import { handle as realHandle, type Env } from "../src/worker";
-import { handle } from "./with-terms";
+import { handle, withOpenGames } from "./with-terms";
 import { withDevice } from "./device";
 import type { PayEnv } from "../src/pay";
 import { makeD1 } from "./d1-sqlite";
@@ -42,7 +42,7 @@ export const call = (method: string, path: string, body?: unknown, headers: Reco
   handle(new Request("http://x" + path, { method, headers: { "content-type": "application/json", ...headers }, body: withDevice(method, path, body) }), W.env as Env, now);
 /** The same call, but through the real handler with no consent ticks added (for proving what the server refuses). */
 export const callRaw = (method: string, path: string, body?: unknown, headers: Record<string, string> = {}, now = T, waitUntil?: (p: Promise<unknown>) => void) =>
-  realHandle(new Request("http://x" + path, { method, headers: { "content-type": "application/json", ...headers }, body: withDevice(method, path, body) }), W.env as Env, now, waitUntil);
+  realHandle(new Request("http://x" + path, { method, headers: { "content-type": "application/json", ...headers }, body: withDevice(method, path, body) }), withOpenGames(W.env as Env), now, waitUntil);
 export const j = async (r: Response) => (await r.json().catch(() => ({}))) as any;
 export const q = (sql: string, ...a: any[]) => W.raw.prepare(sql).all(...a) as any[];
 export const one = (sql: string, ...a: any[]) => W.raw.prepare(sql).get(...a) as any;

@@ -6,15 +6,21 @@
 //   * PAY_VIA_CONSOLE = "1": the old pay pages and routes answer with a redirect to the console (pages) or a plain refusal (API). Nothing is deleted: the code and the data stay behind the flag.
 //     Razorpay's own notice to this game (/api/payments/webhook) is never redirected: money that was already paid must still be recorded.
 import { handleConsole, legacyPayRedirect, type Adapter, type KeyAuth } from "./console-bridge/bridge";
+import { parseKeyList, verifyAssertion } from "./console-bridge/assertion";
+import { ensureBridgeSchema } from "./console-bridge/schema";
 import type { D1 as BridgeD1 } from "./console-bridge/d1";
 import { GRACE_ROUNDS } from "../../../packages/beacon/src/config";
 import { packFor } from "./paylink";
 import { LATE_PAY_LEAD_ROUNDS } from "./pay";
 import type { Env } from "./worker";
 
-export interface ConsoleEnv extends Env { CONSOLE_PUBKEYS?: string; PAY_VIA_CONSOLE?: string; LOGIN_VIA_CONSOLE?: string; CONSOLE_ORIGIN?: string; HOME_ORIGIN?: string; PUBLIC_ORIGIN?: string }
+export interface ConsoleEnv extends Env { LEGACY_OPEN_GAMES?: string; CONSOLE_PUBKEYS?: string; PAY_VIA_CONSOLE?: string; LOGIN_VIA_CONSOLE?: string; CONSOLE_ORIGIN?: string; HOME_ORIGIN?: string; PUBLIC_ORIGIN?: string }
 export const CONSOLE_ORIGIN_DEFAULT = "https://console.corporatetambola.com";
 export const HOME_ORIGIN_DEFAULT = "https://home.corporatetambola.com";
+/** Owner rule (20 Nov 2026, audit 22 Nov 2026): every game is for the people on its list, by ID. The server itself refuses "anyone with the link" and makes a game that says nothing a game for its list.
+ *  LEGACY_OPEN_GAMES="1" brings the old open behaviour back (it exists for old tests and old callers; it is never set on the live site). */
+export const openGamesAllowed = (env: { LEGACY_OPEN_GAMES?: string }) => env.LEGACY_OPEN_GAMES === "1";
+export const LIST_ONLY_MSG = "This game is for the people on your list. Each person types their ID, and you say yes or no to anyone who is not on it. Please choose \"list\".";
 export const consoleOrigin = (env: { CONSOLE_ORIGIN?: string }) => (env.CONSOLE_ORIGIN || CONSOLE_ORIGIN_DEFAULT).replace(/\/$/, "");
 export const homeOrigin = (env: { HOME_ORIGIN?: string }) => (env.HOME_ORIGIN || HOME_ORIGIN_DEFAULT).replace(/\/$/, "");
 
@@ -98,6 +104,40 @@ export async function consolePaidRoute(req: Request, env: ConsoleEnv, now: numbe
   if (env.CONSOLE_PUBKEYS && !env.PUBLIC_ORIGIN) return new Response(JSON.stringify({ ok: false, code: "not_set_up", error: "This game's public address (PUBLIC_ORIGIN) is not set, so it cannot take the console's paid notice yet." }), { status: 503, headers: { "content-type": "application/json", "cache-control": "no-store" } }); // fails closed AND says why (an empty address would refuse every real notice as "wrong game")
   if (req.method === "POST" && env.CONSOLE_PUBKEYS) await releaseStaleMarking(req.clone(), env, now); // never for a dark route: an unsigned request cannot cause a database write there
   return handleConsole(consoleAdapter(now), req, env);
+}
+
+/**
+ * payInfo (audit 22 Nov 2026, finding 2): "what must be paid for this game, and can it be paid at all?", asked BEFORE the console takes any money, so a wrong size is found out before payment and not after.
+ * The console's pay-step contract (corporate-console docs/PAY_STEP.md, bridge v1) has no such call, so this is THIS GAME's own read-only answer, built so the console can adopt it:
+ *   POST /api/console/payinfo  { assertion, eid }  ->  { ok, eid, name, startMs, cap, paid, payable, item, reason }
+ * `assertion` is a signed console assertion for this game's address (the same checks as the paid notice: signature, audience, 60 seconds, one use). The bridge's closed list of purposes has no "payinfo",
+ * so the purpose "games" is used (it is the read-only "show this person's games" purpose); the bridge file is not edited here. `item` is the pack size the console must charge for (the same string
+ * `markPaid` later checks); no price is given: every number of money is Moneypenny's. Only the owner of the game gets an answer; anybody else gets the same "not found" as for a game that is not there.
+ * Dark without CONSOLE_PUBKEYS (the normal 404), like the paid notice. It changes nothing in the game.
+ */
+export async function consolePayInfoRoute(req: Request, env: ConsoleEnv, now: number): Promise<Response | null> {
+  if (new URL(req.url).pathname.replace(/\/+$/, "") !== "/api/console/payinfo") return null;
+  if (req.method !== "POST" && req.method !== "OPTIONS") return null;
+  const keys = parseKeyList(env.CONSOLE_PUBKEYS);
+  if (!keys.length) return null; // dark
+  const H = { "content-type": "application/json", "cache-control": "no-store", "access-control-allow-origin": "*", "access-control-allow-headers": "content-type", "access-control-allow-methods": "POST, OPTIONS" };
+  const out = (status: number, o: Record<string, unknown>) => new Response(JSON.stringify(o), { status, headers: H });
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: H });
+  if (!env.PUBLIC_ORIGIN) return out(503, { ok: false, code: "not_set_up", error: "This game's public address (PUBLIC_ORIGIN) is not set, so it cannot answer the console yet." });
+  const body: any = await req.json().catch(() => null);
+  if (!body || typeof body.assertion !== "string" || typeof body.eid !== "string" || !/^[A-Za-z0-9_-]{3,40}$/.test(body.eid)) return out(400, { ok: false, error: "invalid", message: "The request is not complete." });
+  const db = env.DB as unknown as BridgeD1; await ensureBridgeSchema(db);
+  const nowS = Math.floor(now / 1000), v = await verifyAssertion(body.assertion, { keys, aud: env.PUBLIC_ORIGIN.replace(/\/$/, ""), nowS, act: "games" });
+  if (!v.ok) return out(401, { ok: false, error: v.error, message: "This sign-in could not be checked. Please sign in again." });
+  const used = await db.prepare("INSERT OR IGNORE INTO console_jti(jti, exp_s) VALUES(?,?)").bind(v.payload.jti, v.payload.exp).run();
+  if (used.meta.changes !== 1) return out(401, { ok: false, error: "replayed", message: "This sign-in was already used. Please try again." });
+  const e = await env.DB.prepare("SELECT id, org, cap, pack, start_round, config, cancelled_ms, unplayed_ms FROM engagement WHERE id=?").bind(body.eid).first<any>();
+  const who = await env.DB.prepare("SELECT org FROM organizer_email WHERE email_hash=?").bind(v.payload.sub).first<{ org: string }>();
+  if (!e || !who || !e.org || who.org !== e.org) return out(404, { ok: false, error: "not_found", message: "That game could not be found." });
+  const pack = packFor(Number(e.cap)), paid = Number(e.pack) > 0, closed = !!(e.cancelled_ms || e.unplayed_ms);
+  const reason = closed ? "closed" : paid ? "already_paid" : !pack ? "too_big" : null; // too_big: more people than the biggest pack; it needs a custom arrangement, not a console payment
+  let name = body.eid; try { name = JSON.parse(e.config || "{}").name || name; } catch { /* keep the id */ }
+  return out(200, { ok: true, eid: body.eid, name, startMs: (1692803367 + (Number(e.start_round) - 1) * 3) * 1000, cap: Number(e.cap), paid, payable: reason === null, item: pack ? String(pack) : null, reason });
 }
 
 /** How long an order may sit in the bridge's "marking" state before it is treated as stuck. A live call finishes in well under a second. */

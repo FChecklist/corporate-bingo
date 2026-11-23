@@ -10,7 +10,10 @@
       "Payment is made in the console only: the game takes the console's signed paid notice once per order id, and the old pay and sign-in pages are behind switches that are off",
       "The console speaks to you as 'you' and the Rupee sign is used on every screen and mail; one privacy line; the fairness sentence is proved by a test",
       "Wrong employee IDs are counted per network (one IPv6 /64 counts as one) in one step, and the help text now says an ID is matched to a list and does not prove who types it",
-      "An older game that already holds IDs written the old way still matches them, so nobody on a list is locked out"
+      "An older game that already holds IDs written the old way still matches them, so nobody on a list is locked out",
+      "The server itself now refuses an open game: 'anyone with the link' is refused and a game that says nothing is a game for the people on its list",
+      "The console can ask this game what must be paid for a game, and whether it can be paid, before it takes any money (payInfo); it gets the pack size, never a price",
+      "Coming in 1.6.0: 'You start the game' and 'You call the numbers' (the live site does not have them either)"
     ]
   },
   {

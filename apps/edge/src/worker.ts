@@ -44,7 +44,7 @@ import { HELPDESK_SCHEMA, HELPER_MANUAL_NOTE, helpdeskCloseStatements, helpdeskR
 import { legacyEmpFor } from "./empid";
 import { anyoneHoldsIdHash, EMP_CLEAN_FROM_MS, normEmp, normId, badIdMessage, empHashOf, verifyOf, keptPhone, phoneDigits, cleanName as cleanPersonName, PEOPLE_SCHEMA, COHOST_FROM, HOST_FROM, ORG_FROM, COHOST_LIMIT_DEFAULT, COHOST_LIMIT_MIN, COHOST_LIMIT_MAX, WAITING_MAX, addWaiting, chainOf, cleanPhone, fromCodeOf, inviterOf, joinLinkPage, limitOfInviter, listCount, parseFrom, peopleRoute, personByEmpId, personByPhone, personByToken, srcOf, waitingWho, type PersonRow } from "./people";
 import { ipGroup } from "./ipkey";
-import { consolePaidRoute, consoleOrigin, homeOrigin, legacyPayGate, loginGate, type ConsoleEnv } from "./console-pay";
+import { consolePaidRoute, consolePayInfoRoute, consoleOrigin, homeOrigin, legacyPayGate, loginGate, openGamesAllowed, LIST_ONLY_MSG, type ConsoleEnv } from "./console-pay";
 import { PAYLINK_SCHEMA, PAYLINK_TOKEN, createPayLink, packFor } from "./paylink";
 import { purgePaytestCounters } from "./payfirst";
 import { HOST_LINK_TTL_MS, HOST_SCHEMA, confirmHostEmail, emailHashOf, hostForEmail, hostKeyStatus, hostSetupRoute, hostStateRow, identityRow, maskEmail, maskMobile, mintDeviceKey, retireHost } from "./hostsetup";
@@ -604,7 +604,8 @@ async function handleCore(req: Request, env: Env, now = Date.now(), waitUntil?: 
   if (keysMissing(env)) return new Response(JSON.stringify({ error: "The service is not configured. Please try again later." }), { status: 503, headers: { "content-type": "application/json", "cache-control": "no-store" } });
   const pn = new URL(req.url).pathname;
   { const gate = legacyPayGate(req, env as ConsoleEnv) ?? loginGate(req, env as ConsoleEnv); if (gate) return gate; } // owner order 20 Nov 2026: payment and sign-in live in the console and at home; the old routes answer a short refusal while their flags are on (console-pay.ts), nothing is deleted
-  if (pn === "/api/console/paid") { const cr = await consolePaidRoute(req, env as ConsoleEnv, now); if (cr) return cr; } // the console's signed "paid" notice, once per order id (console-pay.ts); dark without CONSOLE_PUBKEYS
+  if (pn === "/api/console/paid") { const cr = await consolePaidRoute(req, env as ConsoleEnv, now); if (cr) return cr; }
+  if (pn === "/api/console/payinfo") { const pr = await consolePayInfoRoute(req, env as ConsoleEnv, now); if (pr) return pr; } // what must be paid for this game, asked before any money is taken (console-pay.ts) // the console's signed "paid" notice, once per order id (console-pay.ts); dark without CONSOLE_PUBKEYS
   if (pn === "/ai" || pn.startsWith("/ai/")) return aiLink(req, env, now, waitUntil);
   if (req.method === "GET" && pn.startsWith("/j/")) return joinLinkPage(env, decodeURIComponent(pn.slice(3)).replace(/\/$/, ""), (env as PayEnv).PUBLIC_ORIGIN ?? new URL(req.url).origin, (e) => cfgOf(e).name || e.id); // the short personal link (people.ts)
   return handle0(req, env, now, waitUntil);
@@ -1483,6 +1484,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     if (!Number.isInteger(b.callSeconds) || b.callSeconds % 3 || b.callSeconds < 6) return json({ error: GAP_MSG }, 400);
     if (!Number.isInteger(b.cap) || b.cap < 1 || b.cap > 100000) return json({ error: "The number of people must be a whole number from 1 up. Please check it." }, 400);
     if (b.whoCanJoin !== undefined && b.whoCanJoin !== "list" && b.whoCanJoin !== "anyone") return json({ error: "Who can join: choose \"list\" (only people on a list) or \"anyone\" (anyone with the link)." }, 400);
+    if (!openGamesAllowed(env as ConsoleEnv) && (b.whoCanJoin === "anyone" || b.closed === false || b.closed === 0)) return json({ error: LIST_ONLY_MSG, code: "list-only" }, 400); // the server itself refuses an open game
     const wantDemo = b.demo === true; // the free demo game (demo.ts): flag DEMO_GAME, up to 10 people, "Demo" on every screen, 3 a day
     if (wantDemo) { if (!DEMO_GAME) return json({ error: DEMO_OFF_MSG, code: "demo-off" }, 403); if (b.cap > DEMO_MAX) return json({ error: DEMO_CAP_MSG, code: "demo-cap" }, 400); b.name = demoName(b.name); }
     let createCap = now + MAX_AHEAD_MS; // with a pack already bought (an entitlement) the engagement is paid for by the organizer: up to 365 days from that payment
@@ -1505,7 +1507,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     if (!(await spend(env, now, 2))) return BUSY();
     if (wantDemo && !(await takeDemoPlace(env, a.org ?? "platform", req, now))) return json({ error: DEMO_LIMIT_MSG, code: "demo-limit" }, 429);
     const isTestEng = (await testFlag(env)) === 1 || (await orgIsTest(env, a.org)) ? 1 : 0; // made in TEST mode, or by a test account
-    await env.DB.prepare("INSERT OR IGNORE INTO engagement(id,start_round,call_seconds,cap,created_ms,org,closed,pack,tickets,config,is_test) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(b.id, b.startRound, b.callSeconds, b.cap, now, a.org, b.whoCanJoin === "list" || (b.whoCanJoin === undefined && b.closed) || vc.cfg.employeesOnly ? 1 : 0, draft ? 0 : ent?.pack ?? b.cap, vc.cfg.tickets, cfgJson(vc.cfg), isTestEng).run(); // the console sends whoCanJoin "list"; the API default stays "anyone"
+    await env.DB.prepare("INSERT OR IGNORE INTO engagement(id,start_round,call_seconds,cap,created_ms,org,closed,pack,tickets,config,is_test) VALUES(?,?,?,?,?,?,?,?,?,?,?)").bind(b.id, b.startRound, b.callSeconds, b.cap, now, a.org, b.whoCanJoin === "list" || (b.whoCanJoin === undefined && b.closed) || vc.cfg.employeesOnly || !openGamesAllowed(env as ConsoleEnv) ? 1 : 0, draft ? 0 : ent?.pack ?? b.cap, vc.cfg.tickets, cfgJson(vc.cfg), isTestEng).run(); // the console sends whoCanJoin "list"; the API default stays "anyone"
     if (ent) await env.DB.prepare("UPDATE entitlement SET eid=? WHERE id=? AND eid IS NULL").bind(b.id, ent.id).run();
     if (wantDemo) await env.DB.prepare("INSERT OR IGNORE INTO kv(k,v) VALUES(?,?)").bind(demoKey(b.id), String(now)).run();
     if (a.kind === "ai" && a.org) await noteHelperGame(env.DB, req.headers.get("x-organizer") || (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, ""), a.org, b.id, now); // a game made with a Help Desk helper's key is recorded as theirs
@@ -2153,6 +2155,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     const b = await body(req, BRAND_BODY_MAX);
     if (!b) return json({ error: "Check the details." }, 400);
     if (b.whoCanJoin !== undefined && b.whoCanJoin !== "list" && b.whoCanJoin !== "anyone") return json({ error: "Who can join: choose \"list\" (only people on a list) or \"anyone\" (anyone with the link)." }, 400);
+    if (!openGamesAllowed(env as ConsoleEnv) && (b.whoCanJoin === "anyone" || b.closed === false || b.closed === 0)) return json({ error: LIST_ONLY_MSG, code: "list-only" }, 400); // the server itself refuses an open game
     if (b.coHostLimit !== undefined && (!Number.isInteger(b.coHostLimit) || b.coHostLimit < COHOST_LIMIT_MIN || b.coHostLimit > COHOST_LIMIT_MAX)) return json({ error: `A Co-host can list ${COHOST_LIMIT_MIN} to ${COHOST_LIMIT_MAX} people.` }, 400);
     const vc = validateCfg({ tickets: b.tickets, rewards: b.rewards, breaks: b.breaks, rounds: b.rounds, invites: b.invites !== undefined ? b.invites : b.guestInvites, opening: b.opening, closing: b.closing, name: b.name, brand: b.brand, mark: b.mark, join: b.join, tz: b.tz, verify: b.verify, employeesOnly: b.employeesOnly, idKind: b.idKind, roomMode: b.roomMode }, cfgOf(e)); // guestInvites is the console's name for invites
     if (!vc.ok) return json({ error: vc.error }, 400);

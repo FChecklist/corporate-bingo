@@ -5,7 +5,7 @@ import { Window } from "happy-dom";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { type Env } from "../../edge/src/worker";
-import { handle } from "../../edge/test/with-terms"; // the test API (`api`) ticks the boxes a person would; the pages themselves (`win.fetch`) use the real Worker and tick their own
+import { handle, withOpenGames } from "../../edge/test/with-terms"; // the test API (`api`) ticks the boxes a person would; the pages themselves (`win.fetch`) use the real Worker and tick their own
 import { handle as realHandle } from "../../edge/src/worker";
 import { makeD1 } from "../../edge/test/d1-sqlite";
 
@@ -37,7 +37,7 @@ export async function openPage(world: { env: Env; now: number }, o: { url: strin
   win.fetch = async (input: any, init?: any) => { // the page talks to the real Worker; nothing else is reachable
     const u = new URL(String(input), "http://localhost");
     if (u.origin !== "http://localhost") throw new Error("offline: " + u.origin);
-    return realHandle(new Request(u, init), world.env, world.now);
+    return realHandle(new Request(u, init), withOpenGames(world.env), world.now);
   };
   // inside the page scope the DOM window shadows the real globals; fill in anything it does not provide
   for (const k of ["encodeURIComponent", "decodeURIComponent", "encodeURI", "decodeURI", "parseInt", "parseFloat", "isNaN", "isFinite", "Math", "JSON", "Date", "Array", "Object", "Promise", "Set", "Map", "WeakMap", "String", "Number", "Boolean", "RegExp", "Error", "TypeError", "RangeError", "Uint8Array", "Uint32Array", "ArrayBuffer", "DataView", "Symbol", "Intl", "BigInt", "TextEncoder", "TextDecoder", "atob", "btoa", "crypto", "Blob", "URL", "URLSearchParams", "setTimeout", "clearTimeout", "setInterval", "clearInterval", "queueMicrotask", "structuredClone", "Request", "Response", "Headers"])
