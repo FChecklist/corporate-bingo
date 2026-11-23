@@ -283,11 +283,12 @@ describe("the waiting room", () => {
     expect((await call("POST", `/api/z/PPL-1/waiting/${mine[0].id}`, { decision: "maybe" }, t.cohost)).status).toBe(400);
   });
   test("the waiting room holds 500 requests: the 501st person is told it is full (429, waiting-full); someone already waiting is still told they are waiting; nobody takes a place", async () => {
-    const t = await setup({ closed: true }); for (let i = 0; i < 500; i++) await joinAs("PPL-1", 40 + i, { from: ORG_FROM }, T + Math.floor(i / 150) * 61_000); // the same network may ask 200 times a minute: spread the requests over minutes
+    const t = await setup({ closed: true }); const net = (n: number) => ({ "cf-connecting-ip": `10.9.0.${n}` }); const joinFrom = (i: number, n: number, now = T) => call("POST", "/api/z/PPL-1/join", { phone: mob(i), name: "G" + i, device: dev(i), from: ORG_FROM }, undefined, now, net(n));
+    for (let i = 0; i < 500; i++) await joinFrom(40 + i, Math.floor(i / 100), T + Math.floor(i / 150) * 61_000); // 1.5.3: one network may put only 100 requests in the room in 30 minutes, so the 500 places come from five networks
     expect(rowsOf("SELECT COUNT(*) c FROM waiting WHERE status='waiting'")[0].c).toBe(500);
-    const extra = await joinAs("PPL-1", 900, { from: ORG_FROM }, T + 5 * 61_000); expect(extra.status).toBe(429); expect((await j(extra)).code).toBe("waiting-full");
+    const extra = await joinFrom(900, 9, T + 5 * 61_000); expect(extra.status).toBe(429); expect((await j(extra)).code).toBe("waiting-full");
     expect(rowsOf("SELECT COUNT(*) c FROM waiting")[0].c).toBe(500); // the 501st left no row
-    expect((await joinAs("PPL-1", 40, { from: ORG_FROM }, T + 6 * 61_000)).status).toBe(403); // a request already in the room is answered as before
+    expect((await joinFrom(40, 0, T + 6 * 61_000)).status).toBe(403); // a request already in the room is answered as before
     expect(rowsOf("SELECT COUNT(*) c FROM seat")[0].c + rowsOf("SELECT COUNT(*) c FROM person")[0].c).toBe(0);
   }, 120_000);
   test("admit records who approved and when; the person is then recognised and joins; decline keeps them out", async () => {

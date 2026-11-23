@@ -1,5 +1,5 @@
 // Audit of PR 9 head 2262827b (FAIL + PASS comments), fixed in 1.4.1:
-//  * wrong-ID counter: one key per network (an IPv6 /64 is ONE network), and the count goes up in one database statement (parallel guesses cannot all read the old number)
+//  * counter per network: one key per network (an IPv6 /64 is ONE network), and the count goes up in one database statement (parallel requests cannot all read the old number). 1.5.3: it counts waiting-room requests now, not wrong IDs
 //  * the paid route writes to the database only when it is switched on (CONSOLE_PUBKEYS set)
 //  * the AI helper is no longer told it can "make a pay link that anyone can open"
 //  * the organizer's ID box says an ID is matched to a list and does not prove who types it (owner decision: "ID matched, not proven")
@@ -32,22 +32,23 @@ async function idGame() {
   expect((await call("PATCH", `/api/z/${id}/settings`, { verify: "id" }, kh(o.key))).status).toBe(200);
   return { ...o, id };
 }
-const miss = (id: string, i: number, ip: string, now = T) => callRaw("POST", `/api/z/${id}/join`, { empId: "ZZ" + (1000 + i), device: dev(i) }, { "cf-connecting-ip": ip }, now);
+const miss = (id: string, i: number, ip: string, now = T) => call("POST", `/api/z/${id}/join`, { empId: "ZZ" + (1000 + i), device: dev(i) }, { "cf-connecting-ip": ip }, now); // with the ticked boxes: only then does an unlisted ID reach the waiting room
 
-describe("wrong-ID limit (30 per network per game per 10 minutes)", () => {
-  test("a person who turns through addresses of one IPv6 /64 is stopped at the 31st wrong ID; another network is not affected", async () => {
+// 1.5.3 (security audit 23 Nov 2026, Medium 3): the old "30 wrong IDs per network per 10 minutes" door is gone, because an unlisted ID is a normal request that waits for a yes.
+// What stays from 1.4.1 is the part that was right: ONE key per network (an IPv6 /64) and ONE database statement per count, so parallel requests cannot all read the old number.
+// The new limits (waiting room cap per network, no counting of waiting people) are in audit-1-5-3.test.ts.
+describe("the waiting-room counter per network", () => {
+  test("a person who turns through addresses of one IPv6 /64 is still ONE network: one key, and every unlisted ID waits", async () => {
     const g = await idGame();
     const seen: number[] = [];
     for (let i = 0; i < 31; i++) seen.push((await miss(g.id, i, `2001:db8:5:6:${(i + 1).toString(16)}::${(i + 7).toString(16)}`)).status);
-    expect(seen.slice(0, 30).every((s) => s !== 429)).toBe(true);
-    expect(seen[30]).toBe(429);
-    expect((await miss(g.id, 40, "2001:db8:5:7::1")).status).not.toBe(429); // a different /64
-    expect((await miss(g.id, 41, "198.51.100.9")).status).not.toBe(429);
+    expect(seen.every((s) => s === 403)).toBe(true); // waiting, never the old 429
+    expect(q("SELECT v FROM kv WHERE k LIKE ?", `idmiss/${g.id}/%`).length).toBe(1);
   });
-  test("40 wrong IDs sent at the same moment from one address: the count is exact (40) and only the first 30 pass", async () => {
+  test("40 unlisted IDs sent at the same moment from one address: the count is exact (40) and every one of them waits", async () => {
     const g = await idGame();
     const rs = await Promise.all(Array.from({ length: 40 }, (_, i) => miss(g.id, i, "2001:db8:9:9::1")));
-    expect(rs.filter((r) => r.status === 429).length).toBe(10);
+    expect(rs.filter((r) => r.status === 403).length).toBe(40);
     const rows = q("SELECT v FROM kv WHERE k LIKE ?", `idmiss/${g.id}/%`);
     expect(rows.length).toBe(1); expect(Number(rows[0].v)).toBe(40);
   });

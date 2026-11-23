@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.5.3",
+    "date": "2026-11-23",
+    "commit": "this release",
+    "title": "Security audit fixes: no names before a person has joined; people who wait for a yes are never locked out",
+    "changes": [
+      "The \"Is this you?\" check no longer gives back a name. It says only whether the ID is on the list. Before, anyone with the game link could try IDs one after another and read the first name and last initial of every listed person",
+      "A person whose ID is not on the list now simply waits for a yes or no. Before, such a person was counted as a \"wrong try\", and the 31st honest person from one office was told to ask the organizer",
+      "The waiting room now has a limit for each network: one network can put at most 100 requests in it in any 30 minutes (the room holds 500). A person asking again is not counted again, and a person who is on the list is never held back by this limit",
+      "The AI helper's manual no longer offers closed:false (it has been refused since 1.5.0)"
+    ]
+  },
+  {
     "version": "1.5.2",
     "date": "2026-11-23",
     "commit": "this release",

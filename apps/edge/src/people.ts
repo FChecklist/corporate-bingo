@@ -13,6 +13,7 @@ import { emailKey } from "./emailkey";
 import { consentMissing, recordConsent } from "./consent";
 import { deviceMatches } from "./checkin";
 import { legacyEmpFor } from "./empid";
+import { ipGroup } from "./ipkey";
 import type { D1, Env } from "./worker";
 import { waitingLapsed, familyCutoffPassed, roundStartMs, approvalRulesOn, waitSince, LAPSED_MESSAGE, FAMILY_CLOSED_MESSAGE, DECLINED_MESSAGE, WAIT_LIMIT_MS } from "./approvals";
 
@@ -39,6 +40,14 @@ export const COHOST_LIMIT_DEFAULT = 100, COHOST_LIMIT_MIN = 10, COHOST_LIMIT_MAX
 export const MAX_ADD_BATCH = 200;
 /** Most people that may wait for an answer in one game at a time (a free-plan guard against someone filling the table). */
 export const WAITING_MAX = 500;
+/** Most requests ONE network (an IPv6 /64 counts as one, see ipkey.ts) may put in one game's waiting room in any 30 minutes (a counting window of the same length as the waiting period; it does not matter whether the game uses the 30-minute lapse yet). A whole office sits behind one address, so this is generous (100 of the 500 places); five networks are needed to fill the room, not one. It replaces the old "wrong ID" limit, which counted honest people who were simply waiting for a yes (security audit 23 Nov 2026, Medium 3). */
+export const WAITING_PER_NETWORK = 100;
+/** Counts one new waiting request against this network for this game. ONE database statement, so parallel requests cannot all read the same old number. True = over the cap. The key lives under `idmiss/<game>/`, so it is erased with the game's data (lifecycle.ts); it holds only a hash of the network group, never the address or the typed ID. */
+async function waitingNetworkOver(env: Env, eid: string, now: number, ip: string | null | undefined): Promise<boolean> {
+  const ipk = (await sha("jip|" + ipGroup(ip))).slice(0, 16), bucket = Math.floor(now / WAIT_LIMIT_MS), k = `idmiss/${eid}/wait/${bucket}/${ipk}`;
+  const r = await env.DB.prepare("INSERT INTO kv(k,v) VALUES(?,'1') ON CONFLICT(k) DO UPDATE SET v=CAST(CAST(v AS INTEGER)+1 AS TEXT) RETURNING v").bind(k).first<{ v: string }>();
+  return Number(r?.v ?? 0) > WAITING_PER_NETWORK;
+}
 
 export const isOrg = (id: string) => id === "o";
 const encoder = new TextEncoder();
@@ -672,7 +681,7 @@ export async function waitingWho(c: { env: Env; e: any; eid: string }, inviter: 
 }
 
 /** Joins a person's request to wait. Used by the Worker's `join`. Returns the existing request when the number already asked. */
-export async function addWaiting(c: { env: Env; eid: string; e: any; now: number }, o: { ph: string; digits: string; name: string | null; empId?: string | null; loc?: string | null; via: "personal-link" | "common-link" | "direct"; inviter: string; overlimit: boolean }): Promise<{ id: string; status: string } | { full: true }> {
+export async function addWaiting(c: { env: Env; eid: string; e: any; now: number }, o: { ph: string; digits: string; name: string | null; empId?: string | null; loc?: string | null; via: "personal-link" | "common-link" | "direct"; inviter: string; overlimit: boolean; ip?: string | null }): Promise<{ id: string; status: string } | { full: true; network?: true }> {
   const db = c.env.DB;
   const have = await db.prepare("SELECT id, status, at_ms FROM waiting WHERE eid=? AND ph=?").bind(c.eid, o.ph).first<{ id: string; status: string; at_ms: number }>();
   const rules = approvalRulesOn(c.e);
@@ -680,6 +689,7 @@ export async function addWaiting(c: { env: Env; eid: string; e: any; now: number
   if (have && !stale) return { id: have.id, status: have.status };
   const n = (await db.prepare("SELECT COUNT(*) AS c FROM waiting WHERE eid=? AND status='waiting' AND at_ms>?").bind(c.eid, waitSince(c.e, c.now)).first<{ c: number }>())?.c ?? 0;
   if (n >= WAITING_MAX) return { full: true };
+  try { if (await waitingNetworkOver(c.env, c.eid, c.now, o.ip)) return { full: true, network: true }; } catch { /* a counter never blocks a join */ }
   if (have && stale) { // asking again after 30 minutes: the same request starts a new wait
     const chain2 = o.overlimit ? ",o," : await chainOf(db, c.eid, o.inviter);
     await db.prepare("UPDATE waiting SET status='waiting', at_ms=?, decided_by=NULL, decided_ms=NULL, via=?, inviter=?, chain=?, overlimit=?, pii=? WHERE eid=? AND id=? AND status IN ('waiting','lapsed')")

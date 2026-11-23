@@ -43,7 +43,6 @@ import { PARTNER_SCHEMA, partnerRoute } from "./partners";
 import { HELPDESK_SCHEMA, HELPER_MANUAL_NOTE, helpdeskCloseStatements, helpdeskRoute, helpdeskSweep, isDeskKeyId, isHelperKey, noteHelperGame } from "./helpdesk";
 import { legacyEmpFor } from "./empid";
 import { anyoneHoldsIdHash, EMP_CLEAN_FROM_MS, normEmp, normId, badIdMessage, empHashOf, verifyOf, keptPhone, phoneDigits, cleanName as cleanPersonName, PEOPLE_SCHEMA, COHOST_FROM, HOST_FROM, ORG_FROM, COHOST_LIMIT_DEFAULT, COHOST_LIMIT_MIN, COHOST_LIMIT_MAX, WAITING_MAX, addWaiting, chainOf, cleanPhone, fromCodeOf, inviterOf, joinLinkPage, limitOfInviter, listCount, parseFrom, peopleRoute, personByEmpId, personByPhone, personByToken, srcOf, waitingWho, type PersonRow } from "./people";
-import { ipGroup } from "./ipkey";
 import { consolePaidRoute, consolePayInfoRoute, consoleOrigin, homeOrigin, legacyPayGate, loginGate, openGamesAllowed, LIST_ONLY_MSG, type ConsoleEnv } from "./console-pay";
 import { PAYLINK_SCHEMA, PAYLINK_TOKEN, createPayLink, packFor } from "./paylink";
 import { purgePaytestCounters } from "./payfirst";
@@ -367,13 +366,7 @@ const CONSOLE_ONLY = () => json({ error: "Names and mobile numbers are handled b
 /** One network address may open only so many NEW seats a day: protects the shared daily write budget from a script.
  *  A whole office or hall sits behind ONE address, so the allowance of a PAID game never falls below its pack: one address may seat up to the pack's size in a minute (and three times that in a day).
  *  The base figures (the environment's JOIN_PER_IP_MINUTE / JOIN_PER_IP_DAY, else the defaults below) still apply to an unpaid game and to the waiting room, so a script cannot use a big free game to burn the write budget. */
-const JOIN_PER_IP_DAY = 1500, JOIN_PER_IP_MINUTE = 200, ID_MISS_PER_10MIN = 30;
-/** Counts one wrong employee ID against this network (an IPv6 /64 is ONE network, see ipkey.ts) for this game in this 10 minutes. The count goes up in ONE database statement, so parallel requests cannot all read the same old number. True = over the limit. The key is erased with the game's data (lifecycle.ts, `idmiss/`). */
-export async function idMissOver(env: Env, eid: string, now: number, ip: string | null | undefined): Promise<boolean> {
-  const ipk = (await sha("jip|" + ipGroup(ip))).slice(0, 16), k = `idmiss/${eid}/${new Date(now).toISOString().slice(0, 15)}/${ipk}`;
-  const r = await env.DB.prepare("INSERT INTO kv(k,v) VALUES(?,'1') ON CONFLICT(k) DO UPDATE SET v=CAST(CAST(v AS INTEGER)+1 AS TEXT) RETURNING v").bind(k).first<{ v: string }>();
-  return Number(r?.v ?? 0) > ID_MISS_PER_10MIN;
-}
+const JOIN_PER_IP_DAY = 1500, JOIN_PER_IP_MINUTE = 200;
 /** RUNNER_KEY (owner order 5 Nov 2026): a long secret set as a Worker secret. The owner's test programs send it as X-Runner-Key; ONLY then are the test sign-in, the free owner-test packs and the join-guard bypass honoured.
  *  Without the header (or when no key is set) everything behaves exactly as for the public. Compared in constant time; a short key counts as no key. */
 function runnerOk(env: Env, req: Request): boolean {
@@ -1680,20 +1673,13 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
   const locked = unpaid && !isDraft && !cancelled && !didNotStart && roundMs(e.start_round) - LOCK_LEAD_MS <= now; // published but not paid by its start time: it does not begin
   if (isDraft && (((action === "join" || action === "who") && req.method === "POST") || (action === "info" && !can(a, e)))) return json({ error: "This engagement is not open yet." }, 403);
   if (locked && !can(a, e) && (action === "info" || action === "join")) await nudge(env, e.id, "lockmail", now, `Your engagement ${e.id} could not begin: payment is due`, `Your engagement ${e.id} could not begin: payment is due.\n\nPay now and the first number comes 2 minutes after your payment is confirmed: ${(env as PayEnv).PUBLIC_ORIGIN ?? ""}/pay.html?e=${e.id}`);
-  if (action === "who" && req.method === "POST") { // "Is this you?": once the employee ID is typed and both boxes are ticked, the first name and the first letter of the last name the organizer gave, so the person sees the name that will be used. Nothing is kept; a wrong ID counts like a wrong ID at the door.
+  if (action === "who" && req.method === "POST") { // "Is this you?": once the employee ID is typed and the boxes are ticked, the page learns only whether the ID is on the list. It NEVER gets a name back: anyone with the link could otherwise walk the IDs and read the first name and last initial of every listed person (security audit 23 Nov 2026, Medium 2). The person sees their own name on their card after they join. A miss is not counted: the person simply goes on to wait for a yes or no (Medium 3).
     const b = await body(req), vf = verifyOf(e), id = normId(b?.empId, vf.idKind, (e as any)?.created_ms);
     if (vf.mode !== "mobile" && String(b?.empId ?? "").trim() !== "" && id === null) return json({ error: badIdMessage(b?.empId, vf.idKind, (e as any)?.created_ms), code: "bad-id" }, 400); // the same plain refusal as the join path
     if (vf.mode === "mobile" || !id) return json({ known: false });
     const ck = consentMissing(b, "K4"); if (ck) return ck;
     const hit = await personByEmpId(env, eid!, id, legacyEmpFor(b?.empId, e)); // the cleaned form first, then (an older game only) the form an older release stored
-    if (!hit || hit.status === "removed") {
-      try {
-        if (await idMissOver(env, eid!, now, req.headers.get("cf-connecting-ip"))) return json({ error: "Too many tries with an employee ID that is not on the list. Please ask your organizer for help.", code: "too-many-tries" }, 429);
-      } catch { /* a counter never blocks */ }
-      return json({ known: false });
-    }
-    const nm = ((await openPii(env, hit.pii))?.name ?? "").trim().split(/\s+/);
-    return json({ known: true, name: nm[0] ? (nm.length > 1 ? `${nm[0]} ${Array.from(nm[nm.length - 1]!)[0]}.` : nm[0]) : "" });
+    return json({ known: !!hit && hit.status !== "removed" });
   }
   if (action === "join" && req.method === "POST") {
     const b = await body(req);
@@ -1772,11 +1758,7 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
     if (vf.mode !== "mobile" && empNorm && !tok && !admitted) {
       if (vf.mode === "both") { const pp0 = pr ? await openPii(env, pr.pii) : null; if (!pr || (pp0?.empId && pp0.empId !== empNorm)) { pr = null; idMiss = true; } }
       else if (!pr) idMiss = true; // ID alone, not on the list
-      if (idMiss) { // guessing IDs: only so many wrong IDs per network per game per 10 minutes
-        try {
-          if (await idMissOver(env, eid!, now, req.headers.get("cf-connecting-ip"))) return json({ error: "Too many tries with an employee ID that is not on the list. Please ask your organizer for help.", code: "too-many-tries" }, 429);
-        } catch { /* a counter never blocks a join */ }
-      }
+      // An ID that is not on the list is a normal thing under the owner's rule: the person waits for a yes or no. It is NOT counted as a wrong try (security audit 23 Nov 2026, Medium 3); the waiting room has its own cap per network instead (see `wait` below and WAITING_PER_NETWORK in people.ts).
     } else if (vf.mode === "both" && pr && !tok && !admitted) { const pp0 = await openPii(env, pr.pii); if (pp0?.empId) needIdAfterConsent = true; } // asked only after the consent box is ticked: an untick-and-ask cannot be used to find out who is on the list
     if (pr?.status === "removed") return removedReply();
     const tickedBefore = !!(await env.DB.prepare("SELECT 1 AS x FROM consent_log WHERE kind='K4' AND ref=? AND subject=?").bind(eid, await pidOf(ph)).first()); // ticked when they asked to come in; the page does not keep it across a reload
@@ -1806,8 +1788,8 @@ async function route0(req: Request, env: Env, now: number, a: Auth): Promise<Res
       if (await joinOverLimit(env, req, now, 0, runnerTestGame(env, req, e))) return json({ error: "It is busy right now. Please try again in a few minutes.", code: "busy" }, 429);
       if (!(await spend(env, now, 2))) return json({ error: "It is very busy right now. Please try again in a few minutes.", code: "busy" }, 503);
       if (!ck) await k4(await pidOf(ph)); // the person ticked to ask to come in; the row goes with the rest of their data
-      const w = await addWaiting({ env, eid: eid!, e, now }, { ph, digits: digits ?? "", empId: empNorm || null, loc: place, name: lateName || tokPii?.name || null, via, inviter: target, overlimit });
-      if ("full" in w) return json({ error: "Many people are waiting for an answer right now. Please try again a little later.", code: "waiting-full" }, 429);
+      const w = await addWaiting({ env, eid: eid!, e, now }, { ph, digits: digits ?? "", empId: empNorm || null, loc: place, name: lateName || tokPii?.name || null, via, inviter: target, overlimit, ip: req.headers.get("cf-connecting-ip") });
+      if ("full" in w) return w.network ? json({ error: "Many people are asking to join from this network right now. Please ask your organizer for help.", code: "waiting-network-full" }, 429) : json({ error: "Many people are waiting for an answer right now. Please try again a little later.", code: "waiting-full" }, 429);
       if (w.status === "declined") return json({ error: "This game could not add you. Please talk to whoever invited you.", code: "declined", declined: true, wid: w.id }, 403);
       const who = await waitingWho({ env, e, eid: eid! }, overlimit ? "o" : target);
       const msg = `Your request is with ${who}. You can come in as soon as they say yes.`;

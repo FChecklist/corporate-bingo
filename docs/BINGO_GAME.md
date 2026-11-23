@@ -43,7 +43,7 @@ Software only. Each phone runs the same engine (`prize-engine.ts`, proven equal 
 - Every game has one game link. The organizer uploads or pastes IDs (a list, a PDF or a CSV). A person opens the link and types the ID: if it is on the list they get a card with no approval; if not, a request goes to the organizer or Host to approve or decline (`waiting`). Optional family invite: a listed person can invite 1 to 10 more (default 4).
 - Only the organizer and Hosts see the full list and the invite log (`GET /api/z/<id>/people/log`: who asked, through whom, who said yes or no; IDs only).
 - Games made before the rule still match: an ID is also looked up in its old form (spaces dropped, `. _ - /` kept) for games created before `EMP_LEGACY_BEFORE_MS`. Nothing stored is rewritten.
-- The list, the requests, the ID look-ups and the wrong-ID counters are erased with the players' data, 20 hours after the game ends (the promise is 24).
+- The list, the requests, the ID look-ups and the waiting-room counters are erased with the players' data, 20 hours after the game ends (the promise is 24).
 - Older games with `verify: mobile | both` keep their phone-number behaviour; new games made in the console are always for the people on their list, by ID.
 
 ## What this page used to say about joining

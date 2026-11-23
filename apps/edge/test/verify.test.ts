@@ -139,11 +139,11 @@ describe("junk in a list is cleaned by the server too", () => {
 });
 
 describe("guessing employee IDs", () => {
-  test("wrong IDs wait for the organizer, who sees the ID that was typed; after 30 wrong IDs from one network in a game the door closes for ten minutes; a right ID is not counted", async () => {
+  test("wrong IDs wait for the organizer, who sees the ID that was typed; the 31st unlisted person waits too (no wrong-ID door any more, 1.5.3: the waiting room has its own cap per network); a right ID is not counted", async () => {
     const t = await setup({ verify: "id", employeesOnly: true }); await add(t.master, [{ name: "Asha", empId: "E101" }]);
     for (let i = 0; i < 30; i++) expect((await joinAs("PPL-1", 10 + i, { phone: undefined, empId: "X" + (900 + i) })).status).toBe(403);
-    const eleventh = await joinAs("PPL-1", 60, { phone: undefined, empId: "X999" }); expect(eleventh.status).toBe(429); expect((await j(eleventh)).code).toBe("too-many-tries");
-    const w = (await j(await call("GET", "/api/z/PPL-1/waiting", undefined, t.master))).waiting; expect(w.length).toBe(30); expect(w.map((x: any) => x.empId)).toContain("X900");
+    const thirtyFirst = await joinAs("PPL-1", 60, { phone: undefined, empId: "X999" }); expect(thirtyFirst.status).toBe(403); expect((await j(thirtyFirst)).code).toBe("waiting");
+    const w = (await j(await call("GET", "/api/z/PPL-1/waiting", undefined, t.master))).waiting; expect(w.length).toBe(31); expect(w.map((x: any) => x.empId)).toContain("X900");
     expect((await joinAs("PPL-1", 61, { phone: undefined, empId: "E101" })).status).toBe(200); // the real employee still gets in
   });
 });

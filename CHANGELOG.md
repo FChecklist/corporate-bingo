@@ -2,6 +2,20 @@
 
 Plain words. Newest first. The version number lives in `version.json` and must be the same in `package.json`, `apps/edge/package.json` and `apps/edge/src/releases.json` (a test checks this).
 
+## 1.5.3 (23 Nov 2026) - Security audit fixes: no names before joining, and people who wait for a yes are never locked out (never deployed on its own)
+
+**What changed for you**
+- The "Is this you?" check no longer gives back a name. It says only whether an ID is on the list. Before, anyone with the game link could try IDs one after another and read the first name and last initial of every listed person (200 of 200 in the auditor's test). The person sees their own name on their card after they join. (Audit of 23 Nov, Medium 2.)
+- A person whose ID is not on the list now just waits for a yes or no. Before, such a person was counted as a "wrong try", and the 31st honest person from one office was told "Too many tries, ask your organizer" (10 of 40 in the auditor's test). That "wrong ID" limit is removed. (Audit of 23 Nov, Medium 3.)
+- The waiting room now has its own limit for each network: one network (an IPv6 group of addresses counts as one) can put at most 100 requests in it in any 30 minutes. The room as a whole still holds 500, so five networks are needed to fill it, not one. A person who asks again is not counted again. A person who is on the list is never held back by this limit. When a network is over, its next person is told "Many people are asking to join from this network right now. Please ask your organizer for help."
+- The AI helper's manual no longer offers `closed: false` (it has been refused since 1.5.0).
+
+**Not changed**
+- Money flags `PAY_VIA_CONSOLE` and `LOGIN_VIA_CONSOLE` stay OFF. Nothing is deployed.
+- Still true and left alone: a right ID is never limited (owner decision "ID matched, not proven"). A script can still ask `who` any number of times and learn only whether an ID is listed, as `join` already lets it. Five or more different networks can still fill the 500 places of a waiting room; the organizer sees and can decline them.
+- Lows of earlier audits that are not in this fix: security headers on every page, per-address join counters that use the raw address, audit counters kept in memory per Worker copy, counters that fail open on a database error.
+- "You start the game" and "You call the numbers" are still coming in 1.6.0 (BOSS waiver of 22 Nov 2026 was written for 1.5.0; whether it carries to 1.5.3 is BOSS's call).
+
 ## 1.5.2 (23 Nov 2026) - Security audit fixes: a deleted player stays deleted in the audit log (never deployed on its own)
 
 **What changed for you**

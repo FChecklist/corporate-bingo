@@ -1,4 +1,4 @@
-// POST /api/z/:id/who ("Is this you?"): once an employee ID is typed and the K4 boxes are ticked the page shows the name the organizer gave (first name + last initial).
+// POST /api/z/:id/who ("Is this you?"): once an employee ID is typed and the K4 boxes are ticked the page learns only whether the ID is on the list. Since 1.5.3 no name comes back (security audit Medium 2).
 // Review finding 1 of the join-redesign WIP: the route was written but not in the worker's action list, so every call was a 404. These tests go through the real handle().
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { type Env } from "../src/worker";
@@ -35,13 +35,13 @@ beforeEach(() => { const d = makeD1(); env = { DB: d.db, ORGANIZER_SECRET: "plat
 afterEach(() => { globalThis.fetch = realFetch; });
 
 describe("POST /api/z/:id/who", () => {
-  test("a listed employee ID gets the name as the organizer gave it: first name and last initial", async () => {
+  test("a listed employee ID is known, but NO name comes back (1.5.3, security audit Medium 2): the page never learns a name before the person has joined", async () => {
     const t = await setup({ verify: "id", employeesOnly: true });
     await add(t.master, [{ name: "Asha Rao", empId: "E101" }, { name: "Ravi", empId: "E102" }]);
     const r = await who("WHO-1", { empId: "E101", consent: consentFor("K4") });
     expect(r.status).toBe(200);
-    expect(await j(r)).toEqual({ known: true, name: "Asha R." });
-    expect(await j(await who("WHO-1", { empId: "e102", consent: consentFor("K4") }))).toEqual({ known: true, name: "Ravi" }); // lower case is the same ID; a single name is shown whole
+    expect(await j(r)).toEqual({ known: true });
+    expect(await j(await who("WHO-1", { empId: "e102", consent: consentFor("K4") }))).toEqual({ known: true }); // lower case is the same ID
   });
   test("an ID that is not on the list is not known, and nothing is revealed", async () => {
     const t = await setup({ verify: "id", employeesOnly: true });
