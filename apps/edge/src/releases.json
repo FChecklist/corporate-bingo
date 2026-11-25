@@ -2,7 +2,7 @@
   {
     "version": "1.3.3",
     "date": "2026-11-25",
-    "commit": "this release",
+    "commit": "a16fe1d",
     "title": "A small mark at the top centre of every page",
     "changes": [
       "Every page now shows the small mark १३९ at the very top centre, above the header, with a very thin line under it; it takes no space, cannot be clicked and is skipped by screen readers",

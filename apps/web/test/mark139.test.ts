@@ -21,7 +21,9 @@ const CODE_PAGES: Record<string, number> = {
 };
 
 describe("the १३९ mark is on every page", () => {
-  const files = readdirSync(PUB).filter((f) => f.endsWith(".html"));
+  // every .html page under apps/web/public, in any sub-folder
+  const walk = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap((e) => e.isDirectory() ? walk(join(d, e.name)).map((x) => join(e.name, x)) : e.name.endsWith(".html") ? [e.name] : []);
+  const files = walk(PUB);
   test("there are static pages to check", () => { expect(files.length).toBeGreaterThan(30); });
 
   for (const f of files) {
