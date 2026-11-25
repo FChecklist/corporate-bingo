@@ -21,6 +21,7 @@ import { seatOfPid } from "../../../packages/beacon/src/unique-ticket";
 import { openPii, openText, sealText, type PiiEnv } from "./pii";
 import { layoutReport, layoutPeoplePart, istDate, istFull, emptyAgg, type Agg, type ReportData, type ReportPerson, type ReportPrize, type ReportWinner } from "./report-layout";
 import { purgeOutbox, retryOutbox, sendReportMail, type PayEnv } from "./pay";
+import { purgeGameScope, pushStartPass } from "./push";
 import { eraseCohostsSql, mailDataDeleted, mailErasureHeadsUp } from "./cancel";
 import { creditTick } from "./credit";
 import { recordFun } from "./funnel";
@@ -154,6 +155,7 @@ export async function erasePersonal(env: Env, eid: string, now: number, by: stri
     env.DB.prepare(eraseCohostsSql).bind(eid), // the game's Co-hosts: name, mobile number and key go with the participants' data
     env.DB.prepare("INSERT INTO life(eid,end_ms,end_src,purged_ms,report_state) VALUES(?,?, 'organizer', ?, ?) ON CONFLICT(eid) DO UPDATE SET purged_ms=?, report_state=COALESCE(life.report_state, ?)").bind(eid, now, now, by, now, by),
   ]);
+  try { await purgeGameScope(env, eid); } catch { /* "notify me when this game begins": the saved browser addresses of this game go too (push.ts); with no service set up this does nothing, and the service ends a game's rows within 24 hours anyway */ }
   await shredParticipantAudit(env as any, eid, now); // best effort inside: a held engagement keeps its log until the hold is lifted, then the tick shreds it
 }
 /** Everything about an engagement, at the end of its 365 days (or for a draft nobody published). */
@@ -422,6 +424,7 @@ export async function lifecycleTick(env: LifeEnv, now: number): Promise<{ checke
   } catch { /* tried again at the next tick */ }
   // games that did not start (nobody paid, or still a draft): guest data goes 23 hours after the game was MEANT to end; a published one is then closed ("This game did not start")
   try { out.purged += await unplayedPass(env, now); } catch { /* tried again at the next tick */ }
+  try { (out as any).pushed = await pushStartPass(env, now, (ms) => Math.floor((ms / 1000 - GENESIS) / 3) + 1); } catch { /* "notify me when this game begins" (push.ts): tried again at the next tick; nothing at all without PUSH_URL and PUSH_ADMIN_KEY */ }
   try { const c = await creditTick(env as any, now); (out as any).creditLapsed = c.lapsed; (out as any).creditMails = c.mailed; } catch { /* tried again at the next tick */ }
   // a game's Co-hosts (name + mobile) go 23 hours after it ends even when nobody ever joined, so no participant erasure ever ran for it
   try {

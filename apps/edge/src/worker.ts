@@ -32,6 +32,7 @@ import { recordServerError } from "./errorbox";
 import { LEDGER_SCHEMA } from "./ledger";
 import { LEDGERC_SCHEMA, ledgerCTick, ownerLedger } from "./ledgerc";
 import { ADJUST_SCHEMA, adjustAnyCur, payablePublic, adjustRoute } from "./price-adjust";
+import { PUSH_SCHEMA } from "./push";
 import { rehearsalBlock } from "./rehearsal-mail";
 import { REHEARSAL_SCHEMA, closeRehearsal, listRehearsals, rehearsalFacts, startRehearsal, OVER_MSG, rehearsalFinished } from "./rehearsal";
 import { CREDIT_SCHEMA, activeCreditSummary, creditAppliedFor, creditLastDay, creditRoute } from "./credit";
@@ -87,6 +88,8 @@ export interface Env {
   ANALYZE_AI_URL?: string; ANALYZE_AI_KEY?: string; ANALYZE_AI_MODEL?: string;
   /** Optional and public (it is not a secret): the Google sign-in client id. Without it the "Continue with Google" button is hidden and /api/auth/google answers 404. */
   GOOGLE_CLIENT_ID?: string;
+  /** Optional: the "notify me when this game begins" service (corporate-push). PUSH_URL is its https address, PUSH_ADMIN_KEY its admin secret. With either missing the game sends nothing and calls nothing (push.ts). */
+  PUSH_URL?: string; PUSH_ADMIN_KEY?: string;
 }
 const controlKey = (id: string) => `c/${id}.json`;
 const controlUrl = (env: Env, id: string) => (env.CONTROL_BASE && env.CONTROL_R2 ? `${env.CONTROL_BASE.replace(/\/$/, "")}/${controlKey(id)}` : null);
@@ -203,6 +206,8 @@ export const SCHEMA: string[] = [
   ...REHEARSAL_SCHEMA,
   // the owner's private price for one game id, and its audit rows (0031_price_adjust.sql)
   ...ADJUST_SCHEMA,
+  // when the "game begins" push message of a game was started, once per game (0032_push_sent.sql, push.ts)
+  ...PUSH_SCHEMA,
 ];
 
 const PATTERNS = new Set<string>([...HOUSE_ORDER, "lucky"]); // houses a phone may claim

@@ -1,7 +1,7 @@
 {
   "game": "corporate-bingo",
-  "version": "1.5.3",
-  "date": "2026-11-23",
+  "version": "1.6.0",
+  "date": "2026-11-25",
   "note": "Source of the version number. Keep equal to package.json, apps/edge/package.json, apps/edge/src/releases.json (top entry) and CHANGELOG.md; apps/edge/test/version.test.ts fails if they differ.",
-  "releasedAtIST": "2026-11-24T01:50:00+05:30"
+  "releasedAtIST": "2026-11-25T12:30:00+05:30"
 }

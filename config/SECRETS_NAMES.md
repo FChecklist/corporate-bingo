@@ -33,6 +33,8 @@ Where things are set:
 | `ONLY_12S` | New games use one speed, 12 seconds; older games keep theirs | wrangler var | setting |
 | `PAY_SITE` | The name this site goes by in the central ledger | Optional Pages variable | setting |
 | `PAY_HOP_URL` | The payment page on the website registered with Razorpay | wrangler var | setting |
+| `PUSH_URL` | Address of the "notify me when this game begins" service (corporate-push), an https address with no path. With this or `PUSH_ADMIN_KEY` missing the game sends nothing and calls nothing | Optional Pages variable | setting |
+| `PUSH_ADMIN_KEY` | Admin key of that service: lets the game send the one "game begins" message and delete a game's saved browser addresses. Sent only as a header, never stored or logged | Pages secret | secret |
 | `PUBLIC_ORIGIN` | The public web address of this site (links in mails, payment return). **Required before `CONSOLE_PUBKEYS` is set**: the console's signed paid notice names this address; without it the paid route answers 503 "not set up". | wrangler var | setting |
 | `MAIL_FROM` | The sender name and address of every mail | wrangler var | setting |
 | `MAIL_REPLY_TO` | Reply-to address of mails (optional) | Optional Pages variable | setting |

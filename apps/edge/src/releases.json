@@ -1,5 +1,18 @@
 [
   {
+    "version": "1.6.0",
+    "date": "2026-11-25",
+    "commit": "this release",
+    "title": "A \"Yes, notify me when this game begins\" button on the game link, switched OFF until the owner turns it on",
+    "changes": [
+      "The page a player opens from the game link can show a button, \"Yes, notify me when this game begins\", with a \"Stop notifications\" button next to it that is always there. The browser's own question is asked only after the tap, never when the page opens. The button is OFF: it does not show, and the page makes no call to anybody, until one address is filled in (apps/web/public/push-config.js) and the service is switched on",
+      "What is saved is a browser address (not a name, e-mail or phone), by a small separate service (corporate-push), never by this game. It is deleted with the game, within 24 hours, and at once on \"Stop notifications\". After the game the button offers \"Keep notifying me about new games\"",
+      "When the game really starts the game sends ONE \"game begins\" message, once per game, and when the game's data is deleted it tells the service to delete the saved browser addresses of that game. Both happen only when PUSH_URL and PUSH_ADMIN_KEY are set; with either missing nothing is sent and nothing is called",
+      "The privacy pages now say that the saved item is a browser address, not a name, e-mail or phone, and that it is deleted with the game, within 24 hours",
+      "New database column (migration 0032): engagement.push_sent_ms. Apply it before turning the service on"
+    ]
+  },
+  {
     "version": "1.5.3",
     "date": "2026-11-23",
     "commit": "this release",

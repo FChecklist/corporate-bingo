@@ -7,9 +7,9 @@
  *  - Pages: network first (new versions arrive when online), the saved copy when offline.
  *  - Other files: the saved copy at once, refreshed quietly in the background.
  */
-const CACHE = "cb-game-v33"; // bump when the game files change shape, so every phone saves a matching set
+const CACHE = "cb-game-v34"; // bump when the game files change shape, so every phone saves a matching set
 const FILES = ["/offline.html", "/offline.js", "/z.html", "/zc.html", "/big.html", "/consent.js", "/blackbox.js", "/guide.js", "/z.js", "/rights.js", "/zc.js", "/big.js", "/zgame.js", "/control.js", "/audio.js", "/common.js",
-  "/app.css", "/z.css", "/reactions.css", "/big.css", "/fonts.css", "/fonts-extra.css", "/tokens.css", "/components.css", "/bingo-site.css", "/bingo-console.css", "/theme-init.js", "/brandkit.js", "/favicon.svg", "/pwa.js", "/autoupdate.js", "/keep.js", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/logo-mark.svg",
+  "/app.css", "/z.css", "/reactions.css", "/big.css", "/fonts.css", "/fonts-extra.css", "/tokens.css", "/components.css", "/bingo-site.css", "/bingo-console.css", "/theme-init.js", "/brandkit.js", "/favicon.svg", "/pwa.js", "/push-config.js", "/push-boot.js", "/autoupdate.js", "/keep.js", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/logo-mark.svg",
   "/fonts/Fraunces-italic-500.woff2", "/fonts/Fraunces-normal-500-700.woff2", "/fonts/IBMPlexMono-normal-500.woff2", "/fonts/Inter-normal-400.woff2"];
 
 // A saved copy must be a plain answer (not a redirect) or the browser refuses to show it from the saved set.
@@ -65,10 +65,17 @@ async function showNews() {
 }
 self.addEventListener("periodicsync", (e) => { if (e.tag === "cb-news") e.waitUntil(showNews()); });
 self.addEventListener("notificationclick", (e) => {
+  if (/^(game:[A-Za-z0-9_-]+|home|console)$/.test(e.notification.tag || "")) return; // a "game begins" push message (its tag is its scope): sw-push-snippet.js (registered below) handles that click; this handler is for our news only
+  e.stopImmediatePropagation(); // our news: the snippet's click handler (registered after this one) must not also open a window
   e.notification.close();
   const url = (e.notification.data && e.notification.data.url) || "/";
   e.waitUntil(self.clients.matchAll({ type: "window" }).then((cs) => { for (const c of cs) if ("focus" in c) { c.navigate(url).catch(() => {}); return c.focus(); } return self.clients.openWindow(url); }));
 });
+
+// "Notify me when this game begins" (corporate-push). The worker's two handlers for it, push and notificationclick, are the file sw-push-snippet.js, copied unchanged. They do nothing until a game page has saved
+// a push address, and no page asks for one until push-config.js holds the service address (dark today). It is loaded AFTER the news click handler above on purpose, so our news clicks are handled once, by that handler.
+// If that file cannot be read, the game itself is not affected.
+try { importScripts("/sw-push-snippet.js"); } catch { /* the game works without it */ }
 
 self.addEventListener("fetch", (e) => {
   const req = e.request;

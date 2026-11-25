@@ -3,6 +3,7 @@
   Strict-Transport-Security: max-age=31536000
 
 # Cloudflare Pages headers. The phone page and organizer page are locked down: only our own files, the public randomness beacon, and our own API.
+# "Notify me when this game begins": the service address joins connect-src of the player page (/z) only when apps/web/public/push-config.js holds one (empty today, so nothing is added here). script-src stays 'self': the block is made by push-boot.js, never inline.
 /z.html
   Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; media-src 'self' blob:; connect-src 'self' https://api.drand.sh https://api2.drand.sh https://api3.drand.sh https://drand.cloudflare.com; frame-ancestors 'none'; base-uri 'none'; form-action 'none'
   X-Content-Type-Options: nosniff
