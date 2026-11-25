@@ -147,6 +147,15 @@
       ]
     },
     {
+      "id": "push-notify",
+      "store": "localStorage",
+      "say": "Only after a person taps \"Yes, notify me\" (the button is off until the service is switched on): a yes-or-no note for each place it was asked (this game, new games), so the page shows the right button; and, only after Stop notifications when our server could not be reached, the browser address to delete on the next visit. It holds no name, e-mail or phone.",
+      "keys": [
+        "corporatePush.v1.*",
+        "corporatePush.v1pending"
+      ]
+    },
+    {
       "id": "visits",
       "store": "localStorage",
       "say": "On the public pages only: a random visitor id and one first-party cookie, cbv, kept one year, to count visits. Never on game pages, never with names or numbers. With Global Privacy Control or Do Not Track no id is made.",

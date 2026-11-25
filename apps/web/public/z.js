@@ -717,15 +717,17 @@
     if (el.dataset.t !== R.block) { el.dataset.t = R.block; const ln = String(R.block).split("\n"); el.innerHTML = `<div>${esc(ln[0] || "")}</div><div style="font-size:1.25rem;font-weight:900">${esc(ln[1] || "")}</div><div style="font-weight:700">${esc(ln.slice(2).join(" "))}</div>`; }
   }
   const rehearsalOverHtml = () => `<div class="zcard" id="rehover"><h2>This rehearsal is over.</h2><p>Thank you for practising.</p>${INFO.rehearsal && INFO.rehearsal.realId ? `<p><a class="zbtn zgold" href="/z.html?e=${encodeURIComponent(INFO.rehearsal.realId)}" id="realgame">Open the real game</a></p>` : ""}</div>`;
+  // push-boot.js (the "notify me when this game begins" block, dark until it is configured) hears from here that the game is over, or will never begin: the block then offers "Keep notifying me about new games".
+  function tellEnded() { if (window.__cbGameEnded) return; window.__cbGameEnded = true; try { window.dispatchEvent(new Event("cb:game-ended")); } catch { /* nothing waits for it */ } }
   function paint() {
     const v = rt.view();
     showRehearsalBanner();
     if (INFO.rehearsal && INFO.rehearsal.over) { $app.innerHTML = rehearsalOverHtml(); return; } // an ended rehearsal: nothing else is shown, the real game's link is offered
     if (window.ctzView) window.ctzView(v); // the flight recorder (blackbox.js) learns which stage the game is in
     if (!v.won) v.won = []; // an older saved copy of the game code during an update: never break the screen
-    if (INFO.dns) { if (timer) { clearInterval(timer); timer = null; } clearInterval(J.timer); mediaHost.style.display = "none"; $app.innerHTML = dnsView(); window.__cbzOff = v.phase === "boot"; paintBrand(); return; } // a game that did not start: one calm screen, nobody can join or pay
+    if (INFO.dns) { tellEnded(); if (timer) { clearInterval(timer); timer = null; } clearInterval(J.timer); mediaHost.style.display = "none"; $app.innerHTML = dnsView(); window.__cbzOff = v.phase === "boot"; paintBrand(); return; } // a game that did not start: one calm screen, nobody can join or pay
     if (v.phase === "missing" || v.phase === "boot") { $app.innerHTML = (INFO.brand || v.phase === "boot" ? brandStrip() : "") + `<p class="zmsg">${esc(v.phase === "boot" && !navigator.onLine ? "No connection right now. Your card is safe on this phone. This page opens the game by itself when you are back online." : v.error || "Loading…")}</p>`; paintBrand(); return; }
-    if (INFO.cancelled) { if (timer) { clearInterval(timer); timer = null; } clearInterval(J.timer); mediaHost.style.display = "none"; $app.innerHTML = cancelledView(); paintBrand(); return; } // a cancelled game: one calm screen, nothing else
+    if (INFO.cancelled) { tellEnded(); if (timer) { clearInterval(timer); timer = null; } clearInterval(J.timer); mediaHost.style.display = "none"; $app.innerHTML = cancelledView(); paintBrand(); return; } // a cancelled game: one calm screen, nothing else
     if (v.phase === "join") { const f = document.getElementById("ph") || document.getElementById("nm") || document.getElementById("emp"); if (f && document.activeElement === f) return; $app.innerHTML = joinView(J.mode ? null : v.error); paintBrand(); bindJoin(); return; }
     if (ME.removed) { if (timer) { clearInterval(timer); timer = null; } mediaHost.style.display = "none"; $app.innerHTML = removedView(); paintBrand(); return; } // taken off the list: the phone stops
     const fresh = syncPrizes(v); reportToStore(v); loadCf(v); pollMe(v);
@@ -743,6 +745,7 @@
     rxEvents(v);
     if (v.log.length > lastLen) { if (!firstPaint && v.log.length === lastLen + 1 && sound && window.TBAudio) TBAudio.play(v.log[v.log.length - 1]); lastLen = v.log.length; }
     firstPaint = false;
+    if (v.phase === "ended") tellEnded();
     if (v.phase === "ended" && wake && !wake.released) { try { wake.release(); } catch { /* already let go */ } wake = null; } // the screen may sleep again once the game is over
     const cn = document.getElementById("cnext"); if (cn) cn.onclick = () => { closingIdx += 1; paint(); };
     const ok = document.getElementById("annok"); if (ok) ok.onclick = () => { annSeen = v.announcement.id; paint(); };

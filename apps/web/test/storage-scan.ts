@@ -35,7 +35,9 @@ function norm(expr: string, src: string, depth = 0): string {
     const parts: string[] = []; let d = 0, cur = "";
     for (const c of e) { if (c === "(" || c === "[") d++; if (c === ")" || c === "]") d--; if (c === "+" && d === 0) { parts.push(cur); cur = ""; } else cur += c; }
     parts.push(cur);
-    return parts.map((p) => { const q = p.trim(); return lit.test(q) ? lit.exec(q)![2]! : "*"; }).join("").replace(/\*+/g, "*");
+    // a piece is its text when it is a quoted text, or a name that is set once to a quoted text in this file (FLAG_PREFIX + scope -> "corporatePush.v1.*"); any other piece changes, so it is a *
+    const fixed = (q: string): string | null => { if (!/^[A-Za-z_$][\w$]*$/.test(q)) return null; const d = new RegExp("(?:const|let|var)\\s+" + q.replace(/\$/g, "\\$") + "\\s*=\\s*((['\"])(?:(?!\\2).)*\\2)\\s*;", "m").exec(src); return d ? lit.exec(d[1]!)![2]! : null; };
+    return parts.map((p) => { const q = p.trim(); return lit.test(q) ? lit.exec(q)![2]! : fixed(q) ?? "*"; }).join("").replace(/\*+/g, "*");
   }
   if (depth > 3) return "?" + e;
   m = /^([A-Za-z_$][\w$]*)$/.exec(e);

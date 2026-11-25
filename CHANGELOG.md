@@ -2,6 +2,22 @@
 
 Plain words. Newest first. The version number lives in `version.json` and must be the same in `package.json`, `apps/edge/package.json` and `apps/edge/src/releases.json` (a test checks this).
 
+## 1.6.0 (25 Nov 2026) - A "Yes, notify me when this game begins" button on the game link, switched OFF until the owner turns it on (never deployed on its own)
+
+**What changed for you**
+- The page a player opens from the game link can now show a button, "Yes, notify me when this game begins", with a "Stop notifications" button next to it that is always there, in every state. The browser's own question is asked only after the tap, never when the page opens. After the game the block offers "Keep notifying me about new games".
+- It is OFF. While the one address in `apps/web/public/push-config.js` is empty (it is empty), the button is not drawn, the files of the button are not even requested, the page makes no call to anybody, and the page's connect-src is unchanged.
+- What is saved is a browser address, not a name, e-mail or phone. It is saved by a small separate service (`corporate-push`, pinned at `f1e93f59f454`), never by this game. It is deleted with the game, within 24 hours, and at once on "Stop notifications". The privacy pages say so (`apps/web/public/privacy.html`, `tools/legal/privacy.frag.html`), and never say "not personal data".
+- When the game really starts (a paid, live, not cancelled game whose start time has come) the game sends ONE "game begins" message to that game's browsers, once per game (a new column, `engagement.push_sent_ms`, migration 0032). When the game's data is deleted (the 24-hour clean-up, a manual delete, the 365-day clean-up) the game tells the service to delete that game's saved browser addresses. Both happen only when the settings `PUSH_URL` and `PUSH_ADMIN_KEY` are both set. With either missing nothing is sent, nothing is called and no database query is made for it.
+- The game's service worker (`zsw.js`) loads `sw-push-snippet.js` (copied unchanged from the service) for the two handlers a push needs; its own news click handler now leaves a "game begins" click to those handlers. The saved set of files was changed, so its cache name went from v33 to v34.
+
+**Not changed**
+- Money flags `PAY_VIA_CONSOLE` and `LOGIN_VIA_CONSOLE` stay OFF. Nothing is deployed, no Cloudflare setting was touched, no real message was ever sent. Tests use a fake push service.
+- `push-optin.js`, `push-optin.css` and `sw-push-snippet.js` are byte-for-byte copies of the service's files at `f1e93f59f454`; a test fails if one of them is edited. Their wording ("my game", "your browser") was decided by the owner and BOSS in the service's SPEC.md and is not reworded here.
+- The one legal document (`terms.html`, also on home.corporatetambola.com) is not edited here: it is versioned and shared with the other sites. The live `/privacy` address sends a person to it, so it must carry the same two sentences before the button is switched on.
+- More than 800 saved browsers for one game (20 calls of 40) are not sent to in one go; a game with fewer than that (every normal game) gets everyone.
+- "You start the game" and "You call the numbers" were planned under the number 1.6.0 (BOSS waiver of 22 Nov 2026). They are still not built and will come under the next number.
+
 ## 1.5.3 (23 Nov 2026) - Security audit fixes: no names before joining, and people who wait for a yes are never locked out (never deployed on its own)
 
 **What changed for you**

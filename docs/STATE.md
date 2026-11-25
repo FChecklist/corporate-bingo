@@ -1,4 +1,4 @@
-# State of Corporate Bingo, version 1.5.3 (owner rules v1.1, 20 to 23 Nov 2026)
+# State of Corporate Bingo, version 1.6.0 (owner rules v1.1, 20 to 25 Nov 2026; 1.6.0 adds the OFF "notify me when this game begins" button, see CHANGELOG.md)
 
 Branch `p1/owner-rules-v1-1`, draft PR https://github.com/FChecklist/corporate-bingo/pull/9. **Nothing is deployed.** No live service, DNS, payment or secret was touched. The money flags are OFF. The exact commit is the head of the branch; the "ready for audits" comment on the PR names it. (Older history of this file is in git.)
 
