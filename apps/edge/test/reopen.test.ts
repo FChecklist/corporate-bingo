@@ -36,7 +36,7 @@ beforeEach(() => {
     if (pm) { const p = payments[pm[1]!]; if (pm[2]) p.status = "captured"; return new Response(JSON.stringify(p)); }
     return new Response("{}", { status: 404 });
   };
-  env = { DB: d.db, ORGANIZER_SECRET: "plat", DAILY_WRITE_BUDGET: "1000000", RAZORPAY_KEY_ID: "rzp_test_x", RAZORPAY_KEY_SECRET: "sek", RAZORPAY_WEBHOOK_SECRET: "whsec", RAZORPAY_BASE_URL: "https://rzp.test/v1", PUBLIC_ORIGIN: "https://bingo.test", OWNER_EMAIL: "owner@platform.test" };
+  env = { DB: d.db, ORGANIZER_SECRET: "plat", RUNNER_KEY: "test-runner-key-test-runner-key-test0000", DAILY_WRITE_BUDGET: "1000000", RAZORPAY_KEY_ID: "rzp_test_x", RAZORPAY_KEY_SECRET: "sek", RAZORPAY_WEBHOOK_SECRET: "whsec", RAZORPAY_BASE_URL: "https://rzp.test/v1", PUBLIC_ORIGIN: "https://bingo.test", OWNER_EMAIL: "owner@platform.test" };
 });
 afterEach(() => { globalThis.fetch = realFetch; });
 
@@ -171,7 +171,7 @@ describe("reopen: a cancelled paid game moved to a new date within 365 days of t
     expect((await reopen(t.master, T + 6 * DAY)).status).toBe(409);
     expect(eng().start_round).toBe(roundAt(T + 5 * DAY));
   });
-  test("after the 23-hour guest erasure ran, a moved game gets a fresh lifecycle (no stale purged mark) and guests can join again", async () => {
+  test("after the 23-hour guest auto-deletion ran, a moved game gets a fresh lifecycle (no stale purged mark) and guests can join again", async () => {
     const t = await team(); await paidGame(t); await join("9811100002"); await cancelIt(t.master);
     const later = T + 2 * DAY; await lifecycleTick(env as any, later); // the erasure ran
     expect((raw.prepare("SELECT COUNT(*) AS c FROM participant WHERE eid='CAN-1'").get() as any).c).toBe(0);

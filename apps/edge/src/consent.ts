@@ -7,6 +7,7 @@
 //   - the rows of a participant (K4) are erased with the game's other participant data (lifecycle.ts); an organizer's rows are kept as the record of what they accepted.
 import { TERMS_VERSION } from "./brand";
 import TEXT from "./consent-text.json";
+import { NOTICE_TEXT } from "../../../vendor/game-core/packages/wording/src/consent";
 import type { D1 } from "./worker";
 
 export type ConsentKind = "K1" | "K2" | "K3" | "K4" | "K5" | "K6" | "K9";
@@ -27,7 +28,8 @@ export const CONSENT_SCHEMA: string[] = [
 
 const encoder = new TextEncoder();
 const hex = (b: ArrayBuffer) => Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(2, "0")).join("");
-export const wordingHash = async (kind: ConsentKind): Promise<string> => hex(await crypto.subtle.digest("SHA-256", encoder.encode(wordingOf(kind).join("\n"))));
+/** The proof of what was shown: sha256 of the notice line (no tick-boxes since 1 Nov 2026: going ahead is the agreement). Same line for every point. */
+export const wordingHash = async (_kind: ConsentKind): Promise<string> => hex(await crypto.subtle.digest("SHA-256", encoder.encode(NOTICE_TEXT)));
 
 const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 
@@ -36,7 +38,7 @@ export function consentMissing(b: any, kind: ConsentKind): Response | null {
   const c = b?.consent, need = boxesOf(kind);
   const given: unknown[] = Array.isArray(c?.boxes) ? c.boxes : [];
   if (c && typeof c === "object" && c.v === CONSENT_VERSION && need.length > 0 && need.every((id) => given.includes(id))) return null;
-  return json({ error: "Please tick the box to continue.", code: "consent-required", kind, version: CONSENT_VERSION }, 400);
+  return json({ error: "Please press the button again to go on.", code: "consent-required", kind, version: CONSENT_VERSION }, 400);
 }
 
 const newId = () => Array.from(crypto.getRandomValues(new Uint8Array(12)), (x) => x.toString(16).padStart(2, "0")).join("");

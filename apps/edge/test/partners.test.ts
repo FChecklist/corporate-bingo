@@ -20,7 +20,7 @@ const buy = (o: Record<string, unknown> = {}) => call("POST", "/api/checkout", {
 
 beforeEach(() => {
   const d = makeD1(); raw = d.raw;
-  env = { DB: d.db, ORGANIZER_SECRET: "plat", DAILY_WRITE_BUDGET: "100000", TEST_MODE: "1", PUBLIC_ORIGIN: "https://bingo.test" };
+  env = { DB: d.db, ORGANIZER_SECRET: "plat", RUNNER_KEY: "test-runner-key-test-runner-key-test0000", DAILY_WRITE_BUDGET: "100000", TEST_MODE: "1", PUBLIC_ORIGIN: "https://bingo.test" };
 });
 
 describe("enrolling as a sales partner", () => {
@@ -106,7 +106,7 @@ describe("a referred purchase", () => {
     expect(r.result.ok).toBe(true);
     const c = raw.query("SELECT partner_code, base, currency, rate, amount, status FROM commission").get() as any;
     expect(c).toMatchObject({ partner_code: CODE, currency: "INR", rate: 0.5, amount: 2349.5, status: "accrued" });
-    expect(c.base).toBe(4699); // 500 participants = Rs 4,699 software price (no GST is charged); commission is 50% of it
+    expect(c.base).toBe(4699); // 500 participants = ₹4,699 software price (no GST is charged); commission is 50% of it
   });
   test("no purchase, no commission: an unpaid or unknown-code or no-code order writes nothing", async () => {
     await buy({ ref: "9000000000" }); await buy({});
@@ -127,7 +127,7 @@ describe("a referred purchase", () => {
     await buy({ ref: CODE, phone: "+91 98111 22233" });
     expect(raw.query("SELECT status, reason FROM commission").get()).toEqual({ status: "blocked", reason: "self_referral" });
   });
-  test("a customer's first purchase earns the partner half of the software price: 100 = Rs 2,399, 250 = Rs 3,499, 500 = Rs 4,699", async () => {
+  test("a customer's first purchase earns the partner half of the software price: 100 = ₹2,399, 250 = ₹3,499, 500 = ₹4,699", async () => {
     let n = 0;
     for (const [pack, base, earn] of [[100, 2399, 1199.5], [250, 3499, 1749.5], [500, 4699, 2349.5]] as const) {
       await buy({ ref: CODE, pack, email: `new${++n}@buyer.example` });

@@ -5,6 +5,7 @@ import { handle } from "./with-terms";
 import type { PayEnv } from "../src/pay";
 import { normEmp, empHashOf } from "../src/people";
 import { makeD1 } from "./d1-sqlite";
+import { setMode } from "../src/mode";
 
 const T = Date.UTC(2026, 9, 1, 10, 0, 0);
 const GEN = 1692803367;
@@ -32,12 +33,13 @@ async function setup(opts: { closed?: boolean; verify?: string; employeesOnly?: 
 }
 const add = (key: string, people: unknown[]) => call("POST", "/api/z/PPL-1/people", { people }, key);
 
-beforeEach(() => { const d = makeD1(); raw = d.raw; env = { DB: d.db, ORGANIZER_SECRET: "plat", DAILY_WRITE_BUDGET: "1000000", PUBLIC_ORIGIN: "https://bingo.test", PHONE_SALT: "salt" }; (globalThis as any).fetch = async () => new Response("{}", { status: 404 }); });
+beforeEach(() => { const d = makeD1(); raw = d.raw; env = { DB: d.db, ORGANIZER_SECRET: "plat", RUNNER_KEY: "test-runner-key-test-runner-key-test0000", DAILY_WRITE_BUDGET: "1000000", PUBLIC_ORIGIN: "https://bingo.test", PHONE_SALT: "salt" }; (globalThis as any).fetch = async () => new Response("{}", { status: 404 }); });
 afterEach(() => { globalThis.fetch = realFetch; });
 
 describe("employee ID", () => {
-  test("an ID is trimmed and upper-cased; rubbish is refused; blank is blank", () => {
-    expect(normEmp(" ab 123 ")).toBe("AB123"); expect(normEmp("")).toBe(""); expect(normEmp(undefined)).toBe(""); expect(normEmp("a<b>")).toBeNull(); expect(normEmp("x".repeat(31))).toBeNull();
+  test("an ID loses every character that is not a letter or a number and is upper-cased (owner rule 20 Nov 2026); an e-mail, another script, nothing left or too long is refused; blank is blank", () => {
+    expect(normEmp(" ab 123 ")).toBe("AB123"); expect(normEmp("")).toBe(""); expect(normEmp(undefined)).toBe(""); expect(normEmp("a<b>", 0)).toBe("AB"); expect(normEmp("x".repeat(31), 0)).toBeNull();
+    expect(normEmp("a@b.co")).toBeNull(); expect(normEmp("---")).toBeNull(); expect(normEmp("é١")).toBeNull();
   });
 });
 
@@ -66,14 +68,14 @@ describe("employees only, ID alone", () => {
     const t = await setup({ verify: "id", employeesOnly: true });
     const r = await j(await add(t.master, [{ name: "Asha", empId: "e-101" }, { name: "Ravi", empId: "E102", phone: mob(2) }, { name: "NoId", phone: mob(3) }, { name: "Dup", empId: "E-101" }]));
     expect(r.added).toBe(2); expect(r.duplicates).toBe(1); expect(r.invalid.length).toBe(1);
-    expect(r.people.find((p: any) => p.name === "Asha")).toMatchObject({ empId: "E-101", maskedPhone: "", waLink: null });
+    expect(r.people.find((p: any) => p.name === "Asha")).toMatchObject({ empId: "E101", maskedPhone: "", waLink: null }); // E-101 is stored as E101
     const ok = await joinAs("PPL-1", 5, { phone: undefined, empId: " e-101 " }); expect(ok.status).toBe(200);
     expect((await joinAs("PPL-1", 5, { phone: undefined, empId: "E-101" })).status).toBe(200); // the same ID again is the same person
     const wrong = await joinAs("PPL-1", 6, { phone: undefined, empId: "E999" }); expect(wrong.status).toBe(403); expect((await j(wrong)).code).toBe("waiting");
     const none = await joinAs("PPL-1", 7, { phone: undefined }); expect(none.status).toBe(400); expect((await j(none)).code).toBe("need-id");
     expect((await joinAs("PPL-1", 8, {})).status).toBe(400);
     expect(rowsOf("SELECT COUNT(*) c FROM waiting")[0].c).toBe(1);
-    expect(rowsOf("SELECT ph FROM person").map((x) => x.ph)).toContain(await empHashOf(env, "E-101"));
+    expect(rowsOf("SELECT ph FROM person").map((x) => x.ph)).toContain(await empHashOf(env, "E101"));
   });
 });
 
@@ -137,21 +139,21 @@ describe("junk in a list is cleaned by the server too", () => {
 });
 
 describe("guessing employee IDs", () => {
-  test("wrong IDs wait for the organizer, who sees the ID that was typed; after 30 wrong IDs from one network in a game the door closes for ten minutes; a right ID is not counted", async () => {
+  test("wrong IDs wait for the organizer, who sees the ID that was typed; the 31st unlisted person waits too (no wrong-ID door any more, 1.5.3: the waiting room has its own cap per network); a right ID is not counted", async () => {
     const t = await setup({ verify: "id", employeesOnly: true }); await add(t.master, [{ name: "Asha", empId: "E101" }]);
     for (let i = 0; i < 30; i++) expect((await joinAs("PPL-1", 10 + i, { phone: undefined, empId: "X" + (900 + i) })).status).toBe(403);
-    const eleventh = await joinAs("PPL-1", 60, { phone: undefined, empId: "X999" }); expect(eleventh.status).toBe(429); expect((await j(eleventh)).code).toBe("too-many-tries");
-    const w = (await j(await call("GET", "/api/z/PPL-1/waiting", undefined, t.master))).waiting; expect(w.length).toBe(30); expect(w.map((x: any) => x.empId)).toContain("X900");
+    const thirtyFirst = await joinAs("PPL-1", 60, { phone: undefined, empId: "X999" }); expect(thirtyFirst.status).toBe(403); expect((await j(thirtyFirst)).code).toBe("waiting");
+    const w = (await j(await call("GET", "/api/z/PPL-1/waiting", undefined, t.master))).waiting; expect(w.length).toBe(31); expect(w.map((x: any) => x.empId)).toContain("X900");
     expect((await joinAs("PPL-1", 61, { phone: undefined, empId: "E101" })).status).toBe(200); // the real employee still gets in
   });
 });
 
 describe("everyone, including employees", () => {
-  test("ID: employees give their ID; an outsider gives a mobile number only and comes in at once; an unknown ID waits; guests can still invite", async () => {
+  test("ID: everyone gives the ID; a mobile number alone is no way in (owner rule 20 Nov 2026); an unknown ID waits; guests can still invite", async () => {
     const t = await setup({ verify: "id", invites: { on: true, per: 2, cats: ["family"] } });
     await add(t.master, [{ name: "Asha", empId: "E101" }]);
     expect((await joinAs("PPL-1", 5, { phone: undefined, empId: "E101" })).status).toBe(200);
-    expect((await joinAs("PPL-1", 6, {})).status).toBe(200);
+    expect((await joinAs("PPL-1", 6, {})).status).toBe(400);
     const bad = await joinAs("PPL-1", 7, { phone: undefined, empId: "E404" }); expect(bad.status).toBe(403); expect((await j(bad)).code).toBe("waiting");
     const s = await j(await call("GET", "/api/z/PPL-1/summary", undefined, t.master)); expect(s.invites.on).toBe(true);
   });
@@ -183,6 +185,7 @@ describe("the list download carries the ID", () => {
 
 describe("the owner's three test sign-ins", () => {
   test("demo1/2/3@xyz.in sign in with 123456, no e-mail is sent, the same account comes back each time, and a wrong code or another address is refused", async () => {
+    await setMode(env as any, "TEST", "t", T); // WP-17: these sign-ins exist only in TEST mode (see testlogins-mode.test.ts for LIVE)
     for (const em of ["demo1@xyz.in", "demo2@xyz.in", "demo3@xyz.in"]) {
       expect((await call("POST", "/api/auth/email", { email: em })).status).toBe(200);
       const a = await j(await call("POST", "/api/auth/verify", { email: em, code: "123456" })); expect(a.token).toMatch(/^cbk_/);
@@ -194,9 +197,9 @@ describe("the owner's three test sign-ins", () => {
     expect((await call("POST", "/api/auth/verify", { email: "demo4@xyz.in", code: "123456" })).status).toBe(400);
   });
   test("the test sign-ins are limited per network per day, record no Terms consent, never send mail, and keep only their latest six keys", async () => {
-    const em = "demo2@xyz.in"; const fire = () => call("POST", "/api/auth/verify", { email: em, code: "123456" });
+    await setMode(env as any, "TEST", "t", T); const em = "demo2@xyz.in"; const fire = () => call("POST", "/api/auth/verify", { email: em, code: "123456" });
     for (let i = 0; i < 30; i++) expect((await fire()).status).toBe(200);
-    const blocked = await fire(); expect(blocked.status).toBe(429);
+    const blocked = await fire(); expect(blocked.status).toBe(200); // owner order 4 Nov 2026: no daily limit on the owner test sign-in (TEST_LOGINS_PER_IP_DAY); this line still said 429 on the live commit and failed there too
     expect(rowsOf("SELECT COUNT(*) c FROM consent_log WHERE kind='K2'")[0].c).toBe(0);
     const org = rowsOf("SELECT org FROM organizer_email")[0].org;
     expect(rowsOf("SELECT COUNT(*) c FROM organizer_key WHERE org=? AND kind='master'", org)[0].c).toBeLessThanOrEqual(6);
@@ -206,9 +209,9 @@ describe("the owner's three test sign-ins", () => {
 });
 
 describe("Bingo's name-only join next to the ID", () => {
-  test("ID game, not employees only: an outsider who types only a name still comes in; 'both' without a number is asked for it; the choice survives an unrelated settings change", async () => {
+  test("ID game: a name alone is not a way in (the ID is asked for); 'both' without a number is asked for it; the choice survives an unrelated settings change", async () => {
     const t = await setup({ verify: "id" });
-    expect((await join("PPL-1", { name: "Outsider", device: dev(9) })).status).toBe(200);
+    const nameOnly = await join("PPL-1", { name: "Outsider", device: dev(9) }); expect(nameOnly.status).toBe(400); expect((await j(nameOnly)).code).toBe("need-id");
     expect((await call("PATCH", "/api/z/PPL-1/settings", { name: "Renamed" }, t.master)).status).toBe(200);
     let s = await j(await call("GET", "/api/z/PPL-1/summary", undefined, t.master)); expect(s.verify).toBe("id");
     expect((await call("PATCH", "/api/z/PPL-1/settings", { verify: "both" }, t.master)).status).toBe(200);
@@ -223,7 +226,7 @@ describe("Bingo's name-only join next to the ID", () => {
   });
 });
 
-describe("a game for 10 people or fewer is Rs 0", () => {
+describe("a game for 10 people or fewer is ₹0", () => {
   test("publishing a 10-person game needs no payment; an 11-person game still does", async () => {
     const st = await j(await handle(new Request("http://x/api/start", { method: "POST", headers: { "content-type": "application/json", "cf-connecting-ip": "7.7.8.1" }, body: JSON.stringify({ email: "free@acme.com" }) }), env as Env, T));
     for (const [id, cap] of [["FREE-10", 10], ["PAID-11", 11]] as const) {

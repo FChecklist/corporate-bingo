@@ -23,7 +23,7 @@ const count = (sql: string) => (raw.prepare(sql).get() as any).c as number;
 
 beforeEach(() => {
   const d = makeD1(); raw = d.raw;
-  env = { DB: d.db, ORGANIZER_SECRET: "plat", DAILY_WRITE_BUDGET: "1000000", PUBLIC_ORIGIN: "https://bingo.test", DATA_KEY: "test-data-key" };
+  env = { DB: d.db, ORGANIZER_SECRET: "plat", RUNNER_KEY: "test-runner-key-test-runner-key-test0000", DAILY_WRITE_BUDGET: "1000000", PUBLIC_ORIGIN: "https://bingo.test", DATA_KEY: "test-data-key" };
 });
 async function game() {
   const x = await j(await call("POST", "/api/start", { email: "boss@acme.com" }, { "cf-connecting-ip": "1.1.1.1" }));
@@ -80,15 +80,15 @@ describe("participant crypto-shredding", () => {
     expect(raw.prepare("SELECT shredded_ms FROM shred WHERE eid='EVT1'").get()).toEqual({ shredded_ms: T + 23 * HOUR });
   });
 
-  test("a tampered personal blob is caught while it exists; a removed blob with no recorded erasure is caught too", async () => {
+  test("a tampered personal blob is caught while it exists; a removed blob with no recorded auto-deletion is caught too", async () => {
     await game();
     raw.prepare("UPDATE audit_pii SET sealed='e1.AAAA.BBBB' WHERE seq=2 AND eid='EVT1'").run();
     const v = await verifyChain((env as any).DB, "EVT1"); expect(v.ok).toBe(false); expect(v.reason).toMatch(/personal part was changed/);
     raw.prepare("DELETE FROM audit_pii WHERE eid='EVT1'").run();
-    const w = await verifyChain((env as any).DB, "EVT1"); expect(w.ok).toBe(false); expect(w.reason).toMatch(/without a recorded erasure/);
+    const w = await verifyChain((env as any).DB, "EVT1"); expect(w.ok).toBe(false); expect(w.reason).toMatch(/without a recorded auto-deletion/);
   });
 
-  test("rows of the organizer, co-host and AI key, and the winners' prize confirmations, are NOT shredded", async () => {
+  test("rows of the organizer and AI key, and the winners' prize confirmations, are NOT shredded; a co-host's own rows ARE (1.5.2: a co-host is erased with the game's participants)", async () => {
     await game();
     const base = { eid: "EVT1", org: null, status: 200, now: T, country: "IN", corr: "c" };
     await appendAudit(env as any, { ...base, actor: "participant", event: "prize", target: "confirm", details: { ip: IP, name: "Winner W" } });
@@ -97,7 +97,7 @@ describe("participant crypto-shredding", () => {
     expect(await shredParticipantAudit(env as any, "EVT1", T + 23 * HOUR)).toBe(true);
     const after = await loadRows(env as any, "EVT1");
     expect(after.find((x) => x.event === "prize")!.details.name).toBe("Winner W");
-    expect(after.find((x) => x.actor === "cohost")!.details.ip).toBe("192.0.2.4");
+    expect(after.find((x) => x.actor === "cohost")!.details).toEqual({ personal_data_erased: true });
     expect(after.find((x) => x.actor === "ai_key")!.details.ip).toBe("192.0.2.5");
     expect(after.filter((x) => x.event === "join").every((x) => x.details.personal_data_erased)).toBe(true);
     expect((await verifyChain((env as any).DB, "EVT1")).ok).toBe(true);
@@ -114,7 +114,7 @@ describe("participant crypto-shredding", () => {
     expect((await verifyChain((env as any).DB, "EVT1")).ok).toBe(true);
   });
 
-  test("the organizer's own erase shreds at once too", async () => {
+  test("the organizer's own delete shreds at once too", async () => {
     await game();
     await erasePersonal(env as any, "EVT1", T + HOUR, "organizer");
     expect(count("SELECT COUNT(*) c FROM audit_pii")).toBe(0); expect(count("SELECT COUNT(*) c FROM shred")).toBe(1);

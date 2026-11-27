@@ -7,6 +7,7 @@
 //   - Attribution lasts ATTRIBUTION_DAYS from the click (kept in the buyer's own browser); the server only checks the code is a real, active partner.
 //   - Payouts are made by us, outside this Worker (KYC, TDS and the payout channel are decided separately); here we only record that a payout was made.
 import type { D1, Env } from "./worker";
+import { accountEmail } from "./emailkey";
 import { sendMail, type PayEnv } from "./pay";
 import { testFlag } from "./mode";
 import { syncCommissions } from "./ledgerc";
@@ -49,7 +50,7 @@ export async function recordCommission(env: PayEnv, p: { id: string; ref?: strin
   try {
     if (!((p as any).amount > 0)) return; // a game paid wholly from credit is not a new sale: the commission was earned on the original payment
     // a customer belongs to the partner who first brought them for 12 months: their repeat purchases earn that partner the repeat rate, whether or not a link was used again
-    const email = String((p as any).email ?? "").trim().toLowerCase();
+    const email = accountEmail((p as any).email);
     const since = now - REPEAT_WINDOW_DAYS * 86_400_000;
     const earlier = email ? await env.DB.prepare("SELECT c.partner_code AS code FROM payment pay LEFT JOIN commission c ON c.payment_id=pay.id AND c.status<>'void' WHERE lower(pay.email)=? AND pay.status='paid' AND pay.id<>? AND pay.paid_ms>? ORDER BY pay.paid_ms LIMIT 1").bind(email, p.id, since).first<{ code: string | null }>() : null;
     const repeat = !!earlier;
@@ -94,7 +95,7 @@ export async function partnerRoute(req: Request, env: PayEnv, now: number, spend
     await db.prepare("INSERT INTO kv(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=?").bind(k, String(n + 1), String(n + 1)).run();
     return false;
   };
-  const validEmail = (v: unknown): string => { const e = typeof v === "string" ? v.trim().toLowerCase() : ""; return /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/.test(e) ? e : ""; };
+  const validEmail = (v: unknown): string => { const e = typeof v === "string" ? accountEmail(v) : ""; return /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/.test(e) ? e : ""; };
 
   if (req.method === "GET" && p === "/api/partner/check") { // the landing page asks whether a ?ref= code is real, to show "referred by a partner"; limited per network so codes cannot be tried one after another
     if (await overLimit("check", 60)) return json({ valid: false });
@@ -109,7 +110,7 @@ export async function partnerRoute(req: Request, env: PayEnv, now: number, spend
     const digits = partnerCode(b?.phone), email = validEmail(b?.email);
     if (!b || !digits) return json({ error: "Enter a valid mobile number." }, 400);
     if (!email) return json({ error: "Enter a valid e-mail address. We send you a code." }, 400);
-    if (b.consent !== true) return json({ error: "Please agree to join Refer & earn." }, 400);
+    if (b.consent !== true) return json({ error: "Please press the button again to join Refer & earn." }, 400);
     if (await overLimit("enroll", 10)) return json({ error: "Too many tries from this network today. Please try again tomorrow." }, 429);
     const name = typeof b.name === "string" ? b.name.replace(/[<>`]/g, "").trim().slice(0, 60) : "";
     const ph = await phoneHashFor(env, digits), eh = await sha("pemail|" + email);

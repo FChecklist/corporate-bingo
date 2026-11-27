@@ -9,8 +9,9 @@
 //   - PARTICIPANTS' personal details (their rows' IP, user agent, raw device id, field changes) are NOT kept in `audit_log.sealed`: they live in `audit_pii`, sealed under a per-engagement key
 //     (pii.ts `sealEng`: HKDF of DATA_KEY with a random salt stored in `eng_key`). The hash chain covers only the non-personal core of each row plus `pdig` = SHA-256 of that sealed blob.
 //     23 hours after the game ends `shredParticipantAudit` deletes the blobs AND the salt and writes a `shred` marker: the personal part is unrecoverable and `verifyChain` still passes,
-//     because it never needs the blob. Rows of the organizer, host, co-host, AI key and the winners' prize confirmations ("prize" events) keep everything until 365 days.
+//     because it never needs the blob. A co-host's own rows are split the same way (1.5.2). Rows of the organizer, host, AI key and the winners' prize confirmations ("prize" events) keep their network details until 365 days, but a person's name, number, e-mail, ID or place is never written into them (`redact` with `personal`).
 import { openEng, openText, sealEng, sealText, type PiiEnv } from "./pii";
+import { ipGroup } from "./ipkey";
 import type { D1, Env } from "./worker";
 
 export const AUDIT_SCHEMA: string[] = [
@@ -41,16 +42,25 @@ const clip = (s: unknown, n: number) => (typeof s === "string" ? s.replace(/[\u0
 
 // ------------------------------------------------------------------------------------------------ what is never written
 const SECRET_KEY = /pass|otp|code|card|cvv|cvc|bank|account_?no|ifsc|iban|secret|token|key|auth|bearer|signature|upi|pan\b|gstin/i;
-/** Copies a body for the log: secret-looking fields become "[redacted]", long text is cut, the roster and big bodies are never copied. */
-export function redact(v: unknown, depth = 0): unknown {
+/**
+ * Field names that hold a person's details (a player's or a Co-host's mobile number, name, ID, e-mail, place or label). A row that is kept for 365 days (an Organizer's, a Host's, an AI key's,
+ * a winner's prize row, a visitor's refused try) must never hold them: when a player presses "Delete" or "Forget", nothing about them may stay in the log. The rows that ARE shreddable
+ * (a player's or a Co-host's own calls, sealed under the game's key and destroyed 23 hours after the game) may keep them for those hours. See `splitsPersonal`.
+ */
+const PERSONAL_KEY = /phone|mobile|msisdn|whatsapp|e-?mail|emp_?id|employee|name|label|^loc$|location|^ip$|address|contact|^who$|^role$/i;
+const EMAIL_LIKE = /[^\s@]+@[^\s@]+\.[^\s@]+/;
+/** Text that looks like a mobile number or an e-mail address, wherever it sits (a list of numbers, a note). */
+export const looksPersonal = (s: string) => EMAIL_LIKE.test(s) || /\d{10,}/.test(s.replace(/[\s().+-]/g, ""));
+/** Copies a body for the log: secret-looking fields become "[redacted]", long text is cut, the roster and big bodies are never copied. With `personal` (rows that are kept 365 days) a person's details are removed too. */
+export function redact(v: unknown, depth = 0, personal = false): unknown {
   if (v === null || v === undefined) return v ?? null;
-  if (typeof v === "string") return v.length > 160 ? v.slice(0, 160) + "..." : v;
+  if (typeof v === "string") return personal && looksPersonal(v) ? "[removed]" : v.length > 160 ? v.slice(0, 160) + "..." : v;
   if (typeof v === "number" || typeof v === "boolean") return v;
   if (depth > 3) return "[deep]";
-  if (Array.isArray(v)) return v.length > 20 ? { count: v.length } : v.map((x) => redact(x, depth + 1));
+  if (Array.isArray(v)) return v.length > 20 ? { count: v.length } : v.map((x) => redact(x, depth + 1, personal));
   if (typeof v === "object") {
     const o: Record<string, unknown> = {};
-    for (const [k, x] of Object.entries(v as Record<string, unknown>).slice(0, 40)) o[k] = SECRET_KEY.test(k) ? "[redacted]" : redact(x, depth + 1);
+    for (const [k, x] of Object.entries(v as Record<string, unknown>).slice(0, 40)) o[k] = SECRET_KEY.test(k) ? "[redacted]" : personal && PERSONAL_KEY.test(k) ? "[removed]" : redact(x, depth + 1, personal);
     return o;
   }
   return "[unsupported]";
@@ -168,8 +178,8 @@ export interface RecordIn {
 }
 const rowHash = (r: { chain: string; seq: number; prev: string; at: number; actor: string; event: string; target: string | null; corr: string; status: number | null; country: string | null; asn: string | null; vendor: string | null; key: string | null; proof: string | null; mismatch: number; sealed: string; pdig?: string | null }) =>
   sha(JSON.stringify([r.chain, r.seq, r.prev, r.at, r.actor, r.event, r.target, r.corr, r.status, r.country, r.asn, r.vendor, r.key, r.proof, r.mismatch, r.sealed, ...(r.pdig ? [r.pdig] : [])]));
-/** Participant rows keep their personal part apart (shreddable). Winners' prize confirmations are kept whole for 365 days. */
-const splitsPersonal = (r: { actor: string; eid: string | null; event: string }) => r.actor === "participant" && !!r.eid && !/^prize/.test(r.event);
+/** Participant and Co-host rows keep their personal part apart (shreddable, 23 hours after the game: a Co-host is erased with the game's participants). Winners' prize confirmations are kept whole for 365 days. */
+export const splitsPersonal = (r: { actor: string; eid: string | null; event: string }) => (r.actor === "participant" || r.actor === "cohost") && !!r.eid && !/^prize/.test(r.event);
 export const isShredded = async (db: D1, eid: string) => !!(await db.prepare("SELECT 1 AS x FROM shred WHERE eid=?").bind(eid).first());
 /** The engagement's random participant-key salt; made on first use. Null once shredded (a shredded engagement never gets a new one). */
 async function engSalt(env: AuditEnv, eid: string, now: number): Promise<string | null> {
@@ -230,6 +240,25 @@ export async function appendAudit(env: AuditEnv, r: RecordIn): Promise<boolean> 
   return false;
 }
 
+// ------------------------------------------------------------------------------------------------ who may add a row
+/** A caller with no key may add only a few rows a minute from one network (one count per Worker copy, no database write: the counter itself must not cost a write). */
+export const AUDIT_ANON_PER_MIN = 20;
+/** A caller with no key, for a game that exists: more room, because a whole office can join through one address. */
+export const AUDIT_GAME_PER_MIN = 300;
+const auditSeen = new Map<string, { w: number; n: number }>();
+export const resetAuditLimits = () => auditSeen.clear();
+/** Counts one candidate row under `k`; true when the limit for this minute is already used up (the row is then not written). */
+function auditOver(k: string, limit: number, now: number): boolean {
+  const w = Math.floor(now / 60_000), r = auditSeen.get(k);
+  if (auditSeen.size > 5000) auditSeen.clear();
+  if (!r || r.w !== w) { auditSeen.set(k, { w, n: 1 }); return false; }
+  r.n++;
+  return r.n > limit;
+}
+const gameExists = async (db: D1, eid: string) => !!(await db.prepare("SELECT 1 AS x FROM engagement WHERE id=?").bind(eid).first());
+/** Bodies that name a person: only the field names are kept, never the values, whoever sent them. */
+const PERSON_PATH = /\/(person|forget|unbind|mark|cohost|waiting|people|invites?|resend|host|team)(\/|$)/;
+
 const actorOf = (a: AuthLike, req: Request, hadKey: boolean): Actor =>
   a.plat ? "owner" : a.kind === "master" ? "organizer" : a.kind === "ai" ? "ai_key" : a.kind === "host" ? "host" : a.kind === "cohost" ? "cohost" : hadKey ? "participant" : "participant";
 
@@ -244,6 +273,7 @@ export async function auditRequest(env: AuditEnv, req: Request, peek: Request | 
     if (peek) {
       const len = Number(peek.headers.get("content-length") ?? "0");
       if (/\/(roster|reuse|people|resend)$/.test(path) || len > 16384) bodyNote = "not copied (size or roster)";
+      else if (PERSON_PATH.test(path)) { try { const t = await peek.text(); const o = t && t.length <= 16384 ? JSON.parse(t) : null; body = o && typeof o === "object" && !Array.isArray(o) ? Object.fromEntries(Object.keys(o).slice(0, 40).map((k) => [k, "[removed]"])) : null; bodyNote = "values not copied (a person's details)"; } catch { body = null; bodyNote = "not json"; } }
       else { try { const t = await peek.text(); bodyNote = t ? null : "empty"; body = t && t.length <= 16384 ? JSON.parse(t) : null; } catch { body = null; bodyNote = "not json"; } }
     }
     const hadKey = !!(req.headers.get("x-organizer") || req.headers.get("authorization"));
@@ -251,6 +281,12 @@ export async function auditRequest(env: AuditEnv, req: Request, peek: Request | 
     const c = classify(method, path, status, actor, body);
     if (!c) return;
     const ctx = ctxOf(req), ua = parseUa(ctx.ua);
+    // Who may add a row. A caller with a key is known (and the owner of what they do). A caller with no key adds a row only for a game that really exists, and only a few a minute from one
+    // network; a request to a road that does not exist, or to a game that was never made, leaves no trace (it used to: any script could fill the log for 365 days).
+    if (actor === "participant") {
+      if (c.eid) { if (!(await gameExists(env.DB, c.eid))) return; if (auditOver("g|" + c.eid + "|" + ipGroup(ctx.ip), AUDIT_GAME_PER_MIN, now)) return; }
+      else { if (status === 404 || status === 405) return; if (auditOver("a|" + ipGroup(ctx.ip), AUDIT_ANON_PER_MIN, now)) return; }
+    } else if (c.eid && actor !== "owner" && !(await gameExists(env.DB, c.eid))) c.eid = null; // a key holder naming a game that is not there: the row goes to their own account's chain, not to a made-up game's
     // client-reported time and zone are optional headers; the server's own clock is the authority
     const cms = Number(req.headers.get("x-cb-client-ms") ?? ""), clientMs = Number.isFinite(cms) && cms > 1e12 ? Math.trunc(cms) : null;
     const device = body && typeof body.device === "string" && /^[0-9a-f]{16,64}$/.test(body.device) ? body.device : null;
@@ -264,7 +300,8 @@ export async function auditRequest(env: AuditEnv, req: Request, peek: Request | 
       proof = dec ? "declared" : uaVendor ? "observed" : "inferred"; // inferred = we only know a key of an AI kind made the call
       ai = { vendor_from_ua: uaVendor, vendor_from_declared_model: modelVendor, declared: dec, proof_level: proof, mismatch };
     }
-    const fields = body && typeof body === "object" ? redact(Object.fromEntries(Object.entries(body).filter(([k]) => k !== "device" && k !== "ai"))) : null;
+    const keepsPersonal = splitsPersonal({ actor, eid: c.eid, event: c.event }); // only the shreddable part of a row may hold a person's details; every other row is cleaned first
+    const fields = body && typeof body === "object" ? redact(Object.fromEntries(Object.entries(body).filter(([k]) => k !== "device" && k !== "ai")), 0, !keepsPersonal) : null;
     const details = {
       method, path: path.slice(0, 200), query: url.search ? [...url.searchParams.keys()].filter((k) => k !== "_body").slice(0, 20) : [], status,
       ip: ctx.ip, ua: ctx.ua, browser: ua.browser, os: ua.os, country: ctx.country, asn: ctx.asn,
@@ -328,7 +365,7 @@ export async function verifyChain(db: D1, chain: string): Promise<{ ok: boolean;
     if (x.pdig) { // the personal part, while it exists, must be the one the chain committed to; once shredded it is rightly gone (the chain never needed it)
       const blob = piiRows.get(x.seq);
       if (blob !== undefined && (await sha(blob)) !== x.pdig) return { ok: false, rows: n, brokenAtSeq: x.seq, reason: "this row's personal part was changed", headHash: head };
-      if (blob === undefined && !shredded) return { ok: false, rows: n, brokenAtSeq: x.seq, reason: "this row's personal part is missing without a recorded erasure", headHash: head };
+      if (blob === undefined && !shredded) return { ok: false, rows: n, brokenAtSeq: x.seq, reason: "this row's personal part is missing without a recorded auto-deletion", headHash: head };
     }
     prev = x.row_hash; head = x.row_hash; expectSeq = x.seq + 1;
   }
@@ -361,7 +398,7 @@ export function maskedAggregate(rows: OpenRow[]) {
     clientClockOffMoreThan5Min: skewBig, busiestHourUtc: Object.entries(hour).sort((x, y) => y[1] - x[1])[0]?.[0] ?? null,
   };
   const findings: string[] = [];
-  if (agg.deniedAiAttempts) findings.push(`${agg.deniedAiAttempts} attempt(s) by an AI key to publish, pay, erase, pause or settle were refused.`);
+  if (agg.deniedAiAttempts) findings.push(`${agg.deniedAiAttempts} attempt(s) by an AI key to publish, pay, delete data, pause or settle were refused.`);
   if (agg.aiVendorMismatches) findings.push(`${agg.aiVendorMismatches} AI call(s) declared a model from a different vendor than the program that fetched them.`);
   if (agg.failedLogins >= 5) findings.push(`${agg.failedLogins} failed sign-in attempts.`);
   if (agg.devicesSeenFromSeveralNetworks) findings.push(`${agg.devicesSeenFromSeveralNetworks} device(s) were seen from more than one network.`);

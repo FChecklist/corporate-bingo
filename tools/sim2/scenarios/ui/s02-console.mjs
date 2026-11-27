@@ -306,7 +306,7 @@ export default [
       await openStep(x.page, 8);
       const price = await t.text(x.page, "#sec8");
       t.check("Pay step shows the price (no GST)", /Rs\s?[\d,]+/i.test(price), price.slice(300, 520));
-      t.check("Copy payment link button exists", !!(await x.page.$("#copypaylink")));
+      t.check("No payment link to copy: payment is made in the console", !(await x.page.$("#copypaylink")) && !!(await x.page.$('a[data-pay="console"]')));
       await t.shot(x.page, "step8-pending");
     },
   },

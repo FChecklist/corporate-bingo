@@ -19,7 +19,7 @@ const ORIGIN = "https://bingo.test";
 
 beforeEach(() => {
   const d = makeD1(); raw = d.raw;
-  env = { DB: d.db, ORGANIZER_SECRET: "plat", DAILY_WRITE_BUDGET: "100000", PUBLIC_ORIGIN: ORIGIN, DATA_KEY: "test-data-key", TEST_MODE: "1" };
+  env = { DB: d.db, ORGANIZER_SECRET: "plat", RUNNER_KEY: "test-runner-key-test-runner-key-test0000", DAILY_WRITE_BUDGET: "100000", PUBLIC_ORIGIN: ORIGIN, DATA_KEY: "test-data-key", TEST_MODE: "1" };
 });
 async function account() { const x = await j(await call("POST", "/api/start", { email: "boss@acme.com" }, { "cf-connecting-ip": "1.1.1.1" })); return { ai: x.aiKey as string, token: x.token as string }; }
 async function ask(now = T, ip = "5.5.5.5") { const r = await j(await call("POST", "/api/auth/email", { email: "boss@acme.com" }, { "cf-connecting-ip": ip }, now)); return r as { devCode: string; devToken: string }; }
@@ -35,7 +35,7 @@ describe("the sign-in e-mail", () => {
     expect(m.body + m.subject).not.toMatch(LEAK); expect(m.body).not.toMatch(/Corporate Bingo account\. I am the owner/);
     expect(m.body).toContain(`${ORIGIN}/signin.html?t=${r.devToken}&go=console`);
     const b = signInMail(ORIGIN, "123456", "ab".repeat(24));
-    expect(b.html).toContain("Sign in to Corporate Bingo"); expect(b.html).toContain("Type the 6-digit code"); expect(b.html).toContain("Tap the button"); expect(b.html).toContain("Sign me in"); expect(b.html).toContain("123456"); expect(b.html).not.toContain("OPTION 3");
+    expect(b.html).toContain("Sign in to Corporate Bingo"); expect(b.html).toContain("Type the 6-digit code"); expect(b.html).toContain("Tap the button"); expect(b.html).toContain("Sign in"); expect(b.html).toContain("123456"); expect(b.html).not.toContain("OPTION 3");
     expect(b.html + b.text).not.toMatch(LEAK);
     expect([...b.html.matchAll(/href="([^"]*)"/g)].map((x) => x[1]).filter((h) => !/^mailto:|legal.html$/.test(h!))).toEqual([`${ORIGIN}/signin.html?t=${"ab".repeat(24)}&amp;go=console`]);
     expect(env.DB).toBeTruthy();

@@ -10,6 +10,7 @@
 //   - E-mails (Organizer + Hosts only, once each per credit): on cancel/arrival, 30 days before the lapse, 3 days before, on use, on lapse.
 // `expires_ms` is the instant the credit lapses: 00:00 IST at the START of day 366 (= the end of day 365 in India time). A credit is usable while now < expires_ms.
 import { PACKS, price } from "../../../packages/shared/src/pricing";
+import { accountEmail } from "./emailkey";
 import { fulfil, PAYER, sendMail, type PayEnv } from "./pay";
 import { openText } from "./pii";
 import { orgIsTest, testFlag } from "./mode";
@@ -37,7 +38,7 @@ const json = (o: unknown, status = 200) => new Response(JSON.stringify(o), { sta
 export const creditExpiryMs = (paidMs: number): number => (Math.floor((paidMs + IST) / DAY) + CREDIT_DAYS + 1) * DAY - IST;
 /** The India-time date a person is told ("14 Jun 2027"): the LAST day the credit can be used. */
 export const creditLastDay = (expiresMs: number): string => new Date(expiresMs - 1).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric" });
-export const rs = (n: number, cur = "INR"): string => (cur === "USD" ? "US$" : "Rs ") + (Math.abs(n - Math.round(n)) < 0.005 ? Math.round(n).toLocaleString(cur === "USD" ? "en-US" : "en-IN") : n.toLocaleString(cur === "USD" ? "en-US" : "en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+export const rs = (n: number, cur = "INR"): string => (cur === "USD" ? "US$" : "₹") + (Math.abs(n - Math.round(n)) < 0.005 ? Math.round(n).toLocaleString(cur === "USD" ? "en-US" : "en-IN") : n.toLocaleString(cur === "USD" ? "en-US" : "en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 const istStamp = (ms: number) => new Date(ms).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true }) + " IST";
 const gameName = (e: { id: string; config?: string | null }) => { try { return JSON.parse(e.config ?? "{}").name || e.id; } catch { return e.id; } };
 
@@ -59,12 +60,12 @@ export async function teamEmails(env: PayEnv, org: string | null, eid: string | 
 export async function mailTeam(env: PayEnv, org: string | null, eid: string | null, subject: string, text: string, now: number): Promise<void> {
   try {
     const tos = await teamEmails(env, org, eid), seen = new Set<string>();
-    for (const to of [tos.organizer, ...tos.hosts]) { const t = (to ?? "").trim().toLowerCase(); if (!t || seen.has(t)) continue; seen.add(t); await sendMail(env, env.DB, t, subject, text, now); }
+    for (const to of [tos.organizer, ...tos.hosts]) { const t = accountEmail((to ?? "")); if (!t || seen.has(t)) continue; seen.add(t); await sendMail(env, env.DB, t, subject, text, now); }
   } catch { /* a mail is a courtesy; the money records are already written */ }
 }
 
 /** The rule in one sentence, for e-mails and pages. */
-export const NO_REFUND_LINE = "We do not give refunds. If you cancel a paid game before it starts, your payment stays as credit for your next game for 365 days. Unused credit lapses at the end of day 365.";
+export const NO_REFUND_LINE = "A paid game cancelled before it starts stays with you as credit for your next game, valid for 365 days. Unused credit lapses at the end of day 365.";
 
 // ------------------------------------------------------------------------------------------------ making credit
 /**
@@ -161,7 +162,7 @@ export async function mailCreditCreated(env: PayEnv, c: CreditRow, e: { id: stri
   const lines = why === "cancel"
     ? [c.expires_ms <= now ? `Your game "${gameName(e)}" (${e.id}) is cancelled. The credit from your payment of ${rs(c.total_inr, c.currency)} lapsed on ${lapseDate(c)}, 365 days after the payment, so there is nothing left to use.` : `Your game "${gameName(e)}" (${e.id}) is cancelled. Your payment of ${rs(c.total_inr, c.currency)} stays as credit until ${lapseDate(c)}. Use it for your next game.`]
     : [`A payment of ${rs(c.total_inr, c.currency)} arrived for the game "${gameName(e)}" (${e.id}) after it was cancelled or closed. It stays as credit until ${lapseDate(c)}. Use it for your next game.`];
-  await mailTeam(env, c.org, c.eid ?? e.id, why === "cancel" ? `Your credit of ${rs(c.total_inr, c.currency)}: ${gameName(e)}` : `A payment became credit: ${gameName(e)}`, [...lines, NO_REFUND_LINE, `Open your console and choose "Use my credit" on the Pay step of your next game.`].join("\n\n"), now);
+  await mailTeam(env, c.org, c.eid ?? e.id, why === "cancel" ? `Your credit of ${rs(c.total_inr, c.currency)}: ${gameName(e)}` : `A payment became credit: ${gameName(e)}`, [...lines, NO_REFUND_LINE, `Open your console and choose "Use your credit" on the Pay step of your next game.`].join("\n\n"), now);
 }
 async function mailCreditUsed(env: PayEnv, c: CreditRow, amount: number, e: { id: string; org: string | null; config?: string | null }, left: number, now: number): Promise<void> {
   await mailTeam(env, c.org, e.id, `${rs(amount, c.currency)} of credit used for ${gameName(e)}`, [`${rs(amount, c.currency)} of credit was used for the game "${gameName(e)}" (${e.id}).`, left > 0.004 ? `That credit still has ${rs(left, c.currency)} left, valid until ${lapseDate(c)}.` : "That credit is now fully used."].join("\n\n"), now);
@@ -265,7 +266,7 @@ async function payGameFromCredit(env: PayEnv, e: any, a: CreditAuth, pack: numbe
   const src = first?.pid ? await db.prepare("SELECT meta, email FROM payment WHERE id=?").bind(first.pid).first<{ meta: string; email: string }>() : null;
   let sm: any = {}; try { sm = src ? JSON.parse(src.meta) : {}; } catch { sm = {}; }
   const tos = await teamEmails(env, e.org, e.id);
-  const email = (tos.organizer ?? src?.email ?? "").toLowerCase();
+  const email = accountEmail(tos.organizer ?? src?.email ?? "");
   const test = (await testFlag(env)) === 1 || (await orgIsTest(env, e.org)) ? 1 : 0;
   const meta = { org: sm.org ?? "", name: sm.name || sm.org || "Organizer", country: sm.country ?? "IN", taxId: sm.taxId ?? "", origin: env.PUBLIC_ORIGIN ?? "", orgId: e.org, eid: e.id, paidBy: PAYER[a.kind ?? ""] ?? "organizer", creditInr: usedInr, viaCredit: true, by: a.kind };
   await db.prepare("INSERT OR IGNORE INTO payment(id,org,email,pack,currency,amount,tax,rzp_order_id,status,created_ms,meta,ref,buyer_phone_hash,is_test,eid) VALUES(?,?,?,?,?,0,0,NULL,'created',?,?,NULL,NULL,?,?)").bind(id, null, email || "credit@invalid.local", pack, cur, now, JSON.stringify(meta), test, e.id).run();

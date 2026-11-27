@@ -7,6 +7,7 @@
 //   - Every e-mail address is kept sealed. The Organizer's address is also kept as the same one-way hash the sign-in uses, so an invitation can be accepted only by the account of that address.
 //   - Every paid game the helper prepared earns the helper Refer-and-earn commission: the payment's `ref` is the helper's partner code (pay.ts), and recordCommission does the rest (same rate, same repeat rule, same self-referral block).
 import { ensurePartnerKey } from "./partners";
+import { accountEmail } from "./emailkey";
 import type { D1, Env } from "./worker";
 import { sendMail, type PayEnv } from "./pay";
 import { openText, sealText } from "./pii";
@@ -57,7 +58,7 @@ const sha = async (s: string) => Array.from(new Uint8Array(await crypto.subtle.d
 const randHex = (n: number) => Array.from(crypto.getRandomValues(new Uint8Array(n)), (b) => b.toString(16).padStart(2, "0")).join("");
 async function body(req: Request, max = 2048): Promise<any | null> { const t = await req.text(); if (t.length > max) return null; try { const v = JSON.parse(t); return v && typeof v === "object" ? v : null; } catch { return null; } }
 const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
-const validEmail = (v: unknown): string => { const e = typeof v === "string" ? v.trim().toLowerCase() : ""; return EMAIL_RE.test(e) ? e : ""; };
+const validEmail = (v: unknown): string => { const e = typeof v === "string" ? accountEmail(v) : ""; return EMAIL_RE.test(e) ? e : ""; };
 const clean = (v: unknown, n: number): string => (typeof v === "string" ? v.replace(/[<>`]/g, "").trim().slice(0, n) : "");
 const TOKEN = /^[0-9a-f]{48}$/;
 const ID16 = /^[0-9a-f]{16}$/;
@@ -287,7 +288,7 @@ export async function helpdeskRoute(req: Request, env: PayEnv, now: number, spen
     if (auth.kind !== "master" || !auth.org) return json({ error: "Please sign in first.", code: "sign-in" }, 403);
     const b = await body(req); const l = await linkByToken(b?.t); if (!l) return json({ error: "Not found" }, 404);
     if (l.state !== "invited" || now - l.created_ms > INVITE_DAYS * 86_400_000) return gone(l.state);
-    if (b?.consent !== true) return json({ error: "Please tap Allow to agree.", code: "consent-required" }, 400);
+    if (b?.consent !== true) return json({ error: "Please press Allow to go on.", code: "consent-required" }, 400);
     const mine = await db.prepare("SELECT 1 AS x FROM organizer_email WHERE email_hash=? AND org=?").bind(l.org_email_hash, auth.org).first();
     if (!mine) return json({ error: "This invitation was sent to a different e-mail address. Sign in with the address it was sent to.", code: "wrong-account" }, 403);
     if (!(await spend(6))) return busy();

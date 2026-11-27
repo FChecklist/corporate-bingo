@@ -83,7 +83,7 @@ describe("the player page offers the player's rights", () => {
     expect(o.world.raw.query("SELECT kind, status FROM data_request").all()).toEqual([{ kind: "nomination", status: "open" }]);
     expect(count(o, "SELECT COUNT(*) c FROM seat WHERE eid='RP-N'")).toBe(1); // nothing is deleted
   });
-  test("Delete me: the erasure choice warns, then deletes at once", async () => {
+  test("Delete me: the auto-deletion choice warns, then deletes at once", async () => {
     const o = await organizer(); const p = await player(o, "RP-4");
     await until(p, () => !!p.$("#rt-hold"));
     p.click("#rt-hold"); await until(p, () => !!p.$("#rt-form"));

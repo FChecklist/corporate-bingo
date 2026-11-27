@@ -47,7 +47,7 @@
           const credential = resp && resp.credential;
           if (!credential) return;
           const consent = opt.consent ? opt.consent() : undefined; // signing up (or a Host accepting the role) needs the Terms box ticked first
-          if (opt.consent && !consent) { opt.onError && opt.onError("Please tick the box to continue."); return; }
+          if (opt.consent && !consent) { opt.onError && opt.onError("Please press the button again to go on."); return; }
           try {
             const r = await fetch("/api/auth/google", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ credential, intent: opt.intent || "signin", ...(opt.hostKey ? { hostKey: opt.hostKey } : {}), ...(consent ? { consent } : {}) }) });
             const j = await r.json().catch(() => ({}));

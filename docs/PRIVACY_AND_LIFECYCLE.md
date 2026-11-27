@@ -39,6 +39,7 @@ The block above is read by `apps/edge/test/data-map.test.ts`: it fails when the 
 | "The game is over" votes from phones | End of the game is read from phones as well as the schedule | `overvote` (card number and time) | CF | 23 h after the end |
 | A request the player made to see, correct or delete their data: card id, kind, a short note, three times | To answer within the promised time (7 days) | `data_request` (no name, no number) | CF; the organizer and the owner are told by e-mail (Resend) | 23 h after the end |
 | Winners record: the card number, prize, round, time | Proof of who won, with no name | `winner` | CF | Until the end of day 365 |
+| Game log: one line per call (time and public round), pause, prize (card number) and the end, each chained to the one before | Lets the organizer and the IT team see what happened and when, even if the report e-mail never arrives; no name, no mobile number | `game_log` | CF | Until the end of day 365 |
 | Prize hand-over record: the name and mobile number the winner confirmed on their own phone, what they joined with if they changed it, the change trail, the date the organizer ticked "prize given" | So the organizer can hand over the prize and confirm it was handed over | `prize` (sealed) | CF | 365 days |
 
 ### 2b. What a player's phone keeps (on the phone, not on our servers)

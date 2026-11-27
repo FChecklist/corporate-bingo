@@ -20,7 +20,11 @@ function kindFor(method: string, path: string, body: any): ConsentKind | null {
 }
 const sha = async (s: string) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s))), (b) => b.toString(16).padStart(2, "0")).join("");
 
-export async function handle(req: Request, env: Env, now?: number): Promise<Response> {
+/** Since 22 Nov 2026 the server refuses "anyone with the link" and makes a game that says nothing a game for its list (console-pay.ts openGamesAllowed). The older tests build open games on purpose, so this helper switches the
+ *  old open behaviour back on for them (LEGACY_OPEN_GAMES). A test that wants the real default sets env.LEGACY_OPEN_GAMES = "0" (audit-1-5-1.test.ts does). */
+export const withOpenGames = (env: Env): Env => ((env as any).LEGACY_OPEN_GAMES === undefined ? ({ ...(env as any), LEGACY_OPEN_GAMES: "1" } as Env) : env);
+export async function handle(req: Request, env0: Env, now?: number): Promise<Response> {
+  const env = withOpenGames(env0);
   const path = new URL(req.url).pathname;
   const key = req.headers.get("x-organizer");
   if (key && env.DB) { // a Co-host who has "accepted" before using the console
