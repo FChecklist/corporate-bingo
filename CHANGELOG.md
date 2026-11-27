@@ -2,6 +2,15 @@
 
 Plain words. Newest first. The version number lives in `version.json` and must be the same in `package.json`, `apps/edge/package.json` and `apps/edge/src/releases.json` (a test checks this).
 
+## 1.5.4 (27 Nov 2026) - Payment only through the console: "payable" and 410 for the old pay routes (flag PAY_VIA_CONSOLE, default off)
+
+**What changed for you**
+- The console can now ask this game, before it takes any money, which game is the organizer's own, what pack size to charge for and whether it is already paid (`POST /api/console/payable`, a signed read-only question). It is dark until `CONSOLE_PUBKEYS` is set.
+- With `PAY_VIA_CONSOLE=1` the old pay, pay-link, pay-with-credit, credit and proforma routes answer **410 (gone)** with the console's address (they answered 409 before), `placeOrder` refuses to open any order, and the credit and ledger-C background jobs do not run. Razorpay's own notice (`/api/payments/webhook`) is never turned away. With the flag off nothing changes.
+- The console bridge copy was refreshed from the console repo (it adds "payable" and a 30 second lease on a payment that was being saved).
+
+**Not done / for the auditor:** nothing was run against the real console or Moneypenny. The console's own pay step needs Moneypenny's `/v1/game_pay/*` routes, which are on an unmerged branch.
+
 ## 1.5.3 (23 Nov 2026) - Security audit fixes: no names before joining, and people who wait for a yes are never locked out (never deployed on its own)
 
 **What changed for you**

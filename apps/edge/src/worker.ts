@@ -516,7 +516,7 @@ export async function housekeeping(env: Env, now: number): Promise<void> {
 export async function runTick(env: Env, now: number) {
   await adminTick(env.DB, now); // old error counters and old mail events go (admin.ts)
   await remindUnpaid(env, now);
-  const ledgerC = await ledgerCTick(env as PayEnv, now); // ledger C -> B: a few commission rows and, every 30 minutes, the monthly figures (ledgerc.ts)
+  const ledgerC = (env as PayEnv).PAY_VIA_CONSOLE === "1" ? null : await ledgerCTick(env as PayEnv, now); // ledger C -> B: a few commission rows and, every 30 minutes, the monthly figures (ledgerc.ts)
   const life = await lifecycleTick(env as any, now);
   const purged = await purgeOld(env, now);
   const invoices = await issueDueInvoices(env as PayEnv, now); // Razorpay-first payments whose payer closed the page: the tax invoice is issued 15 minutes after the capture (payfirst.ts)
@@ -597,7 +597,7 @@ async function handleCore(req: Request, env: Env, now = Date.now(), waitUntil?: 
   if (keysMissing(env)) return new Response(JSON.stringify({ error: "The service is not configured. Please try again later." }), { status: 503, headers: { "content-type": "application/json", "cache-control": "no-store" } });
   const pn = new URL(req.url).pathname;
   { const gate = legacyPayGate(req, env as ConsoleEnv) ?? loginGate(req, env as ConsoleEnv); if (gate) return gate; } // owner order 20 Nov 2026: payment and sign-in live in the console and at home; the old routes answer a short refusal while their flags are on (console-pay.ts), nothing is deleted
-  if (pn === "/api/console/paid") { const cr = await consolePaidRoute(req, env as ConsoleEnv, now); if (cr) return cr; } // the console's signed "paid" notice, once per order id (console-pay.ts); dark without CONSOLE_PUBKEYS
+  if (pn === "/api/console/paid" || pn === "/api/console/payable") { const cr = await consolePaidRoute(req, env as ConsoleEnv, now); if (cr) return cr; } // the console's signed "paid" notice, once per order id (console-pay.ts); dark without CONSOLE_PUBKEYS
   if (pn === "/api/console/payinfo") { const pr = await consolePayInfoRoute(req, env as ConsoleEnv, now); if (pr) return pr; } // what must be paid for this game, asked before any money is taken (console-pay.ts); dark without CONSOLE_PUBKEYS
   if (pn === "/ai" || pn.startsWith("/ai/")) return aiLink(req, env, now, waitUntil);
   if (req.method === "GET" && pn.startsWith("/j/")) return joinLinkPage(env, decodeURIComponent(pn.slice(3)).replace(/\/$/, ""), (env as PayEnv).PUBLIC_ORIGIN ?? new URL(req.url).origin, (e) => cfgOf(e).name || e.id); // the short personal link (people.ts)

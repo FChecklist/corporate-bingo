@@ -50,7 +50,7 @@ Where things are set:
 | `GOOGLE_CLIENT_ID` | Google sign-in client id (public, not a secret); without it the Google button is off | Optional Pages variable | setting |
 | `LEGACY_OPEN_GAMES` | "1" lets a game be made open to anyone with the link and makes a game that says nothing open (the old behaviour). For old tests only; never set on the live site. | Local and test runs only | setting |
 | `CONSOLE_PUBKEYS` | The console's public signing keys ("k1:<key>,k2:<key>", not secret). Without it the console's signed paid notice (/api/console/paid) does not exist. Set only when the owner says go. | Optional Pages variable | setting |
-| `PAY_VIA_CONSOLE` | "1" sends the old pay pages and pay routes of this game to the console (nothing is deleted). Off until the owner says go. | Optional Pages variable | setting |
+| `PAY_VIA_CONSOLE` | Set to 1, the old pay pages go to the console and the old pay, pay-link, credit and proforma routes answer 410 (nothing is deleted; no order is opened with Razorpay or the central service). Unset: the old path, kept for rollback. Off until the owner says go. | Optional Pages variable | setting |
 | `LOGIN_VIA_CONSOLE` | "1" sends this game's own sign-in page and sign-in routes to home and the console. Off until the owner says go. | Optional Pages variable | setting |
 | `CONSOLE_ORIGIN` | The console's web address (default https://console.corporatetambola.com) | Optional Pages variable | setting |
 | `HOME_ORIGIN` | The home page's web address, the one place to sign in (default https://home.corporatetambola.com) | Optional Pages variable | setting |

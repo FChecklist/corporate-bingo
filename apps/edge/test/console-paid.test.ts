@@ -115,7 +115,7 @@ describe("the old pay and sign-in routes behind flags (off until the owner says 
   test("PAY_VIA_CONSOLE=1: the pay pages go to the console, the pay routes are refused with a plain sentence, Razorpay's own notice is not touched", async () => {
     (W.env as any).PAY_VIA_CONSOLE = "1";
     for (const p of ["/pay.html", "/paylink.html", "/paytest.html"]) { const r = legacyPayGate(req(p), W.env as any)!; expect([p, r.status, r.headers.get("location")]).toEqual([p, 302, "https://console.corporatetambola.com/"]); }
-    for (const [m, p] of [["POST", "/api/checkout"], ["POST", "/api/payments/verify"], ["POST", "/api/payments/test"], ["GET", "/api/paylink/" + "a".repeat(48)], ["POST", "/api/z/ABC-123/paylink"]] as const) { const r = await callRaw(m, p, {}, {}, T); expect([p, r.status, (await j(r)).code]).toEqual([p, 409, "pay-in-console"]); }
+    for (const [m, p] of [["POST", "/api/checkout"], ["POST", "/api/payments/verify"], ["POST", "/api/payments/test"], ["GET", "/api/paylink/" + "a".repeat(48)], ["POST", "/api/z/ABC-123/paylink"]] as const) { const r = await callRaw(m, p, {}, {}, T); expect([p, r.status, (await j(r)).code]).toEqual([p, 410, "pay-in-console"]); }
     expect(legacyPayGate(req("/api/payments/webhook", "POST"), W.env as any)).toBeNull(); // money already paid must still be recorded
     expect(legacyPayGate(req("/zc.html"), W.env as any)).toBeNull();
   });

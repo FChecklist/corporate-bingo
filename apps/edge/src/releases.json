@@ -1,5 +1,17 @@
 [
   {
+    "version": "1.5.4",
+    "date": "2026-11-27",
+    "commit": "this release",
+    "title": "Payment only through the console: the console can ask what must be paid, and the old pay routes answer 410 when the flag is on",
+    "changes": [
+      "New: the console can ask, before it takes any money, which game is the organizer's own, what pack size it needs and whether it is already paid (POST /api/console/payable, signed, read-only, changes nothing). It is dark until the console's public keys are set",
+      "With PAY_VIA_CONSOLE set to 1 the old pay, pay-link, credit and proforma routes now answer 410 (gone) with the console's address, no order is ever opened with Razorpay or the central service, and the credit and ledger background jobs stop. With the flag off nothing changes",
+      "The console bridge copy was updated to the console's current version: a payment that was being saved when its answer was lost can be tried again after 30 seconds, and the paid notice stays safe to repeat",
+      "Razorpay's own notice to this game is never turned away, so money that was already paid is still recorded"
+    ]
+  },
+  {
     "version": "1.5.3",
     "date": "2026-11-23",
     "commit": "this release",
