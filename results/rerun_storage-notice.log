@@ -1,0 +1,46 @@
+bun test v1.4.4 (38afee6c8)
+
+apps/web/test/storage-notice.test.ts:
+16 |   const { uses, cookies } = scan();
+17 |   const used = new Set(uses.map((u) => `${u.store}|${u.key}`));
+18 | 
+19 |   test("every key the scripts keep on a device is listed in storage-registry.json", () => {
+20 |     const missing = uses.filter((u) => !listed.has(`${u.store}|${u.key}`)).map((u) => `${u.file}: ${u.store} ${u.key}`);
+21 |     expect(missing).toEqual([]);
+                         ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "zc-mode.js: localStorage ?KEY",
++ ]
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/home/user/corporate-bingo/apps/web/test/storage-notice.test.ts:21:21)
+(fail) R9: the storage notice matches the code > every key the scripts keep on a device is listed in storage-registry.json [0.36ms]
+23 |   test("every listed key is still used by a script (the page never claims something that is gone)", () => {
+24 |     const stale = [...listed].filter((k) => !used.has(k));
+25 |     expect(stale).toEqual([]);
+26 |   });
+27 |   test("every key could be followed to its name (nothing is hidden behind a computed key)", () => {
+28 |     expect(uses.filter((u) => u.key.startsWith("?")).map((u) => `${u.file}: ${u.key}`)).toEqual([]);
+                                                                                             ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "zc-mode.js: ?KEY",
++ ]
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/home/user/corporate-bingo/apps/web/test/storage-notice.test.ts:28:89)
+(fail) R9: the storage notice matches the code > every key could be followed to its name (nothing is hidden behind a computed key) [2.22ms]
+
+ 5 pass
+ 2 fail
+ 11 expect() calls
+Ran 7 tests across 1 file. [41.00ms]
