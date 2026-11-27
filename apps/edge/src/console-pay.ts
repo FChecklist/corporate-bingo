@@ -3,13 +3,13 @@
 // and only then can the game start (an unpaid game stays locked at its start time: worker.ts `locked`). The signed-notice machinery is the bridge copied byte for byte from the
 // console repo (console-bridge/, contract v1, docs/PAY_STEP.md). This file is the game's side of it: the adapter's `markPaid`, and the old pay screens behind a flag.
 //   * DARK: without CONSOLE_PUBKEYS the route does not exist (the normal 404). Only /api/console/paid is open here; the rest of the bridge (session, games, hand-off) is not built into this game yet.
-//   * PAY_VIA_CONSOLE = "1": the old pay pages and routes answer with a redirect to the console (pages) or a plain refusal (API). Nothing is deleted: the code and the data stay behind the flag.
+//   * PAY_VIA_CONSOLE = "1": the old pay pages and routes answer with a redirect to the console (pages) or a plain refusal (API, HTTP 410 Gone). Nothing is deleted: the code and the data stay behind the flag.
 //     Razorpay's own notice to this game (/api/payments/webhook) is never redirected: money that was already paid must still be recorded.
 import { handleConsole, legacyPayRedirect, type Adapter, type KeyAuth } from "./console-bridge/bridge";
 import { parseKeyList, verifyAssertion } from "./console-bridge/assertion";
 import { ensureBridgeSchema } from "./console-bridge/schema";
 import type { D1 as BridgeD1 } from "./console-bridge/d1";
-import { GRACE_ROUNDS } from "../../../packages/beacon/src/config";
+import { DEMO_CAP, GRACE_ROUNDS } from "../../../packages/beacon/src/config";
 import { packFor } from "./paylink";
 import { ipGroup } from "./ipkey";
 import { LATE_PAY_LEAD_ROUNDS } from "./pay";
@@ -70,10 +70,23 @@ export async function consoleMarkPaid(env: Env, o: { eid: string; sub: string; i
   }
 }
 
-/** The adapter the bridge needs. Only `markPaid` is used (the route is /api/console/paid alone); every other method refuses, so nothing else of the bridge can be reached by mistake. */
+/**
+ * The console's read-only "what must be paid" question (`POST /api/console/payable`, bridge contract v1, act "payable"). From this game's own tables: is this game the organizer's own (the account of `sub`),
+ * what is its pack size (`item`, never a price), is it already paid. Closed (cancelled or never played) games and demo-size games (up to DEMO_CAP people, free) have no item. Changes nothing.
+ */
+export async function consolePayable(env: Env, o: { eid: string; sub: string }): Promise<{ owner: boolean; item: string | null; paid: boolean }> {
+  const e = await env.DB.prepare("SELECT org, cap, pack, cancelled_ms, unplayed_ms FROM engagement WHERE id=?").bind(o.eid).first<any>();
+  const who = await env.DB.prepare("SELECT org FROM organizer_email WHERE email_hash=?").bind(o.sub).first<{ org: string }>();
+  if (!e || !who || !e.org || who.org !== e.org) return { owner: false, item: null, paid: false };
+  const paid = Number(e.pack) > 0, closed = !!(e.cancelled_ms || e.unplayed_ms);
+  const size = packFor(Number(e.cap));
+  return { owner: true, paid, item: paid ? String(e.pack) : closed || Number(e.cap) <= DEMO_CAP || !size ? null : String(size) };
+}
+
+/** The adapter the bridge needs. Only `markPaid` and `payInfo` are used (the routes are /api/console/paid and /api/console/payable); every other method refuses, so nothing else of the bridge can be reached by mistake. */
 export function consoleAdapter(now: number): Adapter<ConsoleEnv> {
   return {
-    game: "bingo", gameName: "Corporate Bingo", gameVersion: "1.5.3",
+    game: "bingo", gameName: "Corporate Bingo", gameVersion: "1.5.4",
     nowMs: () => now,
     origin: (env) => (env.PUBLIC_ORIGIN || "").replace(/\/$/, ""),
     pubkeys: (env) => env.CONSOLE_PUBKEYS,
@@ -94,16 +107,17 @@ export function consoleAdapter(now: number): Adapter<ConsoleEnv> {
     seal: async () => notOpen(),
     unseal: async () => notOpen(),
     markPaid: (env, o) => consoleMarkPaid(env, o),
+    payInfo: (env, o) => consolePayable(env, o),
   };
 }
 
 /** Only the paid notice (and its browser pre-flight) is handed to the bridge. Anything else under /api/console/ is none of this game's business yet: null = the normal 404. */
 export async function consolePaidRoute(req: Request, env: ConsoleEnv, now: number): Promise<Response | null> {
   const path = new URL(req.url).pathname.replace(/\/+$/, "");
-  if (path !== "/api/console/paid") return null;
+  if (path !== "/api/console/paid" && path !== "/api/console/payable") return null;
   if (req.method !== "POST" && req.method !== "OPTIONS") return null;
   if (env.CONSOLE_PUBKEYS && !env.PUBLIC_ORIGIN) return new Response(JSON.stringify({ ok: false, code: "not_set_up", error: "This game's public address (PUBLIC_ORIGIN) is not set, so it cannot take the console's paid notice yet." }), { status: 503, headers: { "content-type": "application/json", "cache-control": "no-store" } }); // fails closed AND says why (an empty address would refuse every real notice as "wrong game")
-  if (req.method === "POST" && env.CONSOLE_PUBKEYS) await releaseStaleMarking(req.clone(), env, now); // never for a dark route: an unsigned request cannot cause a database write there
+  if (req.method === "POST" && path === "/api/console/paid" && env.CONSOLE_PUBKEYS) await releaseStaleMarking(req.clone(), env, now); // never for a dark route: an unsigned request cannot cause a database write there
   return handleConsole(consoleAdapter(now), req, env);
 }
 
@@ -194,7 +208,7 @@ export async function releaseStaleMarking(req: Request, env: ConsoleEnv, now: nu
 }
 
 /** The old pay routes of THIS game, besides the ones the bridge already knows (its LEGACY_PAY_ROUTES). Razorpay's webhook is NOT here on purpose. */
-export const BINGO_PAY_ROUTES: RegExp[] = [/^\/api\/(checkout|proforma)$/, /^\/api\/payments\/(test|paytest|verify)(\/|$)/, /^\/api\/paylink\//, /^\/api\/z\/[^/]+\/(paylink|credit|apply-credit)(\/|$)/];
+export const BINGO_PAY_ROUTES: RegExp[] = [/^\/api\/(checkout|proforma)$/, /^\/api\/payments\/(test|paytest|verify)(\/|$)/, /^\/api\/paylink\//, /^\/api\/z\/[^/]+\/(paylink|credit|apply-credit|pay-with-credit)(\/|$)/, /^\/api\/org\/credit(\/|$)/];
 
 /** With PAY_VIA_CONSOLE=1 a request for an old pay page or route is turned away. A page gets the bridge's redirect to the console; a program gets a short refusal it can show. Null = not a pay route (or the flag is off). */
 export function legacyPayGate(req: Request, env: ConsoleEnv): Response | null {
@@ -203,7 +217,7 @@ export function legacyPayGate(req: Request, env: ConsoleEnv): Response | null {
   const u = new URL(req.url), e = u.searchParams.get("e") || (u.pathname.match(/^\/api\/z\/([^/]+)\//) || [])[1] || "";
   const to = consoleOrigin(env) + "/" + (/^[A-Za-z0-9_-]{1,64}$/.test(e) ? "?game=bingo&eid=" + encodeURIComponent(e) : ""); // a page sends the person to THEIR game's payment in the console, not to the console's front door
   if (!u.pathname.startsWith("/api/")) return new Response(null, { status: 302, headers: { location: to, "cache-control": "no-store" } });
-  return new Response(JSON.stringify({ error: "Payment is made in your console now. Please open your console and press Pay.", code: "pay-in-console", console: to }), { status: 409, headers: { "content-type": "application/json", "cache-control": "no-store" } });
+  return new Response(JSON.stringify({ error: "Payment is made in your console now. Please open your console and press Pay.", code: "pay-in-console", console: to }), { status: 410, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 }
 
 /** The pages (and routes) where this game used to have its own sign-in. With LOGIN_VIA_CONSOLE=1 they send the person to the one sign-in (home) and the console. */
